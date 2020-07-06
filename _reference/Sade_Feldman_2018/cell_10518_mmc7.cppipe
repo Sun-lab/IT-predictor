@@ -1,0 +1,330 @@
+CellProfiler Pipeline: http://www.cellprofiler.org
+Version:3
+DateRevision:20160418141927
+GitHash:9969f42
+ModuleCount:16
+HasImagePlaneDetails:False
+
+Images:[module_num:1|svn_version:\'Unknown\'|variable_revision_number:2|show_window:False|notes:\x5B\'To begin creating your project, use the Images module to compile a list of files and/or folders that you want to analyze. You can also specify a set of rules to include only the desired files in your selected folders.\'\x5D|batch_state:array(\x5B\x5D, dtype=uint8)|enabled:True|wants_pause:False]
+    :
+    Filter images?:Images only
+    Select the rule criteria:and (extension does isimage) (directory doesnot containregexp "\x5B\\\\\\\\\\\\\\\\/\x5D\\\\\\\\.")
+
+Metadata:[module_num:2|svn_version:\'Unknown\'|variable_revision_number:4|show_window:False|notes:\x5B\'The Metadata module optionally allows you to extract information describing your images (i.e, metadata) which will be stored along with your measurements. This information can be contained in the file name and/or location, or in an external file.\'\x5D|batch_state:array(\x5B\x5D, dtype=uint8)|enabled:True|wants_pause:False]
+    Extract metadata?:No
+    Metadata data type:Text
+    Metadata types:{}
+    Extraction method count:1
+    Metadata extraction method:Extract from file/folder names
+    Metadata source:File name
+    Regular expression:^(?P<Plate>.*)_(?P<Well>\x5BA-P\x5D\x5B0-9\x5D{2})_s(?P<Site>\x5B0-9\x5D)_w(?P<ChannelNumber>\x5B0-9\x5D)
+    Regular expression:(?P<Date>\x5B0-9\x5D{4}_\x5B0-9\x5D{2}_\x5B0-9\x5D{2})$
+    Extract metadata from:All images
+    Select the filtering criteria:and (file does contain "")
+    Metadata file location:
+    Match file and image metadata:\x5B\x5D
+    Use case insensitive matching?:No
+
+NamesAndTypes:[module_num:3|svn_version:\'Unknown\'|variable_revision_number:6|show_window:False|notes:\x5B\'The NamesAndTypes module allows you to assign a meaningful name to each image by which other modules will refer to it.\'\x5D|batch_state:array(\x5B\x5D, dtype=uint8)|enabled:True|wants_pause:False]
+    Assign a name to:All images
+    Select the image type:Color image
+    Name to assign these images:ColorImage
+    Match metadata:\x5B\x5D
+    Image set matching method:Order
+    Set intensity range from:Image metadata
+    Assignments count:1
+    Single images count:0
+    Maximum intensity:255.0
+    Select the rule criteria:and (file does contain "")
+    Name to assign these images:DNA
+    Name to assign these objects:Cell
+    Select the image type:Grayscale image
+    Set intensity range from:Image metadata
+    Retain outlines of loaded objects?:No
+    Name the outline image:LoadedOutlines
+    Maximum intensity:255.0
+
+Groups:[module_num:4|svn_version:\'Unknown\'|variable_revision_number:2|show_window:False|notes:\x5B\'The Groups module optionally allows you to split your list of images into image subsets (groups) which will be processed independently of each other. Examples of groupings include screening batches, microtiter plates, time-lapse movies, etc.\'\x5D|batch_state:array(\x5B\x5D, dtype=uint8)|enabled:True|wants_pause:False]
+    Do you want to group your images?:No
+    grouping metadata count:1
+    Metadata category:None
+
+ColorToGray:[module_num:5|svn_version:\'Unknown\'|variable_revision_number:3|show_window:False|notes:\x5B\x5D|batch_state:array(\x5B\x5D, dtype=uint8)|enabled:True|wants_pause:False]
+    Select the input image:ColorImage
+    Conversion method:Split
+    Image type:Channels
+    Name the output image:OrigGray
+    Relative weight of the red channel:1.0
+    Relative weight of the green channel:1.0
+    Relative weight of the blue channel:1.0
+    Convert red to gray?:Yes
+    Name the output image:OrigRed
+    Convert green to gray?:Yes
+    Name the output image:OrigGreen
+    Convert blue to gray?:Yes
+    Name the output image:OrigBlue
+    Convert hue to gray?:Yes
+    Name the output image:OrigHue
+    Convert saturation to gray?:Yes
+    Name the output image:OrigSaturation
+    Convert value to gray?:Yes
+    Name the output image:OrigValue
+    Channel count:3
+    Channel number:Red\x3A 1
+    Relative weight of the channel:1.0
+    Image name:TCF7
+    Channel number:Green\x3A 2
+    Relative weight of the channel:1.0
+    Image name:CD8
+    Channel number:Blue\x3A 3
+    Relative weight of the channel:1.0
+    Image name:DAPI
+
+EnhanceOrSuppressFeatures:[module_num:6|svn_version:\'Unknown\'|variable_revision_number:5|show_window:False|notes:\x5B\x5D|batch_state:array(\x5B\x5D, dtype=uint8)|enabled:True|wants_pause:False]
+    Select the input image:DAPI
+    Name the output image:FilteredDAPI
+    Select the operation:Enhance
+    Feature size:20
+    Feature type:Speckles
+    Range of hole sizes:1,10
+    Smoothing scale:2.0
+    Shear angle:0.0
+    Decay:0.95
+    Enhancement method:Tubeness
+    Speed and accuracy:Fast / hexagonal
+
+IdentifyPrimaryObjects:[module_num:7|svn_version:\'Unknown\'|variable_revision_number:10|show_window:False|notes:\x5B\x5D|batch_state:array(\x5B\x5D, dtype=uint8)|enabled:True|wants_pause:False]
+    Select the input image:FilteredDAPI
+    Name the primary objects to be identified:Nuclei
+    Typical diameter of objects, in pixel units (Min,Max):15,50
+    Discard objects outside the diameter range?:Yes
+    Try to merge too small objects with nearby larger objects?:No
+    Discard objects touching the border of the image?:Yes
+    Method to distinguish clumped objects:Shape
+    Method to draw dividing lines between clumped objects:Propagate
+    Size of smoothing filter:10
+    Suppress local maxima that are closer than this minimum allowed distance:7.0
+    Speed up by using lower-resolution image to find local maxima?:Yes
+    Name the outline image:PrimaryOutlines
+    Fill holes in identified objects?:After both thresholding and declumping
+    Automatically calculate size of smoothing filter for declumping?:Yes
+    Automatically calculate minimum allowed distance between local maxima?:Yes
+    Retain outlines of the identified objects?:No
+    Automatically calculate the threshold using the Otsu method?:Yes
+    Enter Laplacian of Gaussian threshold:0.5
+    Automatically calculate the size of objects for the Laplacian of Gaussian filter?:Yes
+    Enter LoG filter diameter:5.0
+    Handling of objects if excessive number of objects identified:Continue
+    Maximum number of objects:500
+    Threshold setting version:2
+    Threshold strategy:Adaptive
+    Thresholding method:Otsu
+    Select the smoothing method for thresholding:Automatic
+    Threshold smoothing scale:1.0
+    Threshold correction factor:1.0
+    Lower and upper bounds on threshold:0.0,1.0
+    Approximate fraction of image covered by objects?:0.01
+    Manual threshold:0.0
+    Select the measurement to threshold with:None
+    Select binary image:None
+    Masking objects:None
+    Two-class or three-class thresholding?:Two classes
+    Minimize the weighted variance or the entropy?:Weighted variance
+    Assign pixels in the middle intensity class to the foreground or the background?:Foreground
+    Method to calculate adaptive window size:Image size
+    Size of adaptive window:10
+    Use default parameters?:Default
+    Lower outlier fraction:0.05
+    Upper outlier fraction:0.05
+    Averaging method:Mean
+    Variance method:Standard deviation
+    # of deviations:2.0
+
+RescaleIntensity:[module_num:8|svn_version:\'Unknown\'|variable_revision_number:2|show_window:False|notes:\x5B\x5D|batch_state:array(\x5B\x5D, dtype=uint8)|enabled:True|wants_pause:False]
+    Select the input image:CD8
+    Name the output image:RescaledCD8
+    Rescaling method:Stretch each image to use the full intensity range
+    Method to calculate the minimum intensity:Custom
+    Method to calculate the maximum intensity:Custom
+    Lower intensity limit for the input image:0.0
+    Upper intensity limit for the input image:1.0
+    Intensity range for the input image:0.0,1.0
+    Intensity range for the output image:0.0,1.0
+    Method to rescale pixels below the lower limit:Mask pixels
+    Custom value for pixels below lower limit:0.0
+    Method to rescale pixels above the upper limit:Mask pixels
+    Custom value for pixels above upper limit:0.0
+    Select image to match in maximum intensity:None
+    Divisor value:1.0
+    Divisor measurement:None
+
+MeasureObjectIntensity:[module_num:9|svn_version:\'Unknown\'|variable_revision_number:3|show_window:False|notes:\x5B\x5D|batch_state:array(\x5B\x5D, dtype=uint8)|enabled:True|wants_pause:False]
+    Hidden:1
+    Select an image to measure:RescaledCD8
+    Select objects to measure:Nuclei
+
+FilterObjects:[module_num:10|svn_version:\'Unknown\'|variable_revision_number:7|show_window:False|notes:\x5B\x5D|batch_state:array(\x5B\x5D, dtype=uint8)|enabled:True|wants_pause:False]
+    Name the output objects:CD8PosNuclei
+    Select the object to filter:Nuclei
+    Select the filtering mode:Measurements
+    Select the filtering method:Limits
+    Select the objects that contain the filtered objects:None
+    Retain outlines of the identified objects?:No
+    Name the outline image:FilteredObjects
+    Rules file location:Elsewhere...\x7C
+    Rules file name:rules.txt
+    Class number:1
+    Measurement count:1
+    Additional object count:0
+    Assign overlapping child to:Both parents
+    Select the measurement to filter by:Intensity_MeanIntensityEdge_RescaledCD8
+    Filter using a minimum measurement value?:Yes
+    Minimum value:0.1
+    Filter using a maximum measurement value?:No
+    Maximum value:1.0
+
+IdentifyPrimaryObjects:[module_num:11|svn_version:\'Unknown\'|variable_revision_number:10|show_window:False|notes:\x5B\x5D|batch_state:array(\x5B\x5D, dtype=uint8)|enabled:True|wants_pause:False]
+    Select the input image:TCF7
+    Name the primary objects to be identified:TCF7Nuclei
+    Typical diameter of objects, in pixel units (Min,Max):10,40
+    Discard objects outside the diameter range?:Yes
+    Try to merge too small objects with nearby larger objects?:No
+    Discard objects touching the border of the image?:Yes
+    Method to distinguish clumped objects:Intensity
+    Method to draw dividing lines between clumped objects:Intensity
+    Size of smoothing filter:10
+    Suppress local maxima that are closer than this minimum allowed distance:7.0
+    Speed up by using lower-resolution image to find local maxima?:Yes
+    Name the outline image:PrimaryOutlines
+    Fill holes in identified objects?:After both thresholding and declumping
+    Automatically calculate size of smoothing filter for declumping?:Yes
+    Automatically calculate minimum allowed distance between local maxima?:Yes
+    Retain outlines of the identified objects?:No
+    Automatically calculate the threshold using the Otsu method?:Yes
+    Enter Laplacian of Gaussian threshold:0.5
+    Automatically calculate the size of objects for the Laplacian of Gaussian filter?:Yes
+    Enter LoG filter diameter:5.0
+    Handling of objects if excessive number of objects identified:Continue
+    Maximum number of objects:500
+    Threshold setting version:2
+    Threshold strategy:Automatic
+    Thresholding method:Otsu
+    Select the smoothing method for thresholding:Automatic
+    Threshold smoothing scale:1.0
+    Threshold correction factor:1.0
+    Lower and upper bounds on threshold:0.0,1.0
+    Approximate fraction of image covered by objects?:0.01
+    Manual threshold:0.0
+    Select the measurement to threshold with:None
+    Select binary image:None
+    Masking objects:None
+    Two-class or three-class thresholding?:Two classes
+    Minimize the weighted variance or the entropy?:Weighted variance
+    Assign pixels in the middle intensity class to the foreground or the background?:Foreground
+    Method to calculate adaptive window size:Image size
+    Size of adaptive window:10
+    Use default parameters?:Default
+    Lower outlier fraction:0.05
+    Upper outlier fraction:0.05
+    Averaging method:Mean
+    Variance method:Standard deviation
+    # of deviations:2.0
+
+MaskObjects:[module_num:12|svn_version:\'Unknown\'|variable_revision_number:2|show_window:False|notes:\x5B\x5D|batch_state:array(\x5B\x5D, dtype=uint8)|enabled:True|wants_pause:False]
+    Select objects to be masked:CD8PosNuclei
+    Name the masked objects:TCF7PosCD8PosNuclei
+    Mask using a region defined by other objects or by binary image?:Objects
+    Select the masking object:TCF7Nuclei
+    Select the masking image:None
+    Handling of objects that are partially masked:Remove depending on overlap
+    Fraction of object that must overlap:0.3
+    Numbering of resulting objects:Renumber
+    Retain outlines of the resulting objects?:No
+    Name the outline image:MaskedOutlines
+    Invert the mask?:No
+
+CalculateMath:[module_num:13|svn_version:\'Unknown\'|variable_revision_number:2|show_window:False|notes:\x5B\x5D|batch_state:array(\x5B\x5D, dtype=uint8)|enabled:True|wants_pause:False]
+    Name the output measurement:Count_CD8Pos_TCFNeg
+    Operation:Subtract
+    Select the minuend measurement type:Image
+    Select the minuend objects:None
+    Select the minuend measurement:Count_CD8PosNuclei
+    Multiply the above operand by:1.0
+    Raise the power of above operand by:1.0
+    Select the subtrahend measurement type:Image
+    Select the subtrahend objects:None
+    Select the subtrahend measurement:Count_TCF7PosCD8PosNuclei
+    Multiply the above operand by:1.0
+    Raise the power of above operand by:1.0
+    Take log10 of result?:No
+    Multiply the result by:1.0
+    Raise the power of result by:1.0
+    Add to the result:0.0
+    Constrain the result to a lower bound?:No
+    Enter the lower bound:0.0
+    Constrain the result to an upper bound?:No
+    Enter the upper bound:1.0
+
+OverlayOutlines:[module_num:14|svn_version:\'Unknown\'|variable_revision_number:3|show_window:False|notes:\x5B\x5D|batch_state:array(\x5B\x5D, dtype=uint8)|enabled:True|wants_pause:False]
+    Display outlines on a blank image?:No
+    Select image on which to display outlines:ColorImage
+    Name the output image:OrigOverlay
+    Outline display mode:Color
+    Select method to determine brightness of outlines:Max of image
+    Width of outlines:1
+    Select outlines to display:None
+    Select outline color:#F8FF2D
+    Load outlines from an image or objects?:Objects
+    Select objects to display:CD8PosNuclei
+    Select outlines to display:None
+    Select outline color:#F1F7F7
+    Load outlines from an image or objects?:Objects
+    Select objects to display:TCF7PosCD8PosNuclei
+
+SaveImages:[module_num:15|svn_version:\'Unknown\'|variable_revision_number:11|show_window:False|notes:\x5B\x5D|batch_state:array(\x5B\x5D, dtype=uint8)|enabled:True|wants_pause:True]
+    Select the type of image to save:Image
+    Select the image to save:OrigOverlay
+    Select the objects to save:None
+    Select the module display window to save:None
+    Select method for constructing file names:From image filename
+    Select image name for file prefix:ColorImage
+    Enter single file name:OrigBlue
+    Number of digits:4
+    Append a suffix to the image file name?:Yes
+    Text to append to the image name:_Overlay
+    Saved file format:tif
+    Output file location:Default Output Folder\x7C
+    Image bit depth:8-bit integer
+    Overwrite existing files without warning?:No
+    When to save:Every cycle
+    Rescale the images? :Yes
+    Save as grayscale or color image?:Grayscale
+    Select colormap:gray
+    Record the file and path information to the saved image?:No
+    Create subfolders in the output folder?:No
+    Base image folder:Elsewhere...\x7C
+    Saved movie format:avi
+
+ExportToSpreadsheet:[module_num:16|svn_version:\'Unknown\'|variable_revision_number:11|show_window:False|notes:\x5B\x5D|batch_state:array(\x5B\x5D, dtype=uint8)|enabled:True|wants_pause:False]
+    Select the column delimiter:Comma (",")
+    Add image metadata columns to your object data file?:No
+    Limit output to a size that is allowed in Excel?:No
+    Select the measurements to export:Yes
+    Calculate the per-image mean values for object measurements?:No
+    Calculate the per-image median values for object measurements?:No
+    Calculate the per-image standard deviation values for object measurements?:No
+    Output file location:Default Output Folder\x7C
+    Create a GenePattern GCT file?:No
+    Select source of sample row name:Metadata
+    Select the image to use as the identifier:None
+    Select the metadata to use as the identifier:None
+    Export all measurement types?:No
+    :Image\x7CCount_TCF7Nuclei,Image\x7CCount_Nuclei,Image\x7CCount_CD8PosNuclei,Image\x7CCount_TCF7PosCD8PosNuclei,Image\x7CMath_Count_CD8Pos_TCFNeg
+    Representation of Nan/Inf:NaN
+    Add a prefix to file names?:No
+    Filename prefix:MyExpt_
+    Overwrite existing files without warning?:No
+    Data to export:Image
+    Combine these object measurements with those of the previous object?:No
+    File name:DATA.csv
+    Use the object name for the file name?:Yes
