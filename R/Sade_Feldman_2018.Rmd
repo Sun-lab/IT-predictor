@@ -4,7 +4,7 @@ output:
   pdf_document: default
   html_notebook: default
 ---
-```{r}
+```{r echo = TRUE, results = 'hide', warning = FALSE, message = FALSE}
 source("https://bioconductor.org/biocLite.R")
 library(SingleCellExperiment)
 library(scater)
