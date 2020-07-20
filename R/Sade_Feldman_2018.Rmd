@@ -19,9 +19,19 @@ library(ggplot2)
 # Processing data
 
 ```{r}
-foo = fread("foo.txt.gz", fill = TRUE, header = TRUE, drop = 16293)
+fnm1 = "GSE120575_Sade_Feldman_melanoma_single_cells_1.txt.gz"
+fnm2 = "GSE120575_Sade_Feldman_melanoma_single_cells_2.txt.gz"
+
+foo = fread(paste0("../scRNAseq/Sade_Feldman_2018/", fnm1), 
+            fill = TRUE, nrows=3)
+
+foo = fread(paste0("../scRNAseq/Sade_Feldman_2018/", fnm2), 
+            fill = TRUE, nrows=3)
+dim(foo)
+foo[,1:3]
 cell.names = colnames(foo)
 rm(foo)
+
 # Remove the second row that contains unknown labels, and the data is composed of 55737 genes for 16291 cells. The first column is the gene names
 sf_tpm = fread("GSE120575_Sade_Feldman_melanoma_single_cells_TPM_GEO.txt.gz", fill = TRUE, drop = 16293, skip=2, col.names = cell.names)
 rm(cell.names)
