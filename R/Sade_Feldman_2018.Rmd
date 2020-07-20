@@ -23,17 +23,19 @@ fnm1 = "GSE120575_Sade_Feldman_melanoma_single_cells_1.txt.gz"
 fnm2 = "GSE120575_Sade_Feldman_melanoma_single_cells_2.txt.gz"
 
 foo = fread(paste0("../scRNAseq/Sade_Feldman_2018/", fnm1), 
-            fill = TRUE, nrows=3)
-
-foo = fread(paste0("../scRNAseq/Sade_Feldman_2018/", fnm2), 
-            fill = TRUE, nrows=3)
+            fill = TRUE, nrows=3, header=TRUE)
 dim(foo)
 foo[,1:3]
 cell.names = colnames(foo)
 rm(foo)
 
-# Remove the second row that contains unknown labels, and the data is composed of 55737 genes for 16291 cells. The first column is the gene names
-sf_tpm = fread("GSE120575_Sade_Feldman_melanoma_single_cells_TPM_GEO.txt.gz", fill = TRUE, drop = 16293, skip=2, col.names = cell.names)
+# Remove the second row that contains labels, 
+# and the data is composed of 55737 genes for 16291 cells. 
+# The first column is the gene names
+
+sf_tpm1 = fread(paste0("../scRNAseq/Sade_Feldman_2018/", fnm1), fill = TRUE, drop = 16293, skip=2, col.names = cell.names)
+
+sf_tpm2 = fread(paste0("../scRNAseq/Sade_Feldman_2018/", fnm2), fill = TRUE, drop = 16293,  col.names = cell.names)
 rm(cell.names)
 ```
 
@@ -56,7 +58,7 @@ for (i in 1:82) {
   temp.reads = unlist(sf_tpm[, lapply(.SD, sum), .SDcols = ss])
   reads.per.cell = c(reads.per.cell,temp.reads)
 }
-hist(reads.per.cell, main = "Distribution of the amount of reads per cell", xlab = "reads per cell")
+hist(reads.per.cell, main = "Distribution of the amount of transcripts per cell", xlab = "transcripts per cell")
 ```
 
 ## How many genes are expressed per cell
@@ -78,7 +80,7 @@ for (i in 1:28) {
   temp.counts = apply(sf_tpm[gene.grouping==i,-1], 1, FUN = function(x) sum(x>0))
   cells.per.gene = c(cells.per.gene,temp.counts)
 }
-hist(cells.per.gene, main = "Distribution of the number of cells each genes expressed", xlab = "number of cells each gene expressed")
+hist(log10(cells.per.gene), main = "Distribution of the number of cells each genes expressed", xlab = "log10(number of cells each gene expressed)")
 ```
 
 # Dimension reduction and clustering
