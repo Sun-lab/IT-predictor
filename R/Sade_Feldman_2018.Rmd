@@ -1,0 +1,168 @@
+---
+title: "R Notebook"
+output:
+  pdf_document: default
+  html_notebook: default
+---
+```{r}
+source("https://bioconductor.org/biocLite.R")
+library(SingleCellExperiment)
+library(scater)
+library(scran)
+library(limma)
+library(data.table)
+library(Rtsne)
+library(R.utils)
+library(ggplot2)
+```
+
+# Processing data
+
+```{r}
+foo = fread("foo.txt.gz", fill = TRUE, header = TRUE, drop = 16293)
+cell.names = colnames(foo)
+rm(foo)
+# Remove the second row that contains unknown labels, and the data is composed of 55737 genes for 16291 cells. The first column is the gene names
+sf_tpm = fread("GSE120575_Sade_Feldman_melanoma_single_cells_TPM_GEO.txt.gz", fill = TRUE, drop = 16293, skip=2, col.names = cell.names)
+rm(cell.names)
+```
+
+```{r}
+dim(sf_tpm) # 55737 x 16292
+sf_tpm[1:5, 1:5]
+str(sf_tpm)
+cell.names = colnames(sf_tpm)[-1]
+gene.names = sf_tpm$V1
+grouping = rep(1:82, each=200)[1:length(cell.names)-1]
+```
+
+# Initial QC
+
+## How many reads per cell
+```{r}
+reads.per.cell = NULL
+for (i in 1:82) {
+  ss = cell.names[grouping == i]
+  temp.reads = unlist(sf_tpm[, lapply(.SD, sum), .SDcols = ss])
+  reads.per.cell = c(reads.per.cell,temp.reads)
+}
+hist(reads.per.cell, main = "Distribution of the amount of reads per cell", xlab = "reads per cell")
+```
+
+## How many genes are expressed per cell
+```{r}
+genes.per.cell = NULL
+for (i in 1:82) {
+  ss = cell.names[grouping == i]
+  temp.counts = unlist(sf_tpm[, lapply(.SD, FUN = function(x) sum(x>0)), .SDcols = ss])
+  genes.per.cell = c(genes.per.cell,temp.counts)
+}
+hist(genes.per.cell, main = "Distribution of the number of expressed genes per cell", xlab = "number of espressed genes per cell")
+```
+
+## How many cells each gene is expressed  
+```{r}
+gene.grouping = rep(1:28, each = 2000)[1:dim(sf_tpm)[1]]
+cells.per.gene = NULL
+for (i in 1:28) {
+  temp.counts = apply(sf_tpm[gene.grouping==i,-1], 1, FUN = function(x) sum(x>0))
+  cells.per.gene = c(cells.per.gene,temp.counts)
+}
+hist(cells.per.gene, main = "Distribution of the number of cells each genes expressed", xlab = "number of cells each gene expressed")
+```
+
+# Dimension reduction and clustering
+
+## Select top 1000 genes with high expression
+```{r}
+# 5224 genes have zero expression in all cells
+unexpressed.genes.id = which(cells.per.gene==0)
+unexpressed.genes = gene.names[cells.per.gene==0]
+high.expression = cells.per.gene[order(cells.per.gene,decreasing = TRUE)[1:1000]]
+high.expressed.genes = gene.names[order(cells.per.gene,decreasing = TRUE)[1:1000]]
+# tmp of the 100 highest expressed genes for all cells
+high.expressed.tpm = sf_tpm[order(cells.per.gene,decreasing = TRUE)[1:1000],-1]
+high.expressed.tpm = t(high.expressed.tpm)
+colnames(high.expressed.tpm) = high.expressed.genes
+#high.expressed.tpm[1:10,1:10]
+```
+
+## Perform PCA on selected genes
+```{r}
+pca.genes = princomp(high.expressed.tpm, cor = TRUE)
+```
+
+### screen plot
+```{r}
+eigvals <- pca.genes$sdev^2
+pve = eigvals/sum(eigvals)
+k <- length(eigvals)
+plot(1:50,pve[1:50],main = "scree plot (first 50 PCs)",type="b",xlab="i-th PC",ylab="Proportion of Variance Explained")
+```
+
+### plot of cumulative proportion of variance explained
+```{r}
+yvec = cumsum(pve)
+plot(yvec, type="l", main = "plot of cumulative proportion of variance", xlab = "i-th Principal Components", ylab = "Cumulative variance",ylim=c(0,1))
+abline(h=0.8, lty = 2)
+```
+
+## Clustering on top 20 PCs
+
+```{r}
+top20pcs = pca.genes$scores[,1:20]
+head(top20pcs)
+dim(top20pcs)
+```
+
+## Calculate TSNE
+
+```{r}
+set.seed(9999)
+tsne = Rtsne(top20pcs, pca=FALSE)
+df_tsne = as.data.frame(tsne$Y)
+names(df_tsne) = paste0("topPC_TSNE",seq(ncol(tsne$Y)))
+dim(df_tsne)
+head(df_tsne)
+```
+
+## K-means clustering on top 20 PCs
+
+Prepare dataframe for k-means clustering using top 20 PCs
+```{r}
+df_topPCs = cbind(top20pcs, df_tsne)
+dim(df_topPCs)
+head(df_topPCs)
+cell.info1 = sapply(strsplit(cell.names,split = '_'), "[", 1)
+cell.info2 = sapply(strsplit(cell.names,split = '_'), "[", 2)
+cell.info3 = sapply(strsplit(cell.names,split = '_'), "[", 3)
+df_topPCs$info1 = cell.info1
+df_topPCs$info2 = cell.info2
+df_topPCs$info3 = cell.info3
+```
+
+Try Kmeans for 5 to 15 clusters 
+```{r}
+set.seed(9999)
+all_num_clust = c(5:15)
+for (num_clust in all_num_clust) {
+  #num_clust = 5
+  cat(paste0("KM with ",num_clust," clusters.\n"))
+  kmeans_out = kmeans(top20pcs, centers = num_clust, iter.max = 1e3, nstart = 50, algorithm = "MacQueen")
+  print(kmeans_out[c("betweenss","tot.withinss")])
+  km_label = paste0("KM_",num_clust)
+  df_topPCs$km_label = as.factor(kmeans_out$cluster)
+  pt = ggplot(data=df_topPCs)+geom_point(aes(x=topPC_TSNE1,y=topPC_TSNE2,color=km_label),size = 0.1)
+  print(pt)
+}
+```
+
+# Remaining questions:
+* How to choose high-variance genes to reduce dimension? It seems that the code in the tutorial for this part is based on a SingleCellExperiment object, but I didn't figured out how to build a SingleCellExperiment object from our TPM format data.
+* How to match each cell to specific cell types? I looked through the supplementary tables but still failed to find out information on the type of each cell. 
+* There are some functions in the tutorial that I can't use
+
+```{r}
+sessionInfo(); q(save="no")
+```
+
