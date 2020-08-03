@@ -1,0 +1,220 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r warning=FALSE, echo = TRUE, results = 'hide', warning = FALSE, message = FALSE}
+library(data.table)
+library(Rtsne)
+library(R.utils)
+library(ggplot2)
+```
+
+# Processing data
+
+```{r}
+fnm1 = "GSE120575_Sade_Feldman_melanoma_single_cells_nolabel_1.txt.gz"
+fnm2 = "GSE120575_Sade_Feldman_melanoma_single_cells_2.txt.gz"
+
+sf_tpm1 = fread(paste0("../scRNAseq/Sade_Feldman_2018/", fnm1), fill = TRUE, header = TRUE)
+
+sf_tpm2 = fread(paste0("../scRNAseq/Sade_Feldman_2018/", fnm2), fill = TRUE, drop = 16293, col.names = colnames(sf_tpm1))
+
+ls_tpm = list(sf_tpm1,sf_tpm2)
+sf_tpm = rbindlist(ls_tpm)
+
+rm(ls_tpm)
+rm(sf_tpm1)
+rm(sf_tpm2)
+```
+
+```{r}
+dim(sf_tpm) # 55737 x 16292
+cell.names = colnames(sf_tpm)[-1]
+gene.names = sf_tpm$V1
+rownames(sf_tpm) = gene.names
+sf_tpm$V1 = NULL
+```
+
+# Initial QC
+
+## How many reads per cell
+```{r}
+grouping = rep(1:82, each=200)[1:length(cell.names)]
+reads.per.cell = NULL
+for (i in 1:82) {
+  ss = cell.names[grouping == i]
+  temp.reads = unlist(sf_tpm[, lapply(.SD, sum), .SDcols = ss])
+  reads.per.cell = c(reads.per.cell,temp.reads)
+}
+hist(reads.per.cell, main = "Distribution of the amount of transcripts per cell", xlab = "reads per cell")
+```
+
+## How many genes are expressed per cell
+```{r}
+genes.per.cell = NULL
+for (i in 1:82) {
+  ss = cell.names[grouping == i]
+  temp.counts = unlist(sf_tpm[, lapply(.SD, FUN = function(x) sum(x>0)), .SDcols = ss])
+  genes.per.cell = c(genes.per.cell,temp.counts)
+}
+hist(genes.per.cell, main = "Distribution of the number of expressed genes per cell", xlab = "number of espressed genes per cell")
+rm(grouping)
+```
+
+## How many cells each gene is expressed  
+```{r}
+gene.grouping = rep(1:28, each = 2000)[1:dim(sf_tpm)[1]]
+cells.per.gene = NULL
+for (i in 1:28) {
+  temp.counts = apply(sf_tpm[gene.grouping==i,], 1, FUN = function(x) sum(x>0))
+  cells.per.gene = c(cells.per.gene,temp.counts)
+}
+hist(log10(cells.per.gene), main = "Distribution of number of cells each genes expressed", xlab = "log10(number of cells) each gene expressed")
+rm(gene.grouping)
+```
+
+# Choose high-variance genes
+
+```{r}
+# kept 12705 genes
+large.express.genes = gene.names[which(cells.per.gene > 500)]
+large.expressed.tpm = sf_tpm[match(large.express.genes,rownames(sf_tpm)),]
+# plot the variance of the expression levels for each gene against its mean expression level
+genes.mean = apply(large.expressed.tpm, 1, mean)
+genes.variance = apply(large.expressed.tpm, 1, var)
+df_mv = data.frame(gene=large.express.genes, mean=genes.mean, var=genes.variance)
+rm(large.express.genes)
+rm(large.expressed.tpm)
+rm(genes.mean)
+rm(genes.variance)
+ggplot(data = df_mv) + 
+  geom_point(aes(x=mean,y=var),size = 0.1)
+```
+
+```{r}
+# divide the genes into 20 equal-size bins based on their mean expression levels
+df_mv$grouping = cut_number(df_mv$mean, n=20)
+table(df_mv$grouping)
+# in each bin, select the first 50 genes with the highest variance
+hv.genes.list = by(df_mv, df_mv$grouping, FUN = function(df) return(df$gene[order(df$var,decreasing = TRUE)][1:50]))
+hv.genes = as.character(unlist(hv.genes.list))
+rm(hv.genes.list)
+hvg_tpm = sf_tpm[match(hv.genes,rownames(sf_tpm)),]
+hvg_tpm = t(hvg_tpm)
+colnames(hvg_tpm) = hv.genes
+rm(hv.genes)
+```
+
+## Perform PCA on selected genes
+
+```{r}
+pca.hvg = princomp(hvg_tpm, cor = TRUE)
+rm(hvg_tpm)
+```
+
+### screen plot
+```{r}
+eigvals = pca.hvg$sdev^2
+pve = eigvals/sum(eigvals)
+plot(1:50,pve[1:50],main = "scree plot (first 50 PCs)",type="b",xlab="i-th PC",ylab="Proportion of Variance Explained")
+rm(eigvals)
+```
+
+### plot of cumulative proportion of variance explained
+```{r}
+yvec = cumsum(pve)
+plot(yvec, type="l", main = "plot of cumulative proportion of variance", xlab = "i-th Principal Components", ylab = "Cumulative variance",ylim=c(0,1))
+abline(h=0.8, lty = 2)
+rm(yvec)
+rm(pve)
+```
+
+## Clustering on top 20 PCs
+
+```{r}
+top20pcs = pca.hvg$scores[,1:20]
+rm(pca.hvg)
+```
+
+## Calculate TSNE
+
+```{r}
+set.seed(9999)
+tsne = Rtsne(top20pcs, pca=FALSE)
+df_tsne = as.data.frame(tsne$Y)
+names(df_tsne) = paste0("topPC_TSNE",seq(ncol(tsne$Y)))
+rm(tsne)
+```
+
+## K-means clustering on top 20 PCs
+
+Prepare dataframe for k-means clustering using top 20 PCs
+```{r}
+df_topPCs = cbind(top20pcs, df_tsne)
+rm(df_tsne)
+```
+
+Try Kmeans for 5 to 11 clusters 
+```{r}
+set.seed(9999)
+all_num_clust = c(5:11)
+for (num_clust in all_num_clust) {
+  cat(paste0("KM with ",num_clust," clusters.\n"))
+  kmeans_out = kmeans(top20pcs, centers = num_clust, iter.max = 1e3, nstart = 50, algorithm = "MacQueen")
+  print(kmeans_out[c("betweenss","tot.withinss")])
+  km_label = paste0("KM_",num_clust)
+  df_topPCs[[km_label]] = as.factor(kmeans_out$cluster)
+  pt = ggplot(data=df_topPCs)+geom_point(aes(x=topPC_TSNE1,y=topPC_TSNE2,color=eval(as.name(paste(km_label)))),size = 0.1)+scale_colour_discrete(name=paste(km_label))
+  print(pt)
+  rm(kmeans_out)
+  rm(pt)
+}
+```
+
+## Compared to the clustering result from Sade-Feldman et al., 2018
+
+```{r}
+xnm = "1-s2.0-S0092867418313941-mmc1.xlsx"
+table_s1 = readxl::read_xlsx(paste0("~/Documents/GitHub/IT-predictor/_reference/Sade_Feldman_2018/", xnm), sheet = "Cluster annotation-Fig1B-C", col_names = TRUE)
+df_topPCs$sf_cluster = as.factor(table_s1$`Cluster number`)
+```
+
+Cluster annotation from Sade-Feldman et al., 2018, 11 clusters
+```{r}
+ggplot(data=df_topPCs)+geom_point(aes(x=topPC_TSNE1,y=topPC_TSNE2,color=sf_cluster),size = 0.1)
+```
+
+Cluster annotation from my Kmeans analysis, 11 clusters
+```{r}
+ggplot(data=df_topPCs)+geom_point(aes(x=topPC_TSNE1,y=topPC_TSNE2,color=KM_11),size = 0.1)
+```
+
+G1 B-cells, G2 Plasma cells, G3 Monocytes/Macrophages, G4 Dendritic cells, G7 Regulatory T-cells, G10 Memory T-cells, G11 Lymphocytes exhausted/cell-cycle are clusters that could be identified
+
+G5 Lmyphocytes, G6 Exhausted CD8+ T-cells, G8 Cytotoxicity, G9 Exhausted/HS CD8+ T-cells do not have clear boundary
+
+```{r}
+table(df_topPCs$KM_11, df_topPCs$sf_cluster)
+```
+
+Cluster annotation from my Kmeans analysis, 10 clusters
+```{r}
+ggplot(data=df_topPCs)+geom_point(aes(x=topPC_TSNE1,y=topPC_TSNE2,color=KM_10),size = 0.1)
+```
+
+G1 B-cells, G2 Plasma cells, G3 Monocytes/Macrophages, G4 Dendritic cells, G7 Regulatory T-cells, G11 Lymphocytes exhausted/cell-cycle are clusters that could be identified
+
+G5 Lmyphocytes, G6 Exhausted CD8+ T-cells, G8 Cytotoxicity, G9 Exhausted/HS CD8+ T-cells, G10 Memory T-cells do not have clear boundary (G10 Memory T-cells could be identified when using 11 clusters)
+
+```{r}
+table(df_topPCs$KM_10, df_topPCs$sf_cluster)
+```
+
+```{r}
+gc()
+sessionInfo()
+```
+
