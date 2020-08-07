@@ -106,6 +106,7 @@ hvg_tpm = sf_tpm[match(hv.genes,rownames(sf_tpm)),]
 hvg_tpm = t(hvg_tpm)
 colnames(hvg_tpm) = hv.genes
 rm(hv.genes)
+rm(df_mv)
 ```
 
 ## Perform PCA on selected genes
@@ -135,11 +136,12 @@ rm(pve)
 ## Clustering on top 20 PCs
 
 ```{r}
-top20pcs = pca.hvg$scores[,1:20]
+pca.scores = pca.hvg$scores
+top20pcs = pca.scores[,1:20]
 rm(pca.hvg)
 ```
 
-## Calculate TSNE
+### Calculate TSNE
 
 ```{r}
 set.seed(9999)
@@ -149,47 +151,47 @@ names(df_tsne) = paste0("topPC_TSNE",seq(ncol(tsne$Y)))
 rm(tsne)
 ```
 
-## K-means clustering on top 20 PCs
+### K-means clustering on top 20 PCs
 
 Prepare dataframe for k-means clustering using top 20 PCs
 ```{r}
-df_topPCs = cbind(top20pcs, df_tsne)
+df_top20PCs = cbind(top20pcs, df_tsne)
 rm(df_tsne)
 ```
 
-Try Kmeans for 5 to 11 clusters 
+Try Kmeans for 6 to 12 clusters 
 ```{r}
 set.seed(9999)
-all_num_clust = c(5:11)
+all_num_clust = c(6:12)
 for (num_clust in all_num_clust) {
   cat(paste0("KM with ",num_clust," clusters.\n"))
   kmeans_out = kmeans(top20pcs, centers = num_clust, iter.max = 1e3, nstart = 50, algorithm = "MacQueen")
   print(kmeans_out[c("betweenss","tot.withinss")])
   km_label = paste0("KM_",num_clust)
-  df_topPCs[[km_label]] = as.factor(kmeans_out$cluster)
-  pt = ggplot(data=df_topPCs)+geom_point(aes(x=topPC_TSNE1,y=topPC_TSNE2,color=eval(as.name(paste(km_label)))),size = 0.1)+scale_colour_discrete(name=paste(km_label))
+  df_top20PCs[[km_label]] = as.factor(kmeans_out$cluster)
+  pt = ggplot(data=df_top20PCs)+geom_point(aes(x=topPC_TSNE1,y=topPC_TSNE2,color=eval(as.name(paste(km_label)))),size = 0.1)+scale_colour_discrete(name=paste(km_label))+guides(color = guide_legend(override.aes = list(size = 2)))
   print(pt)
   rm(kmeans_out)
   rm(pt)
 }
 ```
 
-## Compared to the clustering result from Sade-Feldman et al., 2018
+### Compared to the clustering result from Sade-Feldman et al., 2018
 
 ```{r}
 xnm = "1-s2.0-S0092867418313941-mmc1.xlsx"
 table_s1 = readxl::read_xlsx(paste0("~/Documents/GitHub/IT-predictor/_reference/Sade_Feldman_2018/", xnm), sheet = "Cluster annotation-Fig1B-C", col_names = TRUE)
-df_topPCs$sf_cluster = as.factor(table_s1$`Cluster number`)
+df_top20PCs$sf_cluster = as.factor(table_s1$`Cluster number`)
 ```
 
 Cluster annotation from Sade-Feldman et al., 2018, 11 clusters
 ```{r}
-ggplot(data=df_topPCs)+geom_point(aes(x=topPC_TSNE1,y=topPC_TSNE2,color=sf_cluster),size = 0.1)
+ggplot(data=df_top20PCs)+geom_point(aes(x=topPC_TSNE1,y=topPC_TSNE2,color=sf_cluster),size = 0.1) + guides(color = guide_legend(override.aes = list(size = 2)))
 ```
 
 Cluster annotation from my Kmeans analysis, 11 clusters
 ```{r}
-ggplot(data=df_topPCs)+geom_point(aes(x=topPC_TSNE1,y=topPC_TSNE2,color=KM_11),size = 0.1)
+ggplot(data=df_top20PCs)+geom_point(aes(x=topPC_TSNE1,y=topPC_TSNE2,color=KM_11),size = 0.1)+ guides(color = guide_legend(override.aes = list(size = 2)))
 ```
 
 G1 B-cells, G2 Plasma cells, G3 Monocytes/Macrophages, G4 Dendritic cells, G7 Regulatory T-cells, G10 Memory T-cells, G11 Lymphocytes exhausted/cell-cycle are clusters that could be identified
@@ -197,21 +199,99 @@ G1 B-cells, G2 Plasma cells, G3 Monocytes/Macrophages, G4 Dendritic cells, G7 Re
 G5 Lmyphocytes, G6 Exhausted CD8+ T-cells, G8 Cytotoxicity, G9 Exhausted/HS CD8+ T-cells do not have clear boundary
 
 ```{r}
-table(df_topPCs$KM_11, df_topPCs$sf_cluster)
+table(df_top20PCs$KM_11, df_top20PCs$sf_cluster)
 ```
 
-Cluster annotation from my Kmeans analysis, 10 clusters
+Cluster annotation from my Kmeans analysis, 12 clusters
 ```{r}
-ggplot(data=df_topPCs)+geom_point(aes(x=topPC_TSNE1,y=topPC_TSNE2,color=KM_10),size = 0.1)
+ggplot(data=df_top20PCs)+geom_point(aes(x=topPC_TSNE1,y=topPC_TSNE2,color=KM_12),size = 0.1)+ guides(color = guide_legend(override.aes = list(size = 2)))
 ```
 
-G1 B-cells, G2 Plasma cells, G3 Monocytes/Macrophages, G4 Dendritic cells, G7 Regulatory T-cells, G11 Lymphocytes exhausted/cell-cycle are clusters that could be identified
-
-G5 Lmyphocytes, G6 Exhausted CD8+ T-cells, G8 Cytotoxicity, G9 Exhausted/HS CD8+ T-cells, G10 Memory T-cells do not have clear boundary (G10 Memory T-cells could be identified when using 11 clusters)
+K-mean analysis using 12 clusters gives a little bit better resolution for groups G5 Lmyphocytes and G8 Cytotoxicity compared to using 11 clusters. 
 
 ```{r}
-table(df_topPCs$KM_10, df_topPCs$sf_cluster)
+table(df_top20PCs$KM_12, df_top20PCs$sf_cluster)
 ```
+
+```{r}
+rm(top20pcs)
+rm(df_top20PCs)
+```
+
+## Clustering on top 50 PCs
+
+```{r}
+top50pcs = pca.scores[,1:50]
+```
+
+### Calculate TSNE
+
+```{r}
+set.seed(9999)
+tsne = Rtsne(top50pcs, pca=FALSE)
+df_tsne = as.data.frame(tsne$Y)
+names(df_tsne) = paste0("topPC_TSNE",seq(ncol(tsne$Y)))
+rm(tsne)
+```
+
+### K-means clustering on top 50 PCs
+
+Prepare dataframe for k-means clustering using top 50 PCs
+```{r}
+df_top50PCs = cbind(top50pcs, df_tsne)
+rm(df_tsne)
+```
+
+Try Kmeans for 6 to 12 clusters 
+```{r}
+set.seed(9999)
+all_num_clust = c(6:12)
+for (num_clust in all_num_clust) {
+  cat(paste0("KM with ",num_clust," clusters.\n"))
+  kmeans_out = kmeans(top50pcs, centers = num_clust, iter.max = 1e3, nstart = 50, algorithm = "MacQueen")
+  print(kmeans_out[c("betweenss","tot.withinss")])
+  km_label = paste0("KM_",num_clust)
+  df_top50PCs[[km_label]] = as.factor(kmeans_out$cluster)
+  pt = ggplot(data=df_top50PCs)+geom_point(aes(x=topPC_TSNE1,y=topPC_TSNE2,color=eval(as.name(paste(km_label)))),size = 0.1)+scale_colour_discrete(name=paste(km_label))+guides(color = guide_legend(override.aes = list(size = 2)))
+  print(pt)
+  rm(kmeans_out)
+  rm(pt)
+}
+```
+
+### Compared to the clustering result from Sade-Feldman et al., 2018
+
+```{r}
+df_top50PCs$sf_cluster = as.factor(table_s1$`Cluster number`)
+```
+
+Cluster annotation from Sade-Feldman et al., 2018, 11 clusters
+```{r}
+ggplot(data=df_top50PCs)+geom_point(aes(x=topPC_TSNE1,y=topPC_TSNE2,color=sf_cluster),size = 0.1)+guides(color = guide_legend(override.aes = list(size = 2)))
+```
+
+Cluster annotation from my Kmeans analysis, 11 clusters
+```{r}
+ggplot(data=df_top50PCs)+geom_point(aes(x=topPC_TSNE1,y=topPC_TSNE2,color=KM_11),size = 0.1)+guides(color = guide_legend(override.aes = list(size = 2)))
+```
+
+For the K-mean analysis results using 11 clusters, it seems that using top 20 PCs gives a better result than using top 50 PCs, because the result using 50 PCs didn't identify the cluster of G10 Memory T-cells. Moreover, the G3 Monocytes/Macrophages group was split into 3 clusters. 
+
+```{r}
+table(df_top50PCs$KM_11, df_top50PCs$sf_cluster)
+```
+
+Cluster annotation from my Kmeans analysis, 12 clusters
+```{r}
+ggplot(data=df_top50PCs)+geom_point(aes(x=topPC_TSNE1,y=topPC_TSNE2,color=KM_12),size = 0.1)+guides(color = guide_legend(override.aes = list(size = 2)))
+```
+
+Here the cluster of G10 Memory T-cells is identified, but the result doesn't seem to be too different than the result obtained based on only the top 20 PCs. 
+
+```{r}
+table(df_top50PCs$KM_12, df_top50PCs$sf_cluster)
+```
+
 
 ```{r}
 gc()
