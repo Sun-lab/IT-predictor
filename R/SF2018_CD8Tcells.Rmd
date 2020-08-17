@@ -1,0 +1,231 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r warning=FALSE, echo = TRUE, results = 'hide', warning = FALSE, message = FALSE}
+library(data.table)
+library(Rtsne)
+library(R.utils)
+library(ggplot2)
+```
+
+# Processing data
+
+## Single cell sequencing data for all cells
+```{r}
+fnm1 = "GSE120575_Sade_Feldman_melanoma_single_cells_nolabel_1.txt.gz"
+fnm2 = "GSE120575_Sade_Feldman_melanoma_single_cells_2.txt.gz"
+
+sf_tpm1 = fread(paste0("../scRNAseq/Sade_Feldman_2018/", fnm1), fill = TRUE, header = TRUE)
+
+sf_tpm2 = fread(paste0("../scRNAseq/Sade_Feldman_2018/", fnm2), fill = TRUE, drop = 16293, col.names = colnames(sf_tpm1))
+
+ls_tpm = list(sf_tpm1,sf_tpm2)
+sf_tpm = rbindlist(ls_tpm)
+
+rm(ls_tpm)
+rm(sf_tpm1)
+rm(sf_tpm2)
+```
+
+```{r}
+dim(sf_tpm) # 55737 x 16292
+cell.names = colnames(sf_tpm)[-1]
+gene.names = sf_tpm$V1
+rownames(sf_tpm) = gene.names
+sf_tpm$V1 = NULL
+```
+
+## Table of CD8+ T cells 
+```{r}
+xnm = "1-s2.0-S0092867418313941-mmc2.xlsx"
+table_s2 = readxl::read_xlsx(paste0("../_reference/Sade_Feldman_2018/", xnm), sheet = "Cluster annotation-Fig2A-B", col_names = TRUE)
+#length(match(table_s2$`Cell Name`, cell.names))
+```
+
+## Data for only CD8+ T cells
+```{r}
+CD8T = table_s2$`Cell Name`
+sf_CD8T_tpm = sf_tpm[ , ..CD8T]
+rownames(sf_CD8T_tpm) = gene.names
+rm(sf_tpm)
+```
+
+## How many cells each gene is expressed  
+```{r}
+gene.grouping = rep(1:28, each = 2000)[1:dim(sf_CD8T_tpm)[1]]
+cells.per.gene = NULL
+for (i in 1:28) {
+  temp.counts = apply(sf_CD8T_tpm[gene.grouping==i,], 1, FUN = function(x) sum(x>0))
+  cells.per.gene = c(cells.per.gene,temp.counts)
+}
+hist(log10(cells.per.gene), main = "Distribution of number of cells each genes expressed", xlab = "log10(number of cells) each gene expressed")
+rm(gene.grouping)
+```
+
+# Choose high-variance genes
+
+```{r}
+# kept 11662 genes
+large.express.genes = gene.names[which(cells.per.gene > 200)]
+large.expressed.tpm = sf_CD8T_tpm[match(large.express.genes,rownames(sf_CD8T_tpm)),]
+# plot the variance of the expression levels for each gene against its mean expression level
+genes.mean = apply(large.expressed.tpm, 1, mean)
+genes.variance = apply(large.expressed.tpm, 1, var)
+df_mv = data.frame(gene=large.express.genes, mean=genes.mean, var=genes.variance)
+rm(large.express.genes)
+rm(large.expressed.tpm)
+rm(genes.mean)
+rm(genes.variance)
+ggplot(data = df_mv) + 
+  geom_point(aes(x=mean,y=var),size = 0.1)
+```
+
+```{r}
+# divide the genes into 20 equal-size bins based on their mean expression levels
+df_mv$grouping = cut_number(df_mv$mean, n=20)
+table(df_mv$grouping)
+# in each bin, select the first 50 genes with the highest variance
+hv.genes.list = by(df_mv, df_mv$grouping, FUN = function(df) return(df$gene[order(df$var,decreasing = TRUE)][1:50]))
+hv.genes = as.character(unlist(hv.genes.list))
+rm(hv.genes.list)
+hvg_tpm = sf_CD8T_tpm[match(hv.genes,rownames(sf_CD8T_tpm)),]
+hvg_tpm = t(hvg_tpm)
+colnames(hvg_tpm) = hv.genes
+rm(df_mv)
+```
+
+## Perform PCA on selected genes
+
+```{r}
+pca.hvg = princomp(hvg_tpm, cor = TRUE)
+rm(hvg_tpm)
+```
+
+### screen plot
+```{r}
+eigvals = pca.hvg$sdev^2
+pve = eigvals/sum(eigvals)
+plot(1:50,pve[1:50],main = "scree plot (first 50 PCs)",type="b",xlab="i-th PC",ylab="Proportion of Variance Explained")
+rm(eigvals)
+```
+
+### plot of cumulative proportion of variance explained
+```{r}
+yvec = cumsum(pve)
+plot(yvec, type="l", main = "plot of cumulative proportion of variance", xlab = "i-th Principal Components", ylab = "Cumulative variance",ylim=c(0,1))
+abline(h=0.8, lty = 2)
+rm(yvec)
+rm(pve)
+```
+
+```{r}
+pca.scores = pca.hvg$scores
+rm(pca.hvg)
+```
+
+# Clustering on top 50 PCs
+
+```{r}
+top50pcs = pca.scores[,1:50]
+rm(pca.scores)
+#head(top50pcs)
+```
+
+## Calculate TSNE
+
+```{r}
+set.seed(9999)
+tsne = Rtsne(top50pcs, pca=FALSE)
+df_tsne = as.data.frame(tsne$Y)
+names(df_tsne) = paste0("topPC_TSNE",seq(ncol(tsne$Y)))
+rm(tsne)
+```
+
+## K-means clustering on top 50 PCs
+
+Prepare dataframe for k-means clustering using top 50 PCs
+```{r}
+df_top50PCs = cbind(top50pcs, df_tsne)
+rm(df_tsne)
+#head(df_top50PCs)
+rm(top50pcs)
+```
+
+Try Kmeans for 2 to 8 clusters 
+```{r}
+set.seed(9999)
+all_num_clust = c(2:8)
+for (num_clust in all_num_clust) {
+  cat(paste0("KM with ",num_clust," clusters.\n"))
+  kmeans_out = kmeans(df_top50PCs[,1:50], centers = num_clust, iter.max = 1e3, nstart = 50, algorithm = "MacQueen")
+  print(kmeans_out[c("betweenss","tot.withinss")])
+  km_label = paste0("KM_",num_clust)
+  df_top50PCs[[km_label]] = as.factor(kmeans_out$cluster)
+  pt = ggplot(data=df_top50PCs)+geom_point(aes(x=topPC_TSNE1,y=topPC_TSNE2,color=eval(as.name(paste(km_label)))),size = 0.3)+scale_colour_discrete(name=paste(km_label))+guides(color = guide_legend(override.aes = list(size = 2)))
+  print(pt)
+  rm(kmeans_out)
+  rm(pt)
+}
+```
+
+# Compared to the clustering result from Sade-Feldman et al., 2018
+
+```{r}
+# CD8_G cluster and CD8_B cluster label for each CD8+ T cell
+df_top50PCs$CD8T = as.factor(table_s2$Cluster)
+
+# 6 CD8+ T cell clusters in Figure 4
+xnm = "1-s2.0-S0092867418313941-mmc4.xlsx"
+table_s4 = readxl::read_xlsx(paste0("../_reference/Sade_Feldman_2018/", xnm), sheet = "Cluster annotation-Fig4A-B", col_names = TRUE)
+df_top50PCs$sf_cluster = as.factor(table_s4$Cluster)
+```
+
+## CD8_G cluster and CD8_B cluster annotation from Sade-Feldman et al., 2018
+```{r}
+ggplot(data=df_top50PCs)+geom_point(aes(x=topPC_TSNE1,y=topPC_TSNE2,color=CD8T),size = 0.3)+guides(color = guide_legend(override.aes = list(size = 2)))
+```
+
+In the K-means analysis result using 3 clusters, the cluster of CD8_B cells and that of CD8_D cells could be roughly identified. Cluster 1 contains all CD8_B cells, cluster 2 contains mostly CD8_B cells, and cluster 3 contains mostly CD8_G cells. 
+
+```{r}
+ggplot(data=df_top50PCs)+geom_point(aes(x=topPC_TSNE1,y=topPC_TSNE2,color=KM_3),size = 0.3)+guides(color = guide_legend(override.aes = list(size = 2)))
+```
+
+```{r}
+table(df_top50PCs$KM_3, df_top50PCs$CD8T)
+```
+
+## Fine clustering of CD8+ T cells in Sade-Feldman et al., 2018
+
+```{r}
+ggplot(data=df_top50PCs)+geom_point(aes(x=topPC_TSNE1,y=topPC_TSNE2,color=sf_cluster),size = 0.3)+guides(color = guide_legend(override.aes = list(size = 2)))
+```
+
+K-means analysis using 8 clusters identified the most CD8+ T cells clusters defined by the paper.   
+CD8_1 cells are mostly covered by clusters 3 and 5, but part of them are also in cluster 1.  
+CD8_2 cells could not be clearly identified by one or two clusters.  
+CD8_3 cells are mostly covered by cluster 1, but some of them could not be identified from CD8_1 cells and CD8_2 cells in cluster 6.  
+CD8_4 cells are mostly covered by cluster 7, but some of them are mixed in cluster 4.  
+CD8_5 cells could not be clearly identified from CD8_3 cells, CD8_4 cells, and CD8_6 cells cluster 4.  
+Cluster 2 contains roughly a half of CD8_6 cells, the other half is mixed in clusters 1, 4, 8.  
+
+```{r}
+ggplot(data=df_top50PCs)+geom_point(aes(x=topPC_TSNE1,y=topPC_TSNE2,color=KM_8),size = 0.3)+guides(color = guide_legend(override.aes = list(size = 2)))
+```
+
+```{r}
+table(df_top50PCs$KM_8, df_top50PCs$sf_cluster)
+```
+
+```{r}
+rm(df_top50PCs)
+```
+
+```{r}
+gc()
+sessionInfo()
+```
