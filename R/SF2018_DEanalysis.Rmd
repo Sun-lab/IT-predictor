@@ -1,0 +1,168 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r warning=FALSE, echo = TRUE, results = 'hide', warning = FALSE, message = FALSE}
+library("MAST")
+library(data.table)
+library(R.utils)
+```
+
+# Processing data
+
+```{r}
+fnm1 = "GSE120575_Sade_Feldman_melanoma_single_cells_nolabel_1.txt.gz"
+fnm2 = "GSE120575_Sade_Feldman_melanoma_single_cells_2.txt.gz"
+
+sf_tpm1 = fread(paste0("../scRNAseq/Sade_Feldman_2018/", fnm1), fill = TRUE, header = TRUE)
+
+sf_tpm2 = fread(paste0("../scRNAseq/Sade_Feldman_2018/", fnm2), fill = TRUE, drop = 16293, col.names = colnames(sf_tpm1))
+
+ls_tpm = list(sf_tpm1,sf_tpm2)
+rm(sf_tpm1)
+rm(sf_tpm2)
+
+sf_tpm = rbindlist(ls_tpm)
+
+rm(ls_tpm)
+```
+
+```{r}
+#dim(sf_tpm) # 55737 x 16292
+#cell.names = colnames(sf_tpm)[-1]
+gene.names = sf_tpm$V1
+rownames(sf_tpm) = gene.names
+sf_tpm$V1 = NULL
+```
+
+```{r}
+cell_type = read.table("cell_type.txt",header = TRUE)
+cell_type$cell = as.character(cell_type$cell)
+table(cell_type$type)
+clustered_cells = cell_type$cell[cell_type$type != 0]
+cluster_sf_tpm = sf_tpm[, ..clustered_cells]
+rm(sf_tpm)
+rm(clustered_cells)
+```
+
+# Average expression of each gene in each cell type
+
+First calculate the expression of each gene across all cells
+
+```{r}
+all.expression = apply(cluster_sf_tpm, 1, sum)
+```
+
+u_1 - u_8: Average expression of each gene for each cell type
+o_1 - o_8: For a particular cell type, the average expression of each gene in all other cells
+
+```{r}
+average_expression = data.frame(gene = gene.names)
+
+for (i in 1:8) {
+  cc = cell_type$cell[cell_type$type == i] # select cells in each cell cluster
+  cluster.exp = apply(cluster_sf_tpm[, ..cc], 1, sum) # total expression of each gene across all cells in a particular cluster
+  exclu.exp = all.expression - cluster.exp # total expression of each gene across all other cells
+  aveg.cluster.exp = cluster.exp / length(cc) # divide by the number of cells in the cluster to get the average expression
+  aveg.exclu.exp = exclu.exp / (ncol(cluster_sf_tpm) - length(cc)) # divide by the number of all other cells to get the average expression
+  fc = aveg.exclu.exp / aveg.cluster.exp
+  ulabel = paste0("u_",i)
+  average_expression[[ulabel]] = aveg.cluster.exp
+  olabel = paste0("o_",i)
+  average_expression[[olabel]] = aveg.exclu.exp
+  fclabel = paste0("fc_",i)
+  average_expression[[fclabel]] = fc
+}
+
+rm(cc)
+rm(cluster.exp)
+rm(exclu.exp)
+rm(aveg.cluster.exp)
+rm(aveg.exclu.exp)
+rm(fc)
+```
+
+```{r}
+head(average_expression)
+```
+
+# Testing differential gene expression
+
+##  Loading and transforming data
+
+The tutorial mentioned that the data should be a matrix of log2 + 1 transcripts per million (TPM). The data from Sade-Feldman et al. (2018) are in TPM format, so I transfromed it with log2 + 1: 
+
+```{r}
+# cluster_sf_tpm is a big data table of TPM data, with one row per gene and one column per cell
+cluster_sf_tpm_log = log2(1 + as.matrix(cluster_sf_tpm)) #log transformed data
+
+dim(cluster_sf_tpm_log)
+cluster_sf_tpm_log[1:10, 1:10]
+row.names(cluster_sf_tpm_log) = gene.names
+
+# get the cell names from the data
+cell.id = colnames(cluster_sf_tpm_log)   
+# gene names are saved in the vector gene.names
+```
+
+## Calculating the CDR rate: number of genes detected for each cell
+```{r}
+cdr = rep(NA, ncol(cluster_sf_tpm))
+for (i in 1:8) {
+  ss = cell_type$cell[cell_type$type == i]
+  temp.counts = unlist(cluster_sf_tpm[, lapply(.SD, FUN = function(x) sum(x>0)), .SDcols = ss])
+  cdr[match(ss, cell.id)] = temp.counts
+}
+rm(ss)
+rm(temp.counts)
+rm(cluster_sf_tpm)
+```
+
+## cell type label: diagnosis
+
+```{r}
+# cell type label
+cell_group = factor(cell_type$type[cell_type$type != 0])
+rm(cell_type)
+```
+
+## Preparing FromMatrix
+
+```{r eval=FALSE}
+fData = data.frame(primerid = gene.names)
+cData = data.frame(wellKey = cell.id)
+#nrow(cluster_sf_tpm_log) == nrow(fData)
+#ncol(cluster_sf_tpm_log) == nrow(cData)
+rm(cell.id)
+rm(gene.names)
+
+# Run-out-of-memory error at this step. I'll try to use cluster computing for this. 
+sca = FromMatrix(cluster_sf_tpm_log, cData, fData) 
+colData(sca)$cngeneson = scale(cdr)
+colData(sca)$diagnosis = cell_group
+
+colData(sca)
+```
+
+## Testing
+
+```{r eval=FALSE}
+getOption("mc.cores")
+
+date()
+b0 = zlm(formula = ~ diagnosis + cngeneson, sca = sca, parallel = TRUE)
+date()
+
+lrt0 = lrTest(b0, "diagnosis")
+
+dim(lrt0)
+lrt0[1,,]
+mast_pval_glm = apply(lrt0, 1, function(x){x[3,3]})
+```
+
+
+
+
