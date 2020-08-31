@@ -165,10 +165,10 @@ for (num_clust in all_num_clust) {
   print(kmeans_out[c("betweenss","tot.withinss")])
   km_label = paste0("KM_",num_clust)
   df_top50PCs[[km_label]] = as.factor(kmeans_out$cluster)
-  pt = ggplot(data=df_top50PCs)+geom_point(aes(x=topPC_TSNE1,y=topPC_TSNE2,color=eval(as.name(paste(km_label)))),size = 0.3)+scale_colour_discrete(name=paste(km_label))+guides(color = guide_legend(override.aes = list(size = 2)))
-  print(pt)
+  #pt = ggplot(data=df_top50PCs)+geom_point(aes(x=topPC_TSNE1,y=topPC_TSNE2,color=eval(as.name(paste(km_label)))),size = 0.3)+scale_colour_discrete(name=paste(km_label))+guides(color = guide_legend(override.aes = list(size = 2)))
+  #print(pt)
   rm(kmeans_out)
-  rm(pt)
+  #rm(pt)
 }
 ```
 
@@ -199,6 +199,28 @@ ggplot(data=df_top50PCs)+geom_point(aes(x=topPC_TSNE1,y=topPC_TSNE2,color=KM_3),
 table(df_top50PCs$KM_3, df_top50PCs$CD8T)
 ```
 
+```{r}
+table_s2$ruoyi_cluster = "NA"
+table_s2$ruoyi_cluster[df_top50PCs$KM_3 %in% c(1,2) & df_top50PCs$CD8T == "CD8_B"] = "CD8_B"
+table_s2$ruoyi_cluster[df_top50PCs$KM_3 == 3 & df_top50PCs$CD8T == "CD8_G"] = "CD8_G"
+```
+
+```{r}
+table(table_s2$Cluster, table_s2$sf_cluster)
+```
+
+```{r}
+table(table_s2$ruoyi_cluster, table_s2$sf_cluster)
+```
+
+```{r}
+table(table_s2$ruoyi_cluster, table_s2$Cluster)
+```
+
+```{r}
+write.csv(table_s2, "CD8_cluster.csv", quote = FALSE, row.names = FALSE)
+```
+
 ## Fine clustering of CD8+ T cells in Sade-Feldman et al., 2018
 
 ```{r}
@@ -223,6 +245,7 @@ table(df_top50PCs$KM_8, df_top50PCs$sf_cluster)
 
 ```{r}
 rm(df_top50PCs)
+rm(sf_CD8T_tpm)
 ```
 
 ```{r}
