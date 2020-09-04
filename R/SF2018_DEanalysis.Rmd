@@ -43,7 +43,7 @@ cell_type = read.table("cell_type.txt",header = TRUE)
 cell_type$cell = as.character(cell_type$cell)
 table(cell_type$type)
 clustered_cells = cell_type$cell[cell_type$type != 0]
-cluster_sf_tpm = sf_tpm[, ..clustered_cells]
+cluster_sf_tpm = sf_tpm[, ..clustered_cells] # 55737 x 11264
 rm(sf_tpm)
 rm(clustered_cells)
 ```
@@ -121,14 +121,6 @@ rm(temp.counts)
 rm(cluster_sf_tpm)
 ```
 
-## cell type label: diagnosis
-
-```{r}
-# cell type label
-cell_group = factor(cell_type$type[cell_type$type != 0])
-rm(cell_type)
-```
-
 ## Preparing FromMatrix
 
 ```{r eval=FALSE}
@@ -136,31 +128,139 @@ fData = data.frame(primerid = gene.names)
 cData = data.frame(wellKey = cell.id)
 #nrow(cluster_sf_tpm_log) == nrow(fData)
 #ncol(cluster_sf_tpm_log) == nrow(cData)
-rm(cell.id)
-rm(gene.names)
 
 # Run-out-of-memory error at this step. I'll try to use cluster computing for this. 
 sca = FromMatrix(cluster_sf_tpm_log, cData, fData) 
+# On bayes.biostat.washington.edu:
+# class: SingleCellAssay 
+# dim: 55737 11264 
+# metadata(0):
+# assays(1): et
+# rownames(55737): TSPAN6 TNMD ... AP000230.1 RP11-80H18.4
+# rowData names(1): primerid
+# colnames(11264): A11_P4_M11 A2_P4_M11 ... B8_P7_M74_T_enriched
+#   A12_P6_MMD8_L001_T_enriched
+# colData names(1): wellKey
+# reducedDimNames(0):
+# spikeNames(0):
+
 colData(sca)$cngeneson = scale(cdr)
-colData(sca)$diagnosis = cell_group
+for(i in 1:8){
+  label = paste0("G_",i)
+  colData(sca)[[label]] = "control"
+  caseid = match(cell_type$cell[cell_type$type == i],colData(sca)$wellKey)
+  colData(sca)[[label]][caseid] = "case"
+  colData(sca)[[label]] = as.factor(colData(sca)[[label]])
+}
 
 colData(sca)
 ```
 
+DataFrame with 11264 rows and 10 columns
+                                                wellKey          cngeneson
+                                            <character>           <matrix>
+A11_P4_M11                                   A11_P4_M11  0.472000836313483
+A2_P4_M11                                     A2_P4_M11 -0.201989553675478
+A3_P3_M11                                     A3_P3_M11   0.60842789410581
+A4_P3_M11                                     A4_P3_M11  0.746891176641307
+A4_P4_M11                                     A4_P4_M11 0.0209770557015344
+...                                                 ...                ...
+C8_P12_MMD2-36B_T_enriched   C8_P12_MMD2-36B_T_enriched -0.424956163052491
+D5_P12_MMD2-36B_T_enriched   D5_P12_MMD2-36B_T_enriched -0.529821737325698
+F3_P12_MMD2-36B_T_enriched   F3_P12_MMD2-36B_T_enriched -0.169409957784773
+B8_P7_M74_T_enriched               B8_P7_M74_T_enriched -0.730389874527851
+A12_P6_MMD8_L001_T_enriched A12_P6_MMD8_L001_T_enriched    0.3589903630676
+                                 G_1      G_2      G_3      G_4      G_5
+                            <factor> <factor> <factor> <factor> <factor>
+A11_P4_M11                   control  control  control  control     case
+A2_P4_M11                    control  control  control  control  control
+A3_P3_M11                    control  control  control  control     case
+A4_P3_M11                    control  control  control  control  control
+A4_P4_M11                    control  control  control  control  control
+...                              ...      ...      ...      ...      ...
+C8_P12_MMD2-36B_T_enriched   control  control  control  control  control
+D5_P12_MMD2-36B_T_enriched   control  control  control  control  control
+F3_P12_MMD2-36B_T_enriched   control  control  control  control  control
+B8_P7_M74_T_enriched         control  control  control  control  control
+A12_P6_MMD8_L001_T_enriched  control  control  control  control     case
+                                 G_6      G_7      G_8
+                            <factor> <factor> <factor>
+A11_P4_M11                   control  control  control
+A2_P4_M11                    control  control     case
+A3_P3_M11                    control  control  control
+A4_P3_M11                    control     case  control
+A4_P4_M11                    control     case  control
+...                              ...      ...      ...
+C8_P12_MMD2-36B_T_enriched      case  control  control
+D5_P12_MMD2-36B_T_enriched      case  control  control
+F3_P12_MMD2-36B_T_enriched      case  control  control
+B8_P7_M74_T_enriched            case  control  control
+A12_P6_MMD8_L001_T_enriched  control  control  control
+
 ## Testing
 
 ```{r eval=FALSE}
-getOption("mc.cores")
+# detectCores() # 20
+# options(mc.cores=10) # Got failuresError in mcfork() : unable to fork, possible reason: Cannot allocate memory
 
-date()
-b0 = zlm(formula = ~ diagnosis + cngeneson, sca = sca, parallel = TRUE)
-date()
+zlmlist = list()
+# for (i in 1:8) {
+#   label = paste0("G_",i)
+#   zlmlist[label] = zlm(formula = ~ eval(as.name(paste(label))) + cngeneson, sca = sca, parallel=TRUE)
+# }
+# approximately one hour for each run
+zlmlist["G_1"] = zlm(formula = ~ G_1 + cngeneson, sca = sca, parallel = TRUE) 
+zlmlist["G_2"] = zlm(formula = ~ G_2 + cngeneson, sca = sca, parallel = TRUE)
+zlmlist["G_3"] = zlm(formula = ~ G_3 + cngeneson, sca = sca, parallel = TRUE)
+zlmlist["G_4"] = zlm(formula = ~ G_4 + cngeneson, sca = sca, parallel = TRUE)
+zlmlist["G_5"] = zlm(formula = ~ G_5 + cngeneson, sca = sca, parallel = TRUE)
+zlmlist["G_6"] = zlm(formula = ~ G_6 + cngeneson, sca = sca, parallel = TRUE)
+zlmlist["G_7"] = zlm(formula = ~ G_7 + cngeneson, sca = sca, parallel = TRUE)
+zlmlist["G_8"] = zlm(formula = ~ G_8 + cngeneson, sca = sca, parallel = TRUE)
 
-lrt0 = lrTest(b0, "diagnosis")
+# zlmlist
+# $G_1
+# Fitted zlm on 55737 genes and 11264 cells.
+#  Using BayesGLMlike ~ G_1 + cngeneson 
+# 
+# $G_2
+# Fitted zlm on 55737 genes and 11264 cells.
+#  Using BayesGLMlike ~ G_2 + cngeneson 
+# 
+# $G_3
+# Fitted zlm on 55737 genes and 11264 cells.
+#  Using BayesGLMlike ~ G_3 + cngeneson 
+# 
+# $G_4
+# Fitted zlm on 55737 genes and 11264 cells.
+#  Using BayesGLMlike ~ G_4 + cngeneson 
+# 
+# $G_5
+# Fitted zlm on 55737 genes and 11264 cells.
+#  Using BayesGLMlike ~ G_5 + cngeneson 
+# 
+# $G_6
+# Fitted zlm on 55737 genes and 11264 cells.
+#  Using BayesGLMlike ~ G_6 + cngeneson 
+# 
+# $G_7
+# Fitted zlm on 55737 genes and 11264 cells.
+#  Using BayesGLMlike ~ G_7 + cngeneson 
+# 
+# $G_8
+# Fitted zlm on 55737 genes and 11264 cells.
+#  Using BayesGLMlike ~ G_8 + cngeneson
 
-dim(lrt0)
-lrt0[1,,]
-mast_pval_glm = apply(lrt0, 1, function(x){x[3,3]})
+lrtlist = list()
+# running
+for (i in 1:8) {
+  lrtlist[paste0("G_",i)] = lrTest(zlmlist[[i]], paste0("G_",i))
+}
+
+dim(zlmlist[1]) 
+zlmlist[[1]]
+
+mast_pval_glm_list = lapply(zlmlist, FUN = function(lrt0) apply(lrt0, 1, function(x){x[3,3]}))
 ```
 
 
