@@ -1640,7 +1640,7 @@ summary {
 
 <pre class="r"><code>library(&quot;MAST&quot;)
 library(data.table)
-library(R.utils)</code></pre>
+library(R.utils)  </code></pre>
 <div id="processing-data" class="section level1">
 <h1>Processing data</h1>
 <pre class="r"><code>fnm1 = &quot;GSE120575_Sade_Feldman_melanoma_single_cells_nolabel_1.txt.gz&quot;
@@ -1662,30 +1662,43 @@ rm(ls_tpm)</code></pre>
 gene.names = sf_tpm$V1
 rownames(sf_tpm) = gene.names
 sf_tpm$V1 = NULL</code></pre>
+<p>Only select classified cells</p>
 <pre class="r"><code>cell_type = read.table(&quot;cell_type.txt&quot;,header = TRUE)
 cell_type$cell = as.character(cell_type$cell)
-table(cell_type$type)</code></pre>
-<pre><code>## 
-##    0    1    2    3    4    5    6    7    8 
-## 5027 1421  290 1341  275 1313 1099 2482 3043</code></pre>
-<pre class="r"><code>clustered_cells = cell_type$cell[cell_type$type != 0]
+table(cell_type$type)
+clustered_cells = cell_type$cell[cell_type$type != 0]
 cluster_sf_tpm = sf_tpm[, ..clustered_cells] # 55737 x 11264
+rownames(cluster_sf_tpm) = gene.names
 rm(sf_tpm)
 rm(clustered_cells)</code></pre>
+</div>
+<div id="select-10000-genes-expressed-in-at-least-a-proportion-of-cells" class="section level1">
+<h1>Select ~10,000 genes expressed in at least a proportion of cells</h1>
+<p>Calculate the proportion of cells that each gene is expressed in</p>
+<pre class="r"><code>cells.per.gene = apply(cluster_sf_tpm, 1, FUN = function(x) sum(x&gt;0))
+cellprop.per.gene = cells.per.gene/ncol(cluster_sf_tpm)
+summary(cellprop.per.gene)</code></pre>
+<pre class="r"><code>he.genes = gene.names[cellprop.per.gene &gt; 0.02] # kept 14668 genes
+HEgenes_cluster_tpm = cluster_sf_tpm[cellprop.per.gene &gt; 0.02, ] # 14668 x 11264
+rownames(HEgenes_cluster_tpm) = he.genes
+
+rm(cellprop.per.gene)
+rm(cells.per.gene)
+rm(cluster_sf_tpm)</code></pre>
 </div>
 <div id="average-expression-of-each-gene-in-each-cell-type" class="section level1">
 <h1>Average expression of each gene in each cell type</h1>
 <p>First calculate the expression of each gene across all cells</p>
-<pre class="r"><code>all.expression = apply(cluster_sf_tpm, 1, sum)</code></pre>
+<pre class="r"><code>all.expression = apply(HEgenes_cluster_tpm, 1, sum)</code></pre>
 <p>u_1 - u_8: Average expression of each gene for each cell type o_1 - o_8: For a particular cell type, the average expression of each gene in all other cells</p>
-<pre class="r"><code>average_expression = data.frame(gene = gene.names)
+<pre class="r"><code>average_expression = data.frame(gene = he.genes)
 
 for (i in 1:8) {
   cc = cell_type$cell[cell_type$type == i] # select cells in each cell cluster
-  cluster.exp = apply(cluster_sf_tpm[, ..cc], 1, sum) # total expression of each gene across all cells in a particular cluster
+  cluster.exp = apply(HEgenes_cluster_tpm[, ..cc], 1, sum) # total expression of each gene across all cells in a particular cluster
   exclu.exp = all.expression - cluster.exp # total expression of each gene across all other cells
   aveg.cluster.exp = cluster.exp / length(cc) # divide by the number of cells in the cluster to get the average expression
-  aveg.exclu.exp = exclu.exp / (ncol(cluster_sf_tpm) - length(cc)) # divide by the number of all other cells to get the average expression
+  aveg.exclu.exp = exclu.exp / (ncol(HEgenes_cluster_tpm) - length(cc)) # divide by the number of all other cells to get the average expression
   fc = aveg.exclu.exp / aveg.cluster.exp
   ulabel = paste0(&quot;u_&quot;,i)
   average_expression[[ulabel]] = aveg.cluster.exp
@@ -1701,12 +1714,6 @@ rm(exclu.exp)
 rm(aveg.cluster.exp)
 rm(aveg.exclu.exp)
 rm(fc)</code></pre>
-<pre class="r"><code>head(average_expression)</code></pre>
-<div data-pagedtable="false">
-<script data-pagedtable-source type="application/json">
-{"columns":[{"label":[""],"name":["_rn_"],"type":[""],"align":["left"]},{"label":["gene"],"name":[1],"type":["fctr"],"align":["left"]},{"label":["u_1"],"name":[2],"type":["dbl"],"align":["right"]},{"label":["o_1"],"name":[3],"type":["dbl"],"align":["right"]},{"label":["fc_1"],"name":[4],"type":["dbl"],"align":["right"]},{"label":["u_2"],"name":[5],"type":["dbl"],"align":["right"]},{"label":["o_2"],"name":[6],"type":["dbl"],"align":["right"]},{"label":["fc_2"],"name":[7],"type":["dbl"],"align":["right"]},{"label":["u_3"],"name":[8],"type":["dbl"],"align":["right"]},{"label":["o_3"],"name":[9],"type":["dbl"],"align":["right"]},{"label":["fc_3"],"name":[10],"type":["dbl"],"align":["right"]},{"label":["u_4"],"name":[11],"type":["dbl"],"align":["right"]},{"label":["o_4"],"name":[12],"type":["dbl"],"align":["right"]},{"label":["fc_4"],"name":[13],"type":["dbl"],"align":["right"]},{"label":["u_5"],"name":[14],"type":["dbl"],"align":["right"]},{"label":["o_5"],"name":[15],"type":["dbl"],"align":["right"]},{"label":["fc_5"],"name":[16],"type":["dbl"],"align":["right"]},{"label":["u_6"],"name":[17],"type":["dbl"],"align":["right"]},{"label":["o_6"],"name":[18],"type":["dbl"],"align":["right"]},{"label":["fc_6"],"name":[19],"type":["dbl"],"align":["right"]},{"label":["u_7"],"name":[20],"type":["dbl"],"align":["right"]},{"label":["o_7"],"name":[21],"type":["dbl"],"align":["right"]},{"label":["fc_7"],"name":[22],"type":["dbl"],"align":["right"]},{"label":["u_8"],"name":[23],"type":["dbl"],"align":["right"]},{"label":["o_8"],"name":[24],"type":["dbl"],"align":["right"]},{"label":["fc_8"],"name":[25],"type":["dbl"],"align":["right"]}],"data":[{"1":"TSPAN6","2":"0.01135116","3":"0.008154018","4":"0.7183422","5":"0.000000000","6":"0.0087834882","7":"Inf","8":"0.004175988","9":"0.009149451","10":"2.19096669","11":"0.03007273","12":"0.008018928","13":"0.2666512","14":"0.005102818","15":"0.0090131645","16":"1.7663112","17":"0.008098271","18":"0.008606985","19":"1.062818","20":"0.012530218","21":"0.0074345252","22":"0.5933277","23":"0.0064705882","24":"0.009329765","25":"1.441873","_rn_":"1"},{"1":"TNMD","2":"0.00000000","3":"0.001218125","4":"Inf","5":"0.006413793","6":"0.0009230909","7":"0.1439228","8":"0.000000000","9":"0.001208304","10":"Inf","11":"0.00000000","12":"0.001091091","13":"Inf","14":"0.001980198","15":"0.0009436238","16":"0.4765300","17":"0.000000000","18":"0.001179538","19":"Inf","20":"0.002006446","21":"0.0007982236","22":"0.3978295","23":"0.0008379888","24":"0.001148279","25":"1.370279","_rn_":"2"},{"1":"DPM1","2":"0.77998593","3":"1.200651224","4":"1.5393242","5":"1.052241379","6":"1.1501020594","7":"1.0930021","8":"2.120231171","9":"1.016138265","10":"0.47925824","11":"1.86610909","12":"1.129601420","13":"0.6053244","14":"0.982764661","15":"1.1693297156","16":"1.1898370","17":"0.667242948","18":"1.199515002","19":"1.797719","20":"1.494339243","21":"1.0495809611","22":"0.7023713","23":"0.7965264542","24":"1.277525848","25":"1.603871","_rn_":"3"},{"1":"SCYL3","2":"0.35123153","3":"0.381548308","4":"1.0863157","5":"0.142482759","6":"0.3839402223","7":"2.6946434","8":"0.327218494","9":"0.384549028","10":"1.17520567","11":"0.65265455","12":"0.370843571","13":"0.5682081","14":"0.426953542","15":"0.3712280173","16":"0.8694811","17":"0.435505005","18":"0.371476636","19":"0.852979","20":"0.497578566","21":"0.3438499203","22":"0.6910465","23":"0.2700558659","24":"0.417576937","25":"1.546261","_rn_":"4"},{"1":"C1orf112","2":"0.24432090","3":"0.348730062","4":"1.4273444","5":"0.053931034","6":"0.3430007290","7":"6.3599879","8":"0.360193885","9":"0.332229165","10":"0.92236203","11":"0.17247273","12":"0.339639640","13":"1.9692368","14":"0.615270373","15":"0.2986513918","16":"0.4853986","17":"0.217252047","18":"0.348349238","19":"1.603434","20":"0.590358582","21":"0.2635458893","22":"0.4464166","23":"0.1230956293","24":"0.414201435","25":"3.364875","_rn_":"5"},{"1":"FGR","2":"0.85496833","3":"1.085669003","4":"1.2698353","5":"0.076482759","6":"1.0824649171","7":"14.1530580","8":"6.089209545","9":"0.376450670","10":"0.06182258","11":"0.48465455","12":"1.070877241","13":"2.2095681","14":"0.042086824","15":"1.1904220681","16":"28.2849109","17":"0.040209281","18":"1.166449582","19":"29.009461","20":"0.412477840","21":"1.2385994079","22":"3.0028265","23":"0.4081268485","24":"1.296584357","25":"3.176915","_rn_":"6"}],"options":{"columns":{"min":{},"max":[10]},"rows":{"min":[10],"max":[10]},"pages":{}}}
-  </script>
-</div>
 </div>
 <div id="testing-differential-gene-expression" class="section level1">
 <h1>Testing differential gene expression</h1>
@@ -1714,66 +1721,43 @@ rm(fc)</code></pre>
 <h2>Loading and transforming data</h2>
 <p>The tutorial mentioned that the data should be a matrix of log2 + 1 transcripts per million (TPM). The data from Sade-Feldman et al. (2018) are in TPM format, so I transfromed it with log2 + 1:</p>
 <pre class="r"><code># cluster_sf_tpm is a big data table of TPM data, with one row per gene and one column per cell
-cluster_sf_tpm_log = log2(1 + as.matrix(cluster_sf_tpm)) #log transformed data
+HEgenes_cluster_tpm_log = log2(1 + as.matrix(HEgenes_cluster_tpm)) #log transformed data
 
-dim(cluster_sf_tpm_log)</code></pre>
-<pre><code>## [1] 55737 11264</code></pre>
-<pre class="r"><code>cluster_sf_tpm_log[1:10, 1:10]</code></pre>
-<pre><code>##       A11_P4_M11 A2_P4_M11 A3_P3_M11 A4_P3_M11 A4_P4_M11 A4_P6_M11
-##  [1,]   0.000000         0  0.000000 0.0000000         0  0.000000
-##  [2,]   0.000000         0  0.000000 0.0000000         0  0.000000
-##  [3,]   3.168321         0  0.000000 0.0000000         0  0.000000
-##  [4,]   0.000000         0  0.000000 0.0000000         0  0.000000
-##  [5,]   0.000000         0  0.000000 0.0000000         0  0.000000
-##  [6,]   0.000000         0  0.000000 0.0000000         0  0.000000
-##  [7,]   0.000000         0  0.000000 0.0000000         0  0.000000
-##  [8,]   0.000000         0  0.000000 0.0000000         0  0.000000
-##  [9,]   0.000000         0  0.000000 0.0000000         0  0.000000
-## [10,]   0.000000         0  2.891419 0.8318772         0  3.247928
-##       A5_P4_M11 A5_P5_M11 A6_P4_M11 A6_P6_M11
-##  [1,]  0.000000  0.000000  0.000000  0.000000
-##  [2,]  0.000000  0.000000  0.000000  0.000000
-##  [3,]  3.220330  3.111031  0.000000  0.000000
-##  [4,]  0.000000  0.000000  0.000000  2.742006
-##  [5,]  3.158660  0.000000  0.000000  0.000000
-##  [6,]  0.000000  0.000000  0.000000  0.000000
-##  [7,]  0.000000  0.000000  0.000000  0.000000
-##  [8,]  3.160275  0.000000  0.000000  0.000000
-##  [9,]  0.000000  0.000000  2.272023  0.000000
-## [10,]  0.000000  0.000000  0.000000  0.000000</code></pre>
-<pre class="r"><code>row.names(cluster_sf_tpm_log) = gene.names
+dim(HEgenes_cluster_tpm_log) # 14668 x 11264
+row.names(HEgenes_cluster_tpm_log) = he.genes
 
 # get the cell names from the data
-cell.id = colnames(cluster_sf_tpm_log)   
+cell.id = colnames(HEgenes_cluster_tpm_log)   
 # gene names are saved in the vector gene.names</code></pre>
 </div>
-<div id="calculating-the-cdr-rate-number-of-genes-detected-for-each-cell" class="section level2">
-<h2>Calculating the CDR rate: number of genes detected for each cell</h2>
-<pre class="r"><code>cdr = rep(NA, ncol(cluster_sf_tpm))
+<div id="calculating-the-cdr-rate-proportion-of-genes-detected-for-each-cell" class="section level2">
+<h2>Calculating the CDR rate: proportion of genes detected for each cell</h2>
+<pre class="r"><code>cdr = rep(NA, ncol(HEgenes_cluster_tpm))
 for (i in 1:8) {
   ss = cell_type$cell[cell_type$type == i]
-  temp.counts = unlist(cluster_sf_tpm[, lapply(.SD, FUN = function(x) sum(x&gt;0)), .SDcols = ss])
-  cdr[match(ss, cell.id)] = temp.counts
+  temp.prop = unlist(HEgenes_cluster_tpm[, lapply(.SD, FUN = function(x) sum(x&gt;0)/length(x)), .SDcols = ss])
+  cdr[match(ss, cell.id)] = temp.prop
 }
 rm(ss)
-rm(temp.counts)
-rm(cluster_sf_tpm)</code></pre>
+rm(temp.prop)
+rm(HEgenes_cluster_tpm)
+
+summary(cdr)</code></pre>
 </div>
 <div id="preparing-frommatrix" class="section level2">
 <h2>Preparing FromMatrix</h2>
-<pre class="r"><code>fData = data.frame(primerid = gene.names)
+<pre class="r"><code>fData = data.frame(primerid = he.genes)
 cData = data.frame(wellKey = cell.id)
-#nrow(cluster_sf_tpm_log) == nrow(fData)
-#ncol(cluster_sf_tpm_log) == nrow(cData)
+#nrow(HEgenes_cluster_tpm_log) == nrow(fData)
+#ncol(HEgenes_cluster_tpm_log) == nrow(cData)
 
-# Run-out-of-memory error at this step. I'll try to use cluster computing for this. 
-sca = FromMatrix(cluster_sf_tpm_log, cData, fData) 
+sca = FromMatrix(HEgenes_cluster_tpm_log, cData, fData) 
 # On bayes.biostat.washington.edu:
 # class: SingleCellAssay 
-# dim: 55737 11264 
+# dim: 14668 11264 
 # metadata(0):
 # assays(1): et
-# rownames(55737): TSPAN6 TNMD ... AP000230.1 RP11-80H18.4
+# rownames(14668): DPM1 SCYL3 ... RP11-465N4.5 RP11-180C16.1
 # rowData names(1): primerid
 # colnames(11264): A11_P4_M11 A2_P4_M11 ... B8_P7_M74_T_enriched
 #   A12_P6_MMD8_L001_T_enriched
@@ -1791,72 +1775,194 @@ for(i in 1:8){
 }
 
 colData(sca)</code></pre>
-<p>DataFrame with 11264 rows and 10 columns wellKey cngeneson <character> <matrix> A11_P4_M11 A11_P4_M11 0.472000836313483 A2_P4_M11 A2_P4_M11 -0.201989553675478 A3_P3_M11 A3_P3_M11 0.60842789410581 A4_P3_M11 A4_P3_M11 0.746891176641307 A4_P4_M11 A4_P4_M11 0.0209770557015344 … … … C8_P12_MMD2-36B_T_enriched C8_P12_MMD2-36B_T_enriched -0.424956163052491 D5_P12_MMD2-36B_T_enriched D5_P12_MMD2-36B_T_enriched -0.529821737325698 F3_P12_MMD2-36B_T_enriched F3_P12_MMD2-36B_T_enriched -0.169409957784773 B8_P7_M74_T_enriched B8_P7_M74_T_enriched -0.730389874527851 A12_P6_MMD8_L001_T_enriched A12_P6_MMD8_L001_T_enriched 0.3589903630676 G_1 G_2 G_3 G_4 G_5 <factor> <factor> <factor> <factor> <factor> A11_P4_M11 control control control control case A2_P4_M11 control control control control control A3_P3_M11 control control control control case A4_P3_M11 control control control control control A4_P4_M11 control control control control control … … … … … … C8_P12_MMD2-36B_T_enriched control control control control control D5_P12_MMD2-36B_T_enriched control control control control control F3_P12_MMD2-36B_T_enriched control control control control control B8_P7_M74_T_enriched control control control control control A12_P6_MMD8_L001_T_enriched control control control control case G_6 G_7 G_8 <factor> <factor> <factor> A11_P4_M11 control control control A2_P4_M11 control control case A3_P3_M11 control control control A4_P3_M11 control case control A4_P4_M11 control case control … … … … C8_P12_MMD2-36B_T_enriched case control control D5_P12_MMD2-36B_T_enriched case control control F3_P12_MMD2-36B_T_enriched case control control B8_P7_M74_T_enriched case control control A12_P6_MMD8_L001_T_enriched control control control</p>
+</div>
+<div id="fitting-model" class="section level2">
+<h2>Fitting model</h2>
+<pre class="r"><code>zlmlist = list()
+date() # &quot;Fri Sep 11 14:26:32 2020&quot;
+zlmlist[[&quot;G_1&quot;]] = zlm(formula = ~ G_1 + cngeneson, sca = sca, parallel = FALSE) 
+date() # &quot;Fri Sep 11 14:39:50 2020&quot; 
+zlmlist[[&quot;G_2&quot;]] = zlm(formula = ~ G_2 + cngeneson, sca = sca, parallel = FALSE)
+zlmlist[[&quot;G_3&quot;]] = zlm(formula = ~ G_3 + cngeneson, sca = sca, parallel = FALSE)
+zlmlist[[&quot;G_4&quot;]] = zlm(formula = ~ G_4 + cngeneson, sca = sca, parallel = FALSE)
+zlmlist[[&quot;G_5&quot;]] = zlm(formula = ~ G_5 + cngeneson, sca = sca, parallel = FALSE)
+zlmlist[[&quot;G_6&quot;]] = zlm(formula = ~ G_6 + cngeneson, sca = sca, parallel = FALSE)
+zlmlist[[&quot;G_7&quot;]] = zlm(formula = ~ G_7 + cngeneson, sca = sca, parallel = FALSE)
+zlmlist[[&quot;G_8&quot;]] = zlm(formula = ~ G_8 + cngeneson, sca = sca, parallel = FALSE)
+date() 
+zlmlist</code></pre>
+<p>$G_1<br />
+Fitted zlm on 14668 genes and 11264 cells.<br />
+Using BayesGLMlike ~ G_1 + cngeneson</p>
+<p>$G_2<br />
+Fitted zlm on 14668 genes and 11264 cells.<br />
+Using BayesGLMlike ~ G_2 + cngeneson</p>
+<p>$G_3<br />
+Fitted zlm on 14668 genes and 11264 cells.<br />
+Using BayesGLMlike ~ G_3 + cngeneson</p>
+<p>$G_4<br />
+Fitted zlm on 14668 genes and 11264 cells.<br />
+Using BayesGLMlike ~ G_4 + cngeneson</p>
+<p>$G_5<br />
+Fitted zlm on 14668 genes and 11264 cells.<br />
+Using BayesGLMlike ~ G_5 + cngeneson</p>
+<p>$G_6<br />
+Fitted zlm on 14668 genes and 11264 cells.<br />
+Using BayesGLMlike ~ G_6 + cngeneson</p>
+<p>$G_7<br />
+Fitted zlm on 14668 genes and 11264 cells.<br />
+Using BayesGLMlike ~ G_7 + cngeneson</p>
+<p>$G_8<br />
+Fitted zlm on 14668 genes and 11264 cells.<br />
+Using BayesGLMlike ~ G_8 + cngeneson</p>
 </div>
 <div id="testing" class="section level2">
 <h2>Testing</h2>
-<pre class="r"><code># detectCores() # 20
-# options(mc.cores=10) # Got failuresError in mcfork() : unable to fork, possible reason: Cannot allocate memory
-
-zlmlist = list()
-# for (i in 1:8) {
-#   label = paste0(&quot;G_&quot;,i)
-#   zlmlist[label] = zlm(formula = ~ eval(as.name(paste(label))) + cngeneson, sca = sca, parallel=TRUE)
-# }
-# approximately one hour for each run
-zlmlist[&quot;G_1&quot;] = zlm(formula = ~ G_1 + cngeneson, sca = sca, parallel = TRUE) 
-zlmlist[&quot;G_2&quot;] = zlm(formula = ~ G_2 + cngeneson, sca = sca, parallel = TRUE)
-zlmlist[&quot;G_3&quot;] = zlm(formula = ~ G_3 + cngeneson, sca = sca, parallel = TRUE)
-zlmlist[&quot;G_4&quot;] = zlm(formula = ~ G_4 + cngeneson, sca = sca, parallel = TRUE)
-zlmlist[&quot;G_5&quot;] = zlm(formula = ~ G_5 + cngeneson, sca = sca, parallel = TRUE)
-zlmlist[&quot;G_6&quot;] = zlm(formula = ~ G_6 + cngeneson, sca = sca, parallel = TRUE)
-zlmlist[&quot;G_7&quot;] = zlm(formula = ~ G_7 + cngeneson, sca = sca, parallel = TRUE)
-zlmlist[&quot;G_8&quot;] = zlm(formula = ~ G_8 + cngeneson, sca = sca, parallel = TRUE)
-
-# zlmlist
-# $G_1
-# Fitted zlm on 55737 genes and 11264 cells.
-#  Using BayesGLMlike ~ G_1 + cngeneson 
-# 
-# $G_2
-# Fitted zlm on 55737 genes and 11264 cells.
-#  Using BayesGLMlike ~ G_2 + cngeneson 
-# 
-# $G_3
-# Fitted zlm on 55737 genes and 11264 cells.
-#  Using BayesGLMlike ~ G_3 + cngeneson 
-# 
-# $G_4
-# Fitted zlm on 55737 genes and 11264 cells.
-#  Using BayesGLMlike ~ G_4 + cngeneson 
-# 
-# $G_5
-# Fitted zlm on 55737 genes and 11264 cells.
-#  Using BayesGLMlike ~ G_5 + cngeneson 
-# 
-# $G_6
-# Fitted zlm on 55737 genes and 11264 cells.
-#  Using BayesGLMlike ~ G_6 + cngeneson 
-# 
-# $G_7
-# Fitted zlm on 55737 genes and 11264 cells.
-#  Using BayesGLMlike ~ G_7 + cngeneson 
-# 
-# $G_8
-# Fitted zlm on 55737 genes and 11264 cells.
-#  Using BayesGLMlike ~ G_8 + cngeneson
-
-lrtlist = list()
-# running
+<pre class="r"><code>lrtlist = list()
 for (i in 1:8) {
-  lrtlist[paste0(&quot;G_&quot;,i)] = lrTest(zlmlist[[i]], paste0(&quot;G_&quot;,i))
+  lrtlist[[paste0(&quot;G_&quot;,i)]] = lrTest(zlmlist[[i]], paste0(&quot;G_&quot;,i))
 }
-
-dim(zlmlist[1]) 
-zlmlist[[1]]
-
-mast_pval_glm_list = lapply(zlmlist, FUN = function(lrt0) apply(lrt0, 1, function(x){x[3,3]}))</code></pre>
+str(lrtlist)</code></pre>
+<p>List of 8<br />
+$ G_1: num [1:14668, 1:3, 1:3] 3.307 0.128 1.151 7.833 0.28 …<br />
+..- attr(<em>, “dimnames”)=List of 3<br />
+.. ..$ primerid : chr [1:14668] “DPM1” “SCYL3” “C1orf112” “FGR” …<br />
+.. ..$ test.type: chr [1:3] “cont” “disc” “hurdle”<br />
+.. ..$ metric : chr [1:3] “lambda” “df” “Pr(&gt;Chisq)”<br />
+..- attr(</em>, “test”)= chr “G_1”<br />
+$ G_2: num [1:14668, 1:3, 1:3] 144.102 23.308 0.704 87.375 94.948 …<br />
+..- attr(<em>, “dimnames”)=List of 3<br />
+.. ..$ primerid : chr [1:14668] “DPM1” “SCYL3” “C1orf112” “FGR” …<br />
+.. ..$ test.type: chr [1:3] “cont” “disc” “hurdle”<br />
+.. ..$ metric : chr [1:3] “lambda” “df” “Pr(&gt;Chisq)”<br />
+..- attr(</em>, “test”)= chr “G_2”<br />
+$ G_3: num [1:14668, 1:3, 1:3] 1.15 2.11 1.09 110.54 10.36 …<br />
+..- attr(<em>, “dimnames”)=List of 3<br />
+.. ..$ primerid : chr [1:14668] “DPM1” “SCYL3” “C1orf112” “FGR” …<br />
+.. ..$ test.type: chr [1:3] “cont” “disc” “hurdle”<br />
+.. ..$ metric : chr [1:3] “lambda” “df” “Pr(&gt;Chisq)”<br />
+..- attr(</em>, “test”)= chr “G_3”<br />
+$ G_4: num [1:14668, 1:3, 1:3] 0.1902 0.7066 0.0119 1.4043 0.069 …<br />
+..- attr(<em>, “dimnames”)=List of 3<br />
+.. ..$ primerid : chr [1:14668] “DPM1” “SCYL3” “C1orf112” “FGR” …<br />
+.. ..$ test.type: chr [1:3] “cont” “disc” “hurdle”<br />
+.. ..$ metric : chr [1:3] “lambda” “df” “Pr(&gt;Chisq)”<br />
+..- attr(</em>, “test”)= chr “G_4”<br />
+$ G_5: num [1:14668, 1:3, 1:3] 1.142 0.42 0.292 57.944 5.098 …<br />
+..- attr(<em>, “dimnames”)=List of 3<br />
+.. ..$ primerid : chr [1:14668] “DPM1” “SCYL3” “C1orf112” “FGR” …<br />
+.. ..$ test.type: chr [1:3] “cont” “disc” “hurdle”<br />
+.. ..$ metric : chr [1:3] “lambda” “df” “Pr(&gt;Chisq)”<br />
+..- attr(</em>, “test”)= chr “G_5”<br />
+$ G_6: num [1:14668, 1:3, 1:3] 2.15178 0.3007 0.00914 89.98802 2.4048 …<br />
+..- attr(<em>, “dimnames”)=List of 3<br />
+.. ..$ primerid : chr [1:14668] “DPM1” “SCYL3” “C1orf112” “FGR” …<br />
+.. ..$ test.type: chr [1:3] “cont” “disc” “hurdle”<br />
+.. ..$ metric : chr [1:3] “lambda” “df” “Pr(&gt;Chisq)”<br />
+..- attr(</em>, “test”)= chr “G_6”<br />
+$ G_7: num [1:14668, 1:3, 1:3] 15.1175 0.4718 0.1394 13.3685 0.0956 …<br />
+..- attr(<em>, “dimnames”)=List of 3<br />
+.. ..$ primerid : chr [1:14668] “DPM1” “SCYL3” “C1orf112” “FGR” …<br />
+.. ..$ test.type: chr [1:3] “cont” “disc” “hurdle”<br />
+.. ..$ metric : chr [1:3] “lambda” “df” “Pr(&gt;Chisq)”<br />
+..- attr(</em>, “test”)= chr “G_7”<br />
+$ G_8: num [1:14668, 1:3, 1:3] 0.883 0.97 1.553 17.945 4.573 …<br />
+..- attr(<em>, “dimnames”)=List of 3<br />
+.. ..$ primerid : chr [1:14668] “DPM1” “SCYL3” “C1orf112” “FGR” …<br />
+.. ..$ test.type: chr [1:3] “cont” “disc” “hurdle”<br />
+.. ..$ metric : chr [1:3] “lambda” “df” “Pr(&gt;Chisq)”<br />
+..- attr(</em>, “test”)= chr “G_8”</p>
 </div>
+<div id="get-the-hurdel-p-values" class="section level2">
+<h2>Get the hurdel p-values</h2>
+<pre class="r"><code>dim(lrtlist[[1]]) # 14668 x 3 x 3
+lrtlist[[1]][1, , ]
+#  metric
+# test.type   lambda df Pr(&gt;Chisq)
+#    cont   3.307405  1 0.06896832
+#    disc   2.071837  1 0.15004070
+#    hurdle 5.379242  2 0.06790666
+lrtlist[[1]][1, , ][3,3] # 0.06790666
+
+mast_pval_glm_list = lapply(lrtlist, FUN = function(lrt0) apply(lrt0, 1, function(x){x[3,3]}))
+str(mast_pval_glm_list)</code></pre>
+<p>List of 8<br />
+$ G_1: Named num [1:14668] 6.79e-02 7.40e-01 5.06e-01 9.49e-05 3.90e-03 …<br />
+..- attr(<em>, “names”)= chr [1:14668] “DPM1” “SCYL3” “C1orf112” “FGR” …<br />
+$ G_2: Named num [1:14668] 7.80e-35 6.31e-06 3.06e-05 2.44e-27 9.86e-49 …<br />
+..- attr(</em>, “names”)= chr [1:14668] “DPM1” “SCYL3” “C1orf112” “FGR” …<br />
+$ G_3: Named num [1:14668] 1.50e-01 1.14e-10 1.05e-37 0.00 1.05e-55 …<br />
+..- attr(<em>, “names”)= chr [1:14668] “DPM1” “SCYL3” “C1orf112” “FGR” …<br />
+$ G_4: Named num [1:14668] 4.42e-01 1.08e-01 3.78e-04 5.26e-12 8.77e-05 …<br />
+..- attr(</em>, “names”)= chr [1:14668] “DPM1” “SCYL3” “C1orf112” “FGR” …<br />
+$ G_5: Named num [1:14668] 2.34e-02 5.49e-01 1.43e-23 3.68e-75 4.96e-02 …<br />
+..- attr(<em>, “names”)= chr [1:14668] “DPM1” “SCYL3” “C1orf112” “FGR” …<br />
+$ G_6: Named num [1:14668] 1.58e-01 2.58e-02 9.54e-01 2.24e-39 2.78e-01 …<br />
+..- attr(</em>, “names”)= chr [1:14668] “DPM1” “SCYL3” “C1orf112” “FGR” …<br />
+$ G_7: Named num [1:14668] 8.38e-05 1.24e-03 5.67e-18 5.65e-101 9.58e-33 …<br />
+..- attr(<em>, “names”)= chr [1:14668] “DPM1” “SCYL3” “C1orf112” “FGR” …<br />
+$ G_8: Named num [1:14668] 3.79e-01 7.99e-03 1.37e-11 1.01e-06 7.23e-06 …<br />
+..- attr(</em>, “names”)= chr [1:14668] “DPM1” “SCYL3” “C1orf112” “FGR” …</p>
+</div>
+</div>
+<div id="select-differentially-expressed-genes-for-each-cell-type" class="section level1">
+<h1>Select differentially expressed genes for each cell type</h1>
+<p>Obtain differentially expressed genes for each cell type: genes whose p-values are smaller than the cutoff</p>
+<pre class="r"><code>n = length(he.genes) # 14668
+cutoff = 0.05 / n # 3.408781e-06
+
+DE.genes.list = lapply(mast_pval_glm_list, FUN = function(pval) names(pval[pval &lt;= cutoff]))
+str(DE.genes.list)</code></pre>
+<p>List of 8<br />
+$ G_1: chr [1:4485] “NIPAL3” “LAP3” “CD99” “HS3ST1” …<br />
+$ G_2: chr [1:9926] “DPM1” “FGR” “FUCA2” “NIPAL3” …<br />
+$ G_3: chr [1:6995] “SCYL3” “C1orf112” “FGR” “FUCA2” …<br />
+$ G_4: chr [1:2965] “FGR” “LAP3” “HS3ST1” “TMEM176A” …<br />
+$ G_5: chr [1:2983] “C1orf112” “FGR” “ENPP4” “CYP51A1” …<br />
+$ G_6: chr [1:1918] “FGR” “CYP51A1” “LAP3” “HS3ST1” …<br />
+$ G_7: chr [1:5674] “C1orf112” “FGR” “FUCA2” “NIPAL3” …<br />
+$ G_8: chr [1:3067] “C1orf112” “FGR” “ENPP4” “CYP51A1” …</p>
+<p>For genes that are differentially expressed in each cell type，select the 50 genes with smallest expression fold change.</p>
+<pre class="r"><code>genes.selected.perCellType = data.frame(matrix(NA, nrow = 50, ncol = 8))
+colnames(genes.selected.perCellType) = names(DE.genes.list)
+
+for (i in 1:8) {
+  DE.genes = DE.genes.list[[i]] # differentially expressed genes for each cell cluster
+  fc_label = paste0(&quot;fc_&quot;,i)
+  fc = average_expression[[fc_label]][match(DE.genes, average_expression$gene)] # get the fold change for each DE gene
+  selected.genes = DE.genes[order(fc)[1:50]] # in differentially expressed genes, select 50 genes with smallest fold change
+  genes.selected.perCellType[,i] = selected.genes
+}</code></pre>
+<p>Save the output</p>
+<pre class="r"><code>write.table(average_expression, file = &quot;Average_GeneExpression_by_CellType.txt&quot;, quote = FALSE, sep = &quot;\t&quot;, row.names = FALSE, col.names = TRUE)
+write.table(genes.selected.perCellType, file = &quot;50DEGs_by_CellType.txt&quot;, quote = FALSE, sep = &quot;\t&quot;, row.names = FALSE, col.names = TRUE)
+mast_pval_glm_df = as.data.frame(mast_pval_glm_list)
+write.csv(mast_pval_glm_df, file = &quot;MastGenePvals_by_CellType.csv&quot;, quote = FALSE)</code></pre>
+<p>Finally, use <code>scp rcai2@bayes.biostat.washington.edu:/home/students/rcai2/IT-predictor/R/*by_CellType* /Users/cairuoyi/Documents/GitHub/IT-predictor/R/</code> to downlowad the saved output.</p>
+<pre class="r"><code>gc()</code></pre>
+<pre><code>##          used (Mb) gc trigger (Mb) limit (Mb) max used (Mb)
+## Ncells 457574 24.5     992058   53         NA   630591 33.7
+## Vcells 893456  6.9    8388608   64      16384  1767278 13.5</code></pre>
+<pre class="r"><code>sessionInfo()</code></pre>
+<pre><code>## R version 3.5.1 (2018-07-02)
+## Platform: x86_64-apple-darwin15.6.0 (64-bit)
+## Running under: macOS  10.14.6
+## 
+## Matrix products: default
+## BLAS: /Library/Frameworks/R.framework/Versions/3.5/Resources/lib/libRblas.0.dylib
+## LAPACK: /Library/Frameworks/R.framework/Versions/3.5/Resources/lib/libRlapack.dylib
+## 
+## locale:
+## [1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+## 
+## attached base packages:
+## [1] stats     graphics  grDevices utils     datasets  methods   base     
+## 
+## loaded via a namespace (and not attached):
+##  [1] compiler_3.5.1  magrittr_1.5    tools_3.5.1     htmltools_0.3.6
+##  [5] yaml_2.2.0      Rcpp_1.0.1      stringi_1.4.3   rmarkdown_1.14 
+##  [9] knitr_1.23      stringr_1.4.0   xfun_0.8        digest_0.6.20  
+## [13] evaluate_0.14</code></pre>
 </div>
 
 
