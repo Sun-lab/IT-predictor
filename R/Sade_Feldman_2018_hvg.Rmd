@@ -137,7 +137,7 @@ pca.scores = pca.hvg$scores
 rm(pca.hvg)
 ```
 
-## Clustering on top 50 PCs
+# Clustering on top 50 PCs
 
 ```{r}
 top50pcs = pca.scores[,1:50]
@@ -145,7 +145,7 @@ rm(pca.scores)
 #head(top50pcs)
 ```
 
-### Calculate TSNE
+## Calculate TSNE
 
 ```{r}
 set.seed(9999)
@@ -155,7 +155,7 @@ names(df_tsne) = paste0("topPC_TSNE",seq(ncol(tsne$Y)))
 rm(tsne)
 ```
 
-### K-means clustering on top 50 PCs
+## K-means clustering on top 50 PCs
 
 Prepare dataframe for k-means clustering using top 50 PCs
 ```{r}
@@ -194,44 +194,145 @@ Cluster annotation from Sade-Feldman et al., 2018, 11 clusters
 ggplot(data=df_top50PCs)+geom_point(aes(x=topPC_TSNE1,y=topPC_TSNE2,color=sf_cluster),size = 0.1)+guides(color = guide_legend(override.aes = list(size = 2)))
 ```
 
-Cluster annotation from my Kmeans analysis, 11 clusters
-```{r}
-ggplot(data=df_top50PCs)+geom_point(aes(x=topPC_TSNE1,y=topPC_TSNE2,color=KM_11),size = 0.1)+guides(color = guide_legend(override.aes = list(size = 2)))
-```
-
-For the K-mean analysis results using 11 clusters, it seems that using top 20 PCs gives a better result than using top 50 PCs, because the result using 50 PCs didn't identify the cluster of G10 Memory T-cells. Moreover, the G3 Monocytes/Macrophages group was split into 3 clusters. 
-
-```{r}
-table(df_top50PCs$KM_11, df_top50PCs$sf_cluster)
-```
-
 Cluster annotation from my Kmeans analysis, 12 clusters
 ```{r}
 ggplot(data=df_top50PCs)+geom_point(aes(x=topPC_TSNE1,y=topPC_TSNE2,color=KM_12),size = 0.1)+guides(color = guide_legend(override.aes = list(size = 2)))
 ```
 
-Here the cluster of G10 Memory T-cells is identified, but the result doesn't seem to be too different than the result obtained based on only the top 20 PCs. 
-
 ```{r}
 table(df_top50PCs$KM_12, df_top50PCs$sf_cluster)
 ```
 
-### Re-cluster T and NK cells
-
-First, I get all the T and NK cells, corresponding to the cells in clusters 5-11 in Sade_Feldman et al. (2018). There are 12850 such cells. Then, I save the PC scores, t-SNE, and clustering labels defined by Sade_Feldman et al. (2018) of these cells into the dataframe `df_top50PCs_TNKcells`. 
+## Select G1 B cells, G2 Plasma cells, G3 Monocytes/Macrophages, G4 Dendric cells, G7 Regulatory T cells and G10 Memory T-cells by taking the largest intersection between the clusters defined in the paper and our clusters 
+ 
+- 1421 B cells: 1
+- 301 Plasma cells: 2
+- 1342 Monocytes/Macrophages: 3
+- 276 Dendric cells: 4
+- 1332 CD4 T regulatory cells: 5
+- 1451 CD4 T memory cells: 6
 
 ```{r}
-T.NK.cells = rownames(df_top50PCs)[as.numeric(df_top50PCs$sf_cluster)>=5]
-df_top50PCs_TNKcells = df_top50PCs[match(T.NK.cells, rownames(df_top50PCs)), c(1:52,60)]
+cell_type = data.frame(cell = cell.names, type = NA)
+cell_type$type[df_top50PCs$KM_12==12 & df_top50PCs$sf_cluster == 1] = 1
+cell_type$type[df_top50PCs$KM_12==3 & df_top50PCs$sf_cluster == 2] = 2
+cell_type$type[(df_top50PCs$KM_12==5 | df_top50PCs$KM_12==7 | df_top50PCs$KM_12==10) & df_top50PCs$sf_cluster == 3] = 3
+cell_type$type[df_top50PCs$KM_12==11 & df_top50PCs$sf_cluster == 4] = 4
+cell_type$type[df_top50PCs$KM_12==4 & df_top50PCs$sf_cluster == 7] = 5
+cell_type$type[df_top50PCs$KM_12==8 & df_top50PCs$sf_cluster == 10] = 6
+
+table(cell_type$type, df_top50PCs$sf_cluster)
 ```
 
-Next, I tried Kmeans analysis using 6 to 8 clusters, and compared my results to the cluster annotation from the paper
+```{r}
+rm(top50pcs)
+rm(df_top50PCs)
+```
+
+# Fine-clustering for NK cells
+
+First, I get all the CD8 and NK cells, corresponding to the cells in clusters 5, 6, 8, 9 and 11 in Sade_Feldman et al. (2018). There are 9337 such cells. Then, I excluded the CD8 T cells using the annotation in the paper. 3513 cells remained after excluding the CD8 T cells. 
+
+## Data for only CD8 and NK cells
+```{r}
+CD8.NK.cells = cell.names[as.numeric(table_s1$`Cluster number`) %in% c(5,6,8,9,11)]
+
+# Cell cluster annotation of CD8+ T cells 
+table_s2 = read.csv("CD8_cluster.csv", stringsAsFactors = FALSE)
+table_s2$ruoyi_cluster[is.na(table_s2$ruoyi_cluster)] = "NA"
+CD8T.cells = table_s2$Cell.Name
+
+TNK.cells = CD8.NK.cells[! CD8.NK.cells %in% CD8T.cells] # cells that are not CD8 cells in cluster 5,6,8,9,11
+TNKcells_tpm = sf_tpm[, ..TNK.cells]
+row.names(TNKcells_tpm) = gene.names
+```
+
+## How many cells each gene is expressed  
+```{r}
+gene.grouping = rep(1:28, each = 2000)[1:dim(TNKcells_tpm)[1]]
+cells.per.gene = NULL
+for (i in 1:28) {
+  temp.counts = apply(TNKcells_tpm[gene.grouping==i,], 1, FUN = function(x) sum(x>0))
+  cells.per.gene = c(cells.per.gene,temp.counts)
+}
+hist(log10(cells.per.gene), main = "Distribution of number of cells each genes expressed", xlab = "log10(number of cells) each gene expressed")
+rm(gene.grouping)
+```
+
+## Choose high-variance genes
+
+```{r}
+# kept 10925 genes
+large.express.genes = gene.names[which(cells.per.gene > 150)]
+large.expressed.tpm = TNKcells_tpm[match(large.express.genes,rownames(TNKcells_tpm)),]
+# plot the variance of the expression levels for each gene against its mean expression level
+genes.mean = apply(large.expressed.tpm, 1, mean)
+genes.variance = apply(large.expressed.tpm, 1, var)
+df_mv = data.frame(gene=large.express.genes, mean=genes.mean, var=genes.variance)
+rm(large.express.genes)
+rm(large.expressed.tpm)
+rm(genes.mean)
+rm(genes.variance)
+ggplot(data = df_mv) + 
+  geom_point(aes(x=mean,y=var),size = 0.1)
+```
+
+```{r}
+# divide the genes into 20 equal-size bins based on their mean expression levels
+df_mv$grouping = cut_number(df_mv$mean, n=20)
+table(df_mv$grouping)
+# in each bin, select the first 50 genes with the highest variance
+hv.genes.list = by(df_mv, df_mv$grouping, FUN = function(df) return(df$gene[order(df$var,decreasing = TRUE)][1:50]))
+hv.genes = as.character(unlist(hv.genes.list))
+rm(hv.genes.list)
+hvg_TNKcells_tpm = TNKcells_tpm[match(hv.genes,rownames(TNKcells_tpm)),]
+hvg_TNKcells_tpm = t(hvg_TNKcells_tpm)
+colnames(hvg_TNKcells_tpm) = hv.genes
+rm(df_mv)
+```
+
+## Perform PCA on selected genes
+
+```{r}
+pca.hvg = princomp(hvg_TNKcells_tpm, cor = TRUE)
+rm(hvg_TNKcells_tpm)
+pca.scores = pca.hvg$scores
+rm(pca.hvg)
+```
+
+## Clustering on top 50 PCs
+
+```{r}
+top50pcs_TNKcells = pca.scores[,1:50]
+rm(pca.scores)
+#head(top50pcs_CDNKcells)
+```
+
+### Calculate TSNE
+
 ```{r}
 set.seed(9999)
-all_num_clust = c(6:8)
+tsne = Rtsne(top50pcs_TNKcells, pca=FALSE)
+df_tsne = as.data.frame(tsne$Y)
+names(df_tsne) = paste0("topPC_TSNE",seq(ncol(tsne$Y)))
+rm(tsne)
+```
+
+### K-means clustering on top 50 PCs
+
+Prepare dataframe for k-means clustering using top 50 PCs
+```{r}
+df_top50PCs_TNKcells = cbind(top50pcs_TNKcells, df_tsne)
+rm(df_tsne)
+#head(df_top50PCs_CDNKcells)
+```
+
+```{r}
+set.seed(9999)
+all_num_clust = c(2:6)
 for (num_clust in all_num_clust) {
   cat(paste0("KM with ",num_clust," clusters.\n"))
-  kmeans_out = kmeans(df_top50PCs_TNKcells[,1:50], centers = num_clust, iter.max = 1e3, nstart = 50, algorithm = "MacQueen")
+  kmeans_out = kmeans(top50pcs_TNKcells, centers = num_clust, iter.max = 1e3, nstart = 50, algorithm = "MacQueen")
   print(kmeans_out[c("betweenss","tot.withinss")])
   km_label = paste0("KM_",num_clust)
   df_top50PCs_TNKcells[[km_label]] = as.factor(kmeans_out$cluster)
@@ -242,23 +343,95 @@ for (num_clust in all_num_clust) {
 }
 ```
 
-T and NK cells cluster annotation from Sade-Feldman et al., 2018, clusters 5 - 11.
+### Cell cluster annotation from Sade-Feldman et al., 2018   
+
 ```{r}
+df_top50PCs_TNKcells$sf_cluster = as.factor(table_s1$`Cluster number`[match(TNK.cells, cell.names)])
+
 ggplot(data=df_top50PCs_TNKcells)+geom_point(aes(x=topPC_TSNE1,y=topPC_TSNE2,color=sf_cluster),size = 0.1)+guides(color = guide_legend(override.aes = list(size = 2)))
 ```
 
-Using 8 clusters in K-means clustering gives the best result. Clusters 7, 10, 11 can be identified as single groups. Compare to the clustering using all cells, the improvement is that most cells in clusters 5 and 8 could also be distinguished now. The remaining issue is that clusters 6 and 9 still cannot be separated, and some cells in clusters 5 and 8 still overlapped.
+The clustering results from k-means analysis using 3-6 clusters are generally very similar:
+G5 and G8 form one cluster, G6 and G9 form one cluster, and G11 forms an individual cluster.   
+Using 3 clusters would suffice.
+
+## Compare expression data with CIBERSORT_LM22
+LM22 signature matrix  
+```{r}
+CBST_LM22 = read.table("../_reference/LM22.txt", header = TRUE, sep = "\t")
+#head(CBST_LM22)
+CBST_SFgenes_LM22 = CBST_LM22[as.character(CBST_LM22$Gene.symbol)%in%gene.names,]
+CBST.genes = as.character(CBST_SFgenes_LM22$Gene.symbol) # 538 out of 547 
+```
+
+Calculate the (median) expression data of each gene in each of the 3 cell clusters from the k-means analysis
+```{r}
+# TPM data of signature genes for only TNK cells 
+TNKcells_CBSTgenes_tpm = TNKcells_tpm[rownames(TNKcells_tpm) %in% CBST.genes,]
+TNKcells_CBSTgenes_tpm = as.data.table(t(TNKcells_CBSTgenes_tpm))
+rownames(TNKcells_CBSTgenes_tpm) = row.names(df_top50PCs_TNKcells)
+colnames(TNKcells_CBSTgenes_tpm) = CBST.genes
+# Get the median expression level of each gene in each cell cluster
+TNKcells_CBSTgenes_tpm$grouping = factor(df_top50PCs_TNKcells$KM_3) # cell groupings from the k-means analysis 
+TNKcells_CBSTgene_expression = TNKcells_CBSTgenes_tpm[, lapply(.SD, median), by = grouping] # median expression level of each gene in each cell cluster
+dim(TNKcells_CBSTgene_expression) # 3 x 539
+TNKcells_CBSTgene_expression[,1:6]
+# Format the gene expression data for each cluster to calculate correlation
+compare_expression = data.frame(G1 = as.numeric(TNKcells_CBSTgene_expression[1,-1]), G2 = as.numeric(TNKcells_CBSTgene_expression[3,-1]), G3 = as.numeric(TNKcells_CBSTgene_expression[2,-1]))
+head(compare_expression)
+```
+
+calculate correlation  
+```{r}
+cor(compare_expression, CBST_SFgenes_LM22[,-1])
+```
+
+- There were no strong correlations between the signature gene expressions in LM22 and the gene expression data for each of my cell clusters. 
+- All 3 cell clusters are slightly correlated with activated NK cells in LM22. 
+- Slight correlations are also observed between activated memory T cells in LM22 and G1, and between activated memory T cells, follicular helper T cells, and regulatory T cells in LM 22 and G3. 
+
+## Select CD8_B cells and CD8_G cells 
+ 
+- 2482 CD8_B cells: 7
+- 3043 CD8_G cells: 8
 
 ```{r}
-table(df_top50PCs_TNKcells$KM_8, df_top50PCs_TNKcells$sf_cluster)
+CD8_B = table_s2$Cell.Name[table_s2$ruoyi_cluster=="CD8_B"]
+CD8_G = table_s2$Cell.Name[table_s2$ruoyi_cluster=="CD8_G"]
+cell_type$type[match(CD8_B,cell_type$cell)] = 7
+cell_type$type[match(CD8_G,cell_type$cell)] = 8
+#NK = rownames(df_top50PCs_CDNKcells)[df_top50PCs_CDNKcells$ruoyi_CD8 == "NA"]
+table(cell_type$type)
+```
+
+Save the current labeling of the cells that we obtained from the K-means analysis
+
+- 1421 B cells: 1
+- 290 Plasma cells: 2
+- 1341 Monocytes/Macrophages: 3
+- 275 Dendric cells: 4
+- 1313 CD4 T regulatory cells: 5
+- 1099 CD4 T memory cells: 6
+- 2482 CD8_B cells: 7
+- 3043 CD8_G cells: 8
+- Remaining unclustered cells: 0
+
+```{r eval=FALSE}
+write.table(cell_type, "cell_type.txt", quote = FALSE, col.names = TRUE, row.names = FALSE, na = "0")
 ```
 
 ```{r}
 rm(df_top50PCs_TNKcells)
-rm(df_top50PCs)
-rm(top50pcs)
-rm(T.NK.cells)
+rm(top50pcs_TNKcells)
+rm(TNKcells_tpm)
+rm(TNK.cells)
 ```
+
+# Conclusion
+
+- G1 B cells, G2 Plasma cells, G3 Monocytes/Macrophages, G4 Dendric cells, G7 Regulatory T cells and G10 Memory T-cells could be clearly identified using k-means clustering based on the PCA of high variance genes. The tricky part is to distinguish NK cells and CD8 cells. 
+- Recluster G5 - G11 cells didn't really improved the result, and G7 and G10 could also be roughly identified when clustering on all cells, so we changed to recluster cells in G5, G6, G8, G9 and G11. 
+- Recluster G5, G6, G8, G9, G11 still didn't give a clear clustering for NK cells, so we moved to excluding all CD8 T cells based on the annotation of the paper, and then cluster the remaining cells.
 
 ```{r}
 gc()
