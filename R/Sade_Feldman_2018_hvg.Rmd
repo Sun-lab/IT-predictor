@@ -229,23 +229,30 @@ rm(top50pcs)
 rm(df_top50PCs)
 ```
 
-# Fine-clustering for CD8 cells and NK cells
+# Fine-clustering for NK cells
 
-First, I get all the CD8 and NK cells, corresponding to the cells in clusters 5, 6, 8, 9 and 11 in Sade_Feldman et al. (2018). There are 9337 such cells. Then, I obtain the expression data of high variance genes for these cells
+First, I get all the CD8 and NK cells, corresponding to the cells in clusters 5, 6, 8, 9 and 11 in Sade_Feldman et al. (2018). There are 9337 such cells. Then, I excluded the CD8 T cells using the annotation in the paper. 3513 cells remained after excluding the CD8 T cells. 
 
 ## Data for only CD8 and NK cells
 ```{r}
 CD8.NK.cells = cell.names[as.numeric(table_s1$`Cluster number`) %in% c(5,6,8,9,11)]
-CDNKcells_tpm = sf_tpm[, ..CD8.NK.cells]
-row.names(CDNKcells_tpm) = gene.names
+
+# Cell cluster annotation of CD8+ T cells 
+table_s2 = read.csv("CD8_cluster.csv", stringsAsFactors = FALSE)
+table_s2$ruoyi_cluster[is.na(table_s2$ruoyi_cluster)] = "NA"
+CD8T.cells = table_s2$Cell.Name
+
+TNK.cells = CD8.NK.cells[! CD8.NK.cells %in% CD8T.cells] # cells that are not CD8 cells in cluster 5,6,8,9,11
+TNKcells_tpm = sf_tpm[, ..TNK.cells]
+row.names(TNKcells_tpm) = gene.names
 ```
 
 ## How many cells each gene is expressed  
 ```{r}
-gene.grouping = rep(1:28, each = 2000)[1:dim(CDNKcells_tpm)[1]]
+gene.grouping = rep(1:28, each = 2000)[1:dim(TNKcells_tpm)[1]]
 cells.per.gene = NULL
 for (i in 1:28) {
-  temp.counts = apply(CDNKcells_tpm[gene.grouping==i,], 1, FUN = function(x) sum(x>0))
+  temp.counts = apply(TNKcells_tpm[gene.grouping==i,], 1, FUN = function(x) sum(x>0))
   cells.per.gene = c(cells.per.gene,temp.counts)
 }
 hist(log10(cells.per.gene), main = "Distribution of number of cells each genes expressed", xlab = "log10(number of cells) each gene expressed")
@@ -255,9 +262,9 @@ rm(gene.grouping)
 ## Choose high-variance genes
 
 ```{r}
-# kept 10638 genes
-large.express.genes = gene.names[which(cells.per.gene > 400)]
-large.expressed.tpm = CDNKcells_tpm[match(large.express.genes,rownames(CDNKcells_tpm)),]
+# kept 10925 genes
+large.express.genes = gene.names[which(cells.per.gene > 150)]
+large.expressed.tpm = TNKcells_tpm[match(large.express.genes,rownames(TNKcells_tpm)),]
 # plot the variance of the expression levels for each gene against its mean expression level
 genes.mean = apply(large.expressed.tpm, 1, mean)
 genes.variance = apply(large.expressed.tpm, 1, var)
@@ -278,17 +285,17 @@ table(df_mv$grouping)
 hv.genes.list = by(df_mv, df_mv$grouping, FUN = function(df) return(df$gene[order(df$var,decreasing = TRUE)][1:50]))
 hv.genes = as.character(unlist(hv.genes.list))
 rm(hv.genes.list)
-hvg_CDNKcells_tpm = CDNKcells_tpm[match(hv.genes,rownames(CDNKcells_tpm)),]
-hvg_CDNKcells_tpm = t(hvg_CDNKcells_tpm)
-colnames(hvg_CDNKcells_tpm) = hv.genes
+hvg_TNKcells_tpm = TNKcells_tpm[match(hv.genes,rownames(TNKcells_tpm)),]
+hvg_TNKcells_tpm = t(hvg_TNKcells_tpm)
+colnames(hvg_TNKcells_tpm) = hv.genes
 rm(df_mv)
 ```
 
 ## Perform PCA on selected genes
 
 ```{r}
-pca.hvg = princomp(hvg_CDNKcells_tpm, cor = TRUE)
-rm(hvg_CDNKcells_tpm)
+pca.hvg = princomp(hvg_TNKcells_tpm, cor = TRUE)
+rm(hvg_TNKcells_tpm)
 pca.scores = pca.hvg$scores
 rm(pca.hvg)
 ```
@@ -296,7 +303,7 @@ rm(pca.hvg)
 ## Clustering on top 50 PCs
 
 ```{r}
-top50pcs_CDNKcells = pca.scores[,1:50]
+top50pcs_TNKcells = pca.scores[,1:50]
 rm(pca.scores)
 #head(top50pcs_CDNKcells)
 ```
@@ -305,7 +312,7 @@ rm(pca.scores)
 
 ```{r}
 set.seed(9999)
-tsne = Rtsne(top50pcs_CDNKcells, pca=FALSE)
+tsne = Rtsne(top50pcs_TNKcells, pca=FALSE)
 df_tsne = as.data.frame(tsne$Y)
 names(df_tsne) = paste0("topPC_TSNE",seq(ncol(tsne$Y)))
 rm(tsne)
@@ -315,101 +322,73 @@ rm(tsne)
 
 Prepare dataframe for k-means clustering using top 50 PCs
 ```{r}
-df_top50PCs_CDNKcells = cbind(top50pcs_CDNKcells, df_tsne)
+df_top50PCs_TNKcells = cbind(top50pcs_TNKcells, df_tsne)
 rm(df_tsne)
 #head(df_top50PCs_CDNKcells)
 ```
 
 ```{r}
 set.seed(9999)
-all_num_clust = c(3:6)
+all_num_clust = c(2:6)
 for (num_clust in all_num_clust) {
   cat(paste0("KM with ",num_clust," clusters.\n"))
-  kmeans_out = kmeans(top50pcs_CDNKcells, centers = num_clust, iter.max = 1e3, nstart = 50, algorithm = "MacQueen")
+  kmeans_out = kmeans(top50pcs_TNKcells, centers = num_clust, iter.max = 1e3, nstart = 50, algorithm = "MacQueen")
   print(kmeans_out[c("betweenss","tot.withinss")])
   km_label = paste0("KM_",num_clust)
-  df_top50PCs_CDNKcells[[km_label]] = as.factor(kmeans_out$cluster)
-  pt = ggplot(data=df_top50PCs_CDNKcells)+geom_point(aes(x=topPC_TSNE1,y=topPC_TSNE2,color=eval(as.name(paste(km_label)))),size = 0.1)+scale_colour_discrete(name=paste(km_label))+guides(color = guide_legend(override.aes = list(size = 2)))
+  df_top50PCs_TNKcells[[km_label]] = as.factor(kmeans_out$cluster)
+  pt = ggplot(data=df_top50PCs_TNKcells)+geom_point(aes(x=topPC_TSNE1,y=topPC_TSNE2,color=eval(as.name(paste(km_label)))),size = 0.1)+scale_colour_discrete(name=paste(km_label))+guides(color = guide_legend(override.aes = list(size = 2)))
   print(pt)
   rm(kmeans_out)
   rm(pt)
 }
 ```
 
-## Cell cluster annotation from Sade-Feldman et al., 2018   
-
-CD8 and NK cells correspond to clusters 5, 6, 8, 9, and 11.   
+### Cell cluster annotation from Sade-Feldman et al., 2018   
 
 ```{r}
-df_top50PCs_CDNKcells$sf_cluster = as.factor(table_s1$`Cluster number`[match(CD8.NK.cells, cell.names)])
+df_top50PCs_TNKcells$sf_cluster = as.factor(table_s1$`Cluster number`[match(TNK.cells, cell.names)])
 
-ggplot(data=df_top50PCs_CDNKcells)+geom_point(aes(x=topPC_TSNE1,y=topPC_TSNE2,color=sf_cluster),size = 0.1)+guides(color = guide_legend(override.aes = list(size = 2)))
+ggplot(data=df_top50PCs_TNKcells)+geom_point(aes(x=topPC_TSNE1,y=topPC_TSNE2,color=sf_cluster),size = 0.1)+guides(color = guide_legend(override.aes = list(size = 2)))
 ```
 
 The clustering results from k-means analysis using 3-6 clusters are generally very similar:
 G5 and G8 form one cluster, G6 and G9 form one cluster, and G11 forms an individual cluster.   
-Using 3 clusters would suffice. 
+Using 3 clusters would suffice.
 
+## Compare expression data with CIBERSORT_LM22
+LM22 signature matrix  
 ```{r}
-table(df_top50PCs_CDNKcells$KM_3, df_top50PCs_CDNKcells$sf_cluster)
+CBST_LM22 = read.table("../_reference/LM22.txt", header = TRUE, sep = "\t")
+#head(CBST_LM22)
+CBST_SFgenes_LM22 = CBST_LM22[as.character(CBST_LM22$Gene.symbol)%in%gene.names,]
+CBST.genes = as.character(CBST_SFgenes_LM22$Gene.symbol) # 538 out of 547 
 ```
 
-## Cell cluster annotation of CD8+ T cells 
+Calculate the (median) expression data of each gene in each of the 3 cell clusters from the k-means analysis
 ```{r}
-#xnm = "1-s2.0-S0092867418313941-mmc2.xlsx"
-#table_s2 = readxl::read_xlsx(paste0("../_reference/Sade_Feldman_2018/", xnm), sheet = "Cluster annotation-Fig2A-B", col_names = TRUE)
-#table_s2$sf_cluster = table_s1$`Cluster number`[match(table_s2$`Cell Name`, cell.names)]
-
-table_s2 = read.csv("CD8_cluster.csv", stringsAsFactors = FALSE)
-table_s2$ruoyi_cluster[is.na(table_s2$ruoyi_cluster)] = "NA"
+# TPM data of signature genes for only TNK cells 
+TNKcells_CBSTgenes_tpm = TNKcells_tpm[rownames(TNKcells_tpm) %in% CBST.genes,]
+TNKcells_CBSTgenes_tpm = as.data.table(t(TNKcells_CBSTgenes_tpm))
+rownames(TNKcells_CBSTgenes_tpm) = row.names(df_top50PCs_TNKcells)
+colnames(TNKcells_CBSTgenes_tpm) = CBST.genes
+# Get the median expression level of each gene in each cell cluster
+TNKcells_CBSTgenes_tpm$grouping = factor(df_top50PCs_TNKcells$KM_3) # cell groupings from the k-means analysis 
+TNKcells_CBSTgene_expression = TNKcells_CBSTgenes_tpm[, lapply(.SD, median), by = grouping] # median expression level of each gene in each cell cluster
+dim(TNKcells_CBSTgene_expression) # 3 x 539
+TNKcells_CBSTgene_expression[,1:6]
+# Format the gene expression data for each cluster to calculate correlation
+compare_expression = data.frame(G1 = as.numeric(TNKcells_CBSTgene_expression[1,-1]), G2 = as.numeric(TNKcells_CBSTgene_expression[3,-1]), G3 = as.numeric(TNKcells_CBSTgene_expression[2,-1]))
+head(compare_expression)
 ```
 
+calculate correlation  
 ```{r}
-table(table_s2$Cluster, table_s2$sf_cluster)
+cor(compare_expression, CBST_SFgenes_LM22[,-1])
 ```
 
-```{r}
-table(table_s2$ruoyi_cluster, table_s2$sf_cluster)
-```
-
-### Relabel cells in groups 5,6,8,9,11 to CD8_B cells, CD8_G cells, and NK cells
-
-Of the 9337 cells in groups 5,6,8,9,11, 5824 cells appeared in the list of CD8 cells defined in the paper (526 CD8 cells were in groups 1,2,3,4,7,10).  
-
-I'll lable the rest of the cells in groups 5, 6, 8, 9, 11 to NK cells.
-
-```{r}
-df_top50PCs_CDNKcells$sf_CD8 = "NK"
-df_top50PCs_CDNKcells$ruoyi_CD8 = "NA"
-# For the 5824 cells that appeared in the list of CD8 cells defined in the paper, the index of these cells in table_s2
-CD8_id = match(CD8.NK.cells[CD8.NK.cells %in% table_s2$Cell.Name], table_s2$Cell.Name)
-df_top50PCs_CDNKcells$sf_CD8[CD8.NK.cells %in% table_s2$Cell.Name] = table_s2$Cluster[CD8_id]
-df_top50PCs_CDNKcells$ruoyi_CD8[CD8.NK.cells %in% table_s2$Cell.Name] = table_s2$ruoyi_cluster[CD8_id]
-df_top50PCs_CDNKcells$sf_CD8 = factor(df_top50PCs_CDNKcells$sf_CD8)
-df_top50PCs_CDNKcells$ruoyi_CD8 = factor(df_top50PCs_CDNKcells$ruoyi_CD8)
-```
-
-```{r}
-table(df_top50PCs_CDNKcells$ruoyi_CD8, df_top50PCs_CDNKcells$sf_CD8)
-```
-
-```{r}
-ggplot(data=df_top50PCs_CDNKcells)+geom_point(aes(x=topPC_TSNE1,y=topPC_TSNE2,color=KM_3),size = 0.1)+guides(color = guide_legend(override.aes = list(size = 2)))
-```
-
-```{r}
-ggplot(data=df_top50PCs_CDNKcells)+geom_point(aes(x=topPC_TSNE1,y=topPC_TSNE2,color=ruoyi_CD8),size = 0.1)+guides(color = guide_legend(override.aes = list(size = 2)))
-```
-
-The problem is that NK cells are dispersed in G5,6,8,9,11. 
-
-```{r}
-table(df_top50PCs_CDNKcells$sf_CD8, df_top50PCs_CDNKcells$sf_cluster)
-```
-
-```{r}
-table(df_top50PCs_CDNKcells$ruoyi_CD8, df_top50PCs_CDNKcells$KM_3)
-```
+- There were no strong correlations between the signature gene expressions in LM22 and the gene expression data for each of my cell clusters. 
+- All 3 cell clusters are slightly correlated with activated NK cells in LM22. 
+- Slight correlations are also observed between activated memory T cells in LM22 and G1, and between activated memory T cells, follicular helper T cells, and regulatory T cells in LM 22 and G3. 
 
 ## Select CD8_B cells and CD8_G cells 
  
@@ -442,17 +421,17 @@ write.table(cell_type, "cell_type.txt", quote = FALSE, col.names = TRUE, row.nam
 ```
 
 ```{r}
-rm(df_top50PCs_CDNKcells)
-rm(top50pcs_CDNKcells)
-rm(CDNKcells_tpm)
-rm(CD8.NK.cells)
+rm(df_top50PCs_TNKcells)
+rm(top50pcs_TNKcells)
+rm(TNKcells_tpm)
+rm(TNK.cells)
 ```
 
 # Conclusion
 
 - G1 B cells, G2 Plasma cells, G3 Monocytes/Macrophages, G4 Dendric cells, G7 Regulatory T cells and G10 Memory T-cells could be clearly identified using k-means clustering based on the PCA of high variance genes. The tricky part is to distinguish NK cells and CD8 cells. 
 - Recluster G5 - G11 cells didn't really improved the result, and G7 and G10 could also be roughly identified when clustering on all cells, so we changed to recluster cells in G5, G6, G8, G9 and G11. 
-- Recluster G5, G6, G8, G9, G11 still didn't give a clear clustering for NK cells. Maybe we could label the cells that are not CD8 cells in G5, G6, G8, G9, G11 to NK cell? For now I just labelled all the unclustered cells to 0. 
+- Recluster G5, G6, G8, G9, G11 still didn't give a clear clustering for NK cells, so we moved to excluding all CD8 T cells based on the annotation of the paper, and then cluster the remaining cells.
 
 ```{r}
 gc()
