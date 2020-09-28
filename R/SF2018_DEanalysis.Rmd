@@ -298,6 +298,9 @@ lrtlist[[1]][1, , ][3,3] # 0.06790666
 
 mast_pval_glm_list = lapply(lrtlist, FUN = function(lrt0) apply(lrt0, 1, function(x){x[3,3]}))
 str(mast_pval_glm_list)
+
+mast_pval_glm_df = as.data.frame(mast_pval_glm_list)
+write.csv(mast_pval_glm_df, file = "MastGenePvals_by_CellType.csv", quote = FALSE)
 ```
 
 List of 8     
@@ -317,6 +320,42 @@ List of 8
   ..- attr(*, "names")= chr [1:14668] "DPM1" "SCYL3" "C1orf112" "FGR" ...     
  $ G_8: Named num [1:14668] 3.79e-01 7.99e-03 1.37e-11 1.01e-06 7.23e-06 ...     
   ..- attr(*, "names")= chr [1:14668] "DPM1" "SCYL3" "C1orf112" "FGR" ...     
+
+## Histogram of p-values
+
+Dataframe of p-values for each comparison
+```{r}
+mast_pval_df = read.csv("MastGenePvals_by_CellType.csv", header = TRUE, row.names = 1)
+head(mast_pval_df)
+```
+
+Histogram of p-values for each comparison
+```{r fig.height=10, fig.width=8}
+par(mgp=c(2,0.5,0), mar=c(3.5,3.5,1.5,1))
+layout(matrix(1:8,nrow=4,ncol = 2,byrow = TRUE))
+for (i in 1:8) {
+  hist(mast_pval_df[,i], main = paste0("Diff. gene expression pvals when comparing cells in cluster ", i, " and all other cells"), xlab = "p-values", breaks = 500)
+}
+```
+
+## Volcano plot of p-values for each comparison
+
+Dataframe of fold changes
+```{r}
+fc_df = read.table("Average_GeneExpression_by_CellType.txt", header = TRUE)
+head(fc_df)
+```
+
+```{r fig.height=10, fig.width=8}
+par(mgp=c(2,0.5,0), mar=c(3.5,3.5,1.5,1))
+layout(matrix(1:8,nrow=4,ncol = 2,byrow = TRUE))
+for (i in 1:8) {
+  plot(log2(fc_df[,paste0("fc_",i)]), -log10(mast_pval_df[,i]), main = paste0("Volcano plot, cluster ", i), xlab = "log2(fold change)", ylab = "-log10(p-value)", xlim = c(-10,10), ylim = c(0, 350))
+  abline(h=-log10(3.408781e-06),col="red")
+  abline(v=log2(1),col="red")
+}
+
+```
 
 # Select differentially expressed genes for each cell type
 
@@ -357,8 +396,6 @@ Save the output
 ```{r eval=FALSE}
 write.table(average_expression, file = "Average_GeneExpression_by_CellType.txt", quote = FALSE, sep = "\t", row.names = FALSE, col.names = TRUE)
 write.table(genes.selected.perCellType, file = "50DEGs_by_CellType.txt", quote = FALSE, sep = "\t", row.names = FALSE, col.names = TRUE)
-mast_pval_glm_df = as.data.frame(mast_pval_glm_list)
-write.csv(mast_pval_glm_df, file = "MastGenePvals_by_CellType.csv", quote = FALSE)
 ```
 
 Finally, use `scp rcai2@bayes.biostat.washington.edu:/home/students/rcai2/IT-predictor/R/*by_CellType* /Users/cairuoyi/Documents/GitHub/IT-predictor/R/` to downlowad the saved output.

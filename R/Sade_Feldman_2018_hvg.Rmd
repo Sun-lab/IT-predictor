@@ -10,6 +10,7 @@ library(data.table)
 library(Rtsne)
 library(R.utils)
 library(ggplot2)
+library(ggcorrplot)
 ```
 
 # Processing data
@@ -86,7 +87,6 @@ large.expressed.tpm = sf_tpm[match(large.express.genes,rownames(sf_tpm)),]
 genes.mean = apply(large.expressed.tpm, 1, mean)
 genes.variance = apply(large.expressed.tpm, 1, var)
 df_mv = data.frame(gene=large.express.genes, mean=genes.mean, var=genes.variance)
-rm(large.express.genes)
 rm(large.expressed.tpm)
 rm(genes.mean)
 rm(genes.variance)
@@ -269,7 +269,7 @@ large.expressed.tpm = TNKcells_tpm[match(large.express.genes,rownames(TNKcells_t
 genes.mean = apply(large.expressed.tpm, 1, mean)
 genes.variance = apply(large.expressed.tpm, 1, var)
 df_mv = data.frame(gene=large.express.genes, mean=genes.mean, var=genes.variance)
-rm(large.express.genes)
+#rm(large.express.genes)
 rm(large.expressed.tpm)
 rm(genes.mean)
 rm(genes.variance)
@@ -336,10 +336,10 @@ for (num_clust in all_num_clust) {
   print(kmeans_out[c("betweenss","tot.withinss")])
   km_label = paste0("KM_",num_clust)
   df_top50PCs_TNKcells[[km_label]] = as.factor(kmeans_out$cluster)
-  pt = ggplot(data=df_top50PCs_TNKcells)+geom_point(aes(x=topPC_TSNE1,y=topPC_TSNE2,color=eval(as.name(paste(km_label)))),size = 0.1)+scale_colour_discrete(name=paste(km_label))+guides(color = guide_legend(override.aes = list(size = 2)))
-  print(pt)
+  #pt = ggplot(data=df_top50PCs_TNKcells)+geom_point(aes(x=topPC_TSNE1,y=topPC_TSNE2,color=eval(as.name(paste(km_label)))),size = 0.1)+scale_colour_discrete(name=paste(km_label))+guides(color = guide_legend(override.aes = list(size = 2)))
+  #print(pt)
   rm(kmeans_out)
-  rm(pt)
+  #rm(pt)
 }
 ```
 
@@ -358,37 +358,126 @@ Using 3 clusters would suffice.
 ## Compare expression data with CIBERSORT_LM22
 LM22 signature matrix  
 ```{r}
-CBST_LM22 = read.table("../_reference/LM22.txt", header = TRUE, sep = "\t")
-#head(CBST_LM22)
+CBST_LM22 = read.table("../_reference/LM22.txt", sep = "\t", header = TRUE)
+head(CBST_LM22)
 CBST_SFgenes_LM22 = CBST_LM22[as.character(CBST_LM22$Gene.symbol)%in%gene.names,]
 CBST.genes = as.character(CBST_SFgenes_LM22$Gene.symbol) # 538 out of 547 
+CBST.largeExpression.genes = CBST.genes[CBST.genes %in% large.express.genes] # 221 out of 538
+CBST_SFLEgenes_LM22 = CBST_LM22[as.character(CBST_LM22$Gene.symbol)%in%CBST.largeExpression.genes,]
+rm(CBST_SFgenes_LM22)
 ```
 
 Calculate the (median) expression data of each gene in each of the 3 cell clusters from the k-means analysis
 ```{r}
 # TPM data of signature genes for only TNK cells 
-TNKcells_CBSTgenes_tpm = TNKcells_tpm[rownames(TNKcells_tpm) %in% CBST.genes,]
-TNKcells_CBSTgenes_tpm = as.data.table(t(TNKcells_CBSTgenes_tpm))
-rownames(TNKcells_CBSTgenes_tpm) = row.names(df_top50PCs_TNKcells)
-colnames(TNKcells_CBSTgenes_tpm) = CBST.genes
+TNKcells_CBSTLEgenes_tpm = TNKcells_tpm[rownames(TNKcells_tpm) %in% CBST.largeExpression.genes,]
+TNKcells_CBSTLEgenes_tpm = as.data.table(t(TNKcells_CBSTLEgenes_tpm))
+rownames(TNKcells_CBSTLEgenes_tpm) = row.names(df_top50PCs_TNKcells)
+colnames(TNKcells_CBSTLEgenes_tpm) = CBST.largeExpression.genes
 # Get the median expression level of each gene in each cell cluster
-TNKcells_CBSTgenes_tpm$grouping = factor(df_top50PCs_TNKcells$KM_3) # cell groupings from the k-means analysis 
-TNKcells_CBSTgene_expression = TNKcells_CBSTgenes_tpm[, lapply(.SD, median), by = grouping] # median expression level of each gene in each cell cluster
-dim(TNKcells_CBSTgene_expression) # 3 x 539
-TNKcells_CBSTgene_expression[,1:6]
+TNKcells_CBSTLEgenes_tpm$grouping = factor(df_top50PCs_TNKcells$KM_3) # cell groupings from the k-means analysis 
+TNKcells_CBSTLEgene_expression = TNKcells_CBSTLEgenes_tpm[, lapply(.SD, median), by = grouping] # median expression level of each gene in each cell cluster
+dim(TNKcells_CBSTLEgene_expression) # 3 x 222
+TNKcells_CBSTLEgene_expression[,1:6]
 # Format the gene expression data for each cluster to calculate correlation
-compare_expression = data.frame(G1 = as.numeric(TNKcells_CBSTgene_expression[1,-1]), G2 = as.numeric(TNKcells_CBSTgene_expression[3,-1]), G3 = as.numeric(TNKcells_CBSTgene_expression[2,-1]))
+compare_expression = data.frame(G1 = as.numeric(TNKcells_CBSTLEgene_expression[1,-1]), G2 = as.numeric(TNKcells_CBSTLEgene_expression[3,-1]), G3 = as.numeric(TNKcells_CBSTLEgene_expression[2,-1]))
+row.names(compare_expression) = CBST.largeExpression.genes
 head(compare_expression)
 ```
 
-calculate correlation  
-```{r}
-cor(compare_expression, CBST_SFgenes_LM22[,-1])
+Check the scatter plot between the three clusters vs. CD4 memory activated T cells, follicular.helper T cells, regulatory T cells, resting NK cells, activated NK cells, and activated Mast cells. On the y-axis is the gene expression in the LM22 matrix for each cell type, and on the x-axis is the gene expression data we calculated from Sade Feldman et al. (2018). 
+```{r fig.height=8, fig.width=8}
+par(mgp=c(2,0.5,0))
+layout(matrix(1:18,nrow=6,ncol = 3,byrow = TRUE))
+clusters = c("G1","G2","G3")
+cells = c("CD4 memory activated T", "follicular helper T", "regulatory T", "resting NK cells" , "activated NK cells","activated Mast cells")
+iter=1
+for (i in c(8,9,10,12,13,21)) {
+  for (j in 1:3) {
+    if (j==1){
+      par(mar=c(1.5,3.5,1.5,1))
+    } else {
+      par(mar=c(1.5,1,1.5,1))
+    }
+    plot(as.numeric(compare_expression[,j]), as.numeric(CBST_SFLEgenes_LM22[,i]), main = paste0(clusters[j]), ylab = paste0(cells[iter]), xlab=NULL)
+  }
+  iter = iter+1
+}
 ```
 
-- There were no strong correlations between the signature gene expressions in LM22 and the gene expression data for each of my cell clusters. 
-- All 3 cell clusters are slightly correlated with activated NK cells in LM22. 
-- Slight correlations are also observed between activated memory T cells in LM22 and G1, and between activated memory T cells, follicular helper T cells, and regulatory T cells in LM 22 and G3. 
+calculate and visualize correlation  
+```{r}
+iter=1
+cormat = matrix(0,nrow = 6,ncol = 3)
+colnames(cormat)= c("G1","G2","G3")
+rownames(cormat) = c("CD4 memory activated T", "follicular helper T", "regulatory T", "resting NK cells" , "activated NK cells","activated Mast cells")
+for (i in c(8,9,10,12,13,21)) {
+  for (j in 1:3) {
+   cormat[iter,j] = cor(as.numeric(compare_expression[,j]), as.numeric(CBST_SFLEgenes_LM22[,i]),method = "spearman")
+  }
+  iter = iter+1
+}
+cormat
+```
+
+```{r}
+ggcorrplot(t(cormat))
+```
+
+Based on the scatter plot, it seems that there are some genes with outlier expression levels in each group (I choosed genes whose expression levels go beyond 10000): 
+```{r}
+outlier.genes = as.character(CBST_SFLEgenes_LM22$Gene.symbol)[CBST_SFLEgenes_LM22$T.cells.CD4.memory.activated>10000] 
+outlier.genes = c(outlier.genes,as.character(CBST_SFLEgenes_LM22$Gene.symbol)[CBST_SFLEgenes_LM22$T.cells.follicular.helper>10000])
+outlier.genes = c(outlier.genes,as.character(CBST_SFLEgenes_LM22$Gene.symbol)[CBST_SFLEgenes_LM22$T.cells.regulatory..Tregs.>10000])
+outlier.genes = c(outlier.genes,as.character(CBST_SFLEgenes_LM22$Gene.symbol)[CBST_SFLEgenes_LM22$NK.cells.resting > 10000])
+outlier.genes = c(outlier.genes,as.character(CBST_SFLEgenes_LM22$Gene.symbol)[CBST_SFLEgenes_LM22$NK.cells.activated > 10000])
+outlier.genes = c(outlier.genes,as.character(CBST_SFLEgenes_LM22$Gene.symbol)[CBST_SFLEgenes_LM22$Mast.cells.activated > 10000])
+table(outlier.genes)
+```
+
+Scatterplot after removing the outliers. On the y-axis is the gene expression in the LM22 matrix for each cell type, and on the x-axis is the gene expression data we calculated from Sade Feldman et al. (2018). 
+```{r fig.height=8, fig.width=8}
+par(mgp=c(2,0.5,0))
+layout(matrix(1:18,nrow=6,ncol = 3,byrow = TRUE))
+clusters = c("G1","G2","G3")
+cells = c("CD4 memory activated T", "follicular helper T", "regulatory T", "resting NK cells" , "activated NK cells","activated Mast cells")
+outlierval = c(10000,10000,10000,10000,10000,10000)
+iter=1
+for (i in c(8,9,10,12,13,21)) {
+  for (j in 1:3) {
+    if (j==1){
+      par(mar=c(1.5,3.5,1.5,1))
+    } else {
+      par(mar=c(1.5,1,1.5,1))
+    }
+    plot(as.numeric(compare_expression[,j])[CBST_SFLEgenes_LM22[,i] <=outlierval[iter]], as.numeric(CBST_SFLEgenes_LM22[,i])[CBST_SFLEgenes_LM22[,i] <=outlierval[iter]], main = paste0(clusters[j]), ylab = paste0(cells[iter]), xlab=NULL)
+  }
+  iter = iter+1
+}
+```
+
+Correlation after removing outliers
+```{r}
+outlierval = c(10000,10000,10000,10000,10000,10000)
+iter=1
+cormat_rmoutliers = matrix(0,nrow = 6,ncol = 3)
+colnames(cormat_rmoutliers)= c("G1","G2","G3")
+rownames(cormat_rmoutliers) = c("CD4 memory activated T", "follicular helper T", "regulatory T", "resting NK cells" , "activated NK cells","activated Mast cells")
+for (i in c(8,9,10,12,13,21)) {
+  for (j in 1:3) {
+   cormat_rmoutliers[iter,j] = cor(as.numeric(compare_expression[,j])[CBST_SFLEgenes_LM22[,i] <=outlierval[iter]], as.numeric(CBST_SFLEgenes_LM22[,i])[CBST_SFLEgenes_LM22[,i] <=outlierval[iter]],method = "spearman")
+  }
+  iter = iter+1
+}
+cormat_rmoutliers
+```
+
+```{r}
+ggcorrplot(t(cormat_rmoutliers))
+```
+
+- There were no strong correlations between the signature gene expressions in LM22 and the gene expression data for each of my cell clusters. I tried to remove some outliers, but the result didn't seem to be much different.
+- When using Spearman correlation, regulatory CD4 T cells is most correlated with the cell clusters. G3 is also slighted correlated with follicular helper CD4 T cells. G1 is slightly correlated with resting NK cells. 
 
 ## Select CD8_B cells and CD8_G cells 
  
