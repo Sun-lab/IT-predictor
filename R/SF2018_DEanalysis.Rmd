@@ -45,6 +45,9 @@ Only select classified cells
 ```{r eval=FALSE}
 cell_type = read.table("cell_type.txt",header = TRUE)
 cell_type$cell = as.character(cell_type$cell)
+dim(cell_type)
+cell_type[1:2,]
+
 table(cell_type$type)
 clustered_cells = cell_type$cell[cell_type$type != 0]
 cluster_sf_tpm = sf_tpm[, ..clustered_cells] # 55737 x 14777
@@ -57,7 +60,7 @@ rm(clustered_cells)
 
 Calculate the proportion of cells that each gene is expressed in
 ```{r eval=FALSE}
-cells.per.gene = apply(cluster_sf_tpm, 1, FUN = function(x) sum(x>0))
+cells.per.gene = rowSums(cluster_sf_tpm > 0)
 cellprop.per.gene = cells.per.gene/ncol(cluster_sf_tpm)
 summary(cellprop.per.gene)
 ```
@@ -70,6 +73,11 @@ rownames(HEgenes_cluster_tpm) = he.genes
 rm(cellprop.per.gene)
 rm(cells.per.gene)
 rm(cluster_sf_tpm)
+
+cells.per.gene = rowSums(HEgenes_cluster_tpm > 0)
+cellprop.per.gene = cells.per.gene/ncol(HEgenes_cluster_tpm)
+summary(cellprop.per.gene)
+table(cellprop.per.gene > 0.5)
 ```
 
 # Average expression of each gene in each cell type
@@ -124,6 +132,8 @@ The tutorial mentioned that the data should be a matrix of log2 + 1 transcripts 
 HEgenes_cluster_tpm_log = log2(1 + as.matrix(HEgenes_cluster_tpm)) #log transformed data
 
 dim(HEgenes_cluster_tpm_log) # 14577 x 14777
+HEgenes_cluster_tpm_log[1:2,1:5]
+
 row.names(HEgenes_cluster_tpm_log) = he.genes
 
 # get the cell names from the data
