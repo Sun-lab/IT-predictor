@@ -590,14 +590,22 @@ for (i in 1:22) {
    cormat[i,j] = cor(as.numeric(compare_expression[,j]), as.numeric(CBST_SFLEgenes_LM22[,i]),method = "spearman")
   }
 }
-cormat
 ```
 
 ```{r}
 ggcorrplot(t(cormat))
 ```
 
+Cell type G5-G11 are strongly correlated with each other. 
+- G5: CD4 T regulatory cells
+- G6: CD4 T memory cells
+- G7: 2482 CD8_B cells
+- G8: 3043 CD8_G cells
+- G9: 463 NK1 cells
+- G10: 1903 NK2 cells
+- G11: 1147 NK3 cells
 ```{r}
+cor(compare_expression, method = "spearman")
 ggcorrplot(cor(compare_expression, method = "spearman"),type = "upper")
 ```
 

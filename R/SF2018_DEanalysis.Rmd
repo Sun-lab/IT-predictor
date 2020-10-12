@@ -29,6 +29,7 @@ rm(sf_tpm2)
 sf_tpm = rbindlist(ls_tpm)
 
 rm(ls_tpm)
+
 ```
 
 ```{r eval=FALSE}
@@ -37,6 +38,7 @@ rm(ls_tpm)
 gene.names = sf_tpm$V1
 rownames(sf_tpm) = gene.names
 sf_tpm$V1 = NULL
+
 ```
 
 Only select classified cells  
@@ -45,7 +47,7 @@ cell_type = read.table("cell_type.txt",header = TRUE)
 cell_type$cell = as.character(cell_type$cell)
 table(cell_type$type)
 clustered_cells = cell_type$cell[cell_type$type != 0]
-cluster_sf_tpm = sf_tpm[, ..clustered_cells] # 55737 x 11264
+cluster_sf_tpm = sf_tpm[, ..clustered_cells] # 55737 x 14777
 rownames(cluster_sf_tpm) = gene.names
 rm(sf_tpm)
 rm(clustered_cells)
@@ -61,8 +63,8 @@ summary(cellprop.per.gene)
 ```
 
 ```{r eval=FALSE}
-he.genes = gene.names[cellprop.per.gene > 0.02] # kept 14668 genes
-HEgenes_cluster_tpm = cluster_sf_tpm[cellprop.per.gene > 0.02, ] # 14668 x 11264
+he.genes = gene.names[cellprop.per.gene > 0.02] # kept 14577 genes
+HEgenes_cluster_tpm = cluster_sf_tpm[cellprop.per.gene > 0.02, ] # 14577 x 14777
 rownames(HEgenes_cluster_tpm) = he.genes
 
 rm(cellprop.per.gene)
@@ -84,7 +86,7 @@ o_1 - o_8: For a particular cell type, the average expression of each gene in al
 ```{r eval=FALSE}
 average_expression = data.frame(gene = he.genes)
 
-for (i in 1:8) {
+for (i in 1:11) {
   cc = cell_type$cell[cell_type$type == i] # select cells in each cell cluster
   cluster.exp = apply(HEgenes_cluster_tpm[, ..cc], 1, sum) # total expression of each gene across all cells in a particular cluster
   exclu.exp = all.expression - cluster.exp # total expression of each gene across all other cells
@@ -107,6 +109,10 @@ rm(aveg.exclu.exp)
 rm(fc)
 ```
 
+```{r eval=FALSE}
+write.table(average_expression, file = "Average_GeneExpression_by_CellType.txt", quote = FALSE, sep = "\t", row.names = FALSE, col.names = TRUE)
+```
+
 # Testing differential gene expression
 
 ##  Loading and transforming data
@@ -117,7 +123,7 @@ The tutorial mentioned that the data should be a matrix of log2 + 1 transcripts 
 # cluster_sf_tpm is a big data table of TPM data, with one row per gene and one column per cell
 HEgenes_cluster_tpm_log = log2(1 + as.matrix(HEgenes_cluster_tpm)) #log transformed data
 
-dim(HEgenes_cluster_tpm_log) # 14668 x 11264
+dim(HEgenes_cluster_tpm_log) # 14577 x 14777
 row.names(HEgenes_cluster_tpm_log) = he.genes
 
 # get the cell names from the data
@@ -128,7 +134,7 @@ cell.id = colnames(HEgenes_cluster_tpm_log)
 ## Calculating the CDR rate: proportion of genes detected for each cell
 ```{r eval=FALSE}
 cdr = rep(NA, ncol(HEgenes_cluster_tpm))
-for (i in 1:8) {
+for (i in 1:11) {
   ss = cell_type$cell[cell_type$type == i]
   temp.prop = unlist(HEgenes_cluster_tpm[, lapply(.SD, FUN = function(x) sum(x>0)/length(x)), .SDcols = ss])
   cdr[match(ss, cell.id)] = temp.prop
@@ -151,19 +157,19 @@ cData = data.frame(wellKey = cell.id)
 sca = FromMatrix(HEgenes_cluster_tpm_log, cData, fData) 
 # On bayes.biostat.washington.edu:
 # class: SingleCellAssay 
-# dim: 14668 11264 
+# dim: 14577 14777 
 # metadata(0):
 # assays(1): et
-# rownames(14668): DPM1 SCYL3 ... RP11-465N4.5 RP11-180C16.1
+# rownames(14577): DPM1 SCYL3 ... RP11-465N4.5 RP11-180C16.1
 # rowData names(1): primerid
-# colnames(11264): A11_P4_M11 A2_P4_M11 ... B8_P7_M74_T_enriched
-#   A12_P6_MMD8_L001_T_enriched
+# colnames(14777): A10_P3_M11 A11_P1_M11 ... H8_P5_M67_L001_T_enriched
+#   H9_P5_M67_L001_T_enriched
 # colData names(1): wellKey
 # reducedDimNames(0):
 # spikeNames(0):
 
 colData(sca)$cngeneson = scale(cdr)
-for(i in 1:8){
+for(i in 1:11){
   label = paste0("G_",i)
   colData(sca)[[label]] = "control"
   caseid = match(cell_type$cell[cell_type$type == i],colData(sca)$wellKey)
@@ -178,9 +184,9 @@ colData(sca)
 
 ```{r eval=FALSE}
 zlmlist = list()
-date() # "Fri Sep 11 14:26:32 2020"
+date() # "Fri Oct 9 14:11:43 2020"
 zlmlist[["G_1"]] = zlm(formula = ~ G_1 + cngeneson, sca = sca, parallel = FALSE) 
-date() # "Fri Sep 11 14:39:50 2020" 
+date() # "Fri Oct 9 14:28:58 2020"
 zlmlist[["G_2"]] = zlm(formula = ~ G_2 + cngeneson, sca = sca, parallel = FALSE)
 zlmlist[["G_3"]] = zlm(formula = ~ G_3 + cngeneson, sca = sca, parallel = FALSE)
 zlmlist[["G_4"]] = zlm(formula = ~ G_4 + cngeneson, sca = sca, parallel = FALSE)
@@ -188,113 +194,36 @@ zlmlist[["G_5"]] = zlm(formula = ~ G_5 + cngeneson, sca = sca, parallel = FALSE)
 zlmlist[["G_6"]] = zlm(formula = ~ G_6 + cngeneson, sca = sca, parallel = FALSE)
 zlmlist[["G_7"]] = zlm(formula = ~ G_7 + cngeneson, sca = sca, parallel = FALSE)
 zlmlist[["G_8"]] = zlm(formula = ~ G_8 + cngeneson, sca = sca, parallel = FALSE)
-date() 
+zlmlist[["G_9"]] = zlm(formula = ~ G_9 + cngeneson, sca = sca, parallel = FALSE)
+zlmlist[["G_10"]] = zlm(formula = ~ G_10 + cngeneson, sca = sca, parallel = FALSE)
+zlmlist[["G_11"]] = zlm(formula = ~ G_11 + cngeneson, sca = sca, parallel = FALSE)
+date() # "Fri Oct 9 17:09:09 2020"
 zlmlist
 ```
-
-$G_1     
-Fitted zlm on 14668 genes and 11264 cells.     
- Using BayesGLMlike ~ G_1 + cngeneson     
-
-$G_2     
-Fitted zlm on 14668 genes and 11264 cells.     
- Using BayesGLMlike ~ G_2 + cngeneson     
      
-$G_3     
-Fitted zlm on 14668 genes and 11264 cells.     
- Using BayesGLMlike ~ G_3 + cngeneson     
-     
-$G_4     
-Fitted zlm on 14668 genes and 11264 cells.     
- Using BayesGLMlike ~ G_4 + cngeneson     
-     
-$G_5     
-Fitted zlm on 14668 genes and 11264 cells.     
- Using BayesGLMlike ~ G_5 + cngeneson     
-     
-$G_6     
-Fitted zlm on 14668 genes and 11264 cells.     
- Using BayesGLMlike ~ G_6 + cngeneson     
-
-$G_7     
-Fitted zlm on 14668 genes and 11264 cells.     
- Using BayesGLMlike ~ G_7 + cngeneson     
-     
-$G_8     
-Fitted zlm on 14668 genes and 11264 cells.     
- Using BayesGLMlike ~ G_8 + cngeneson     
-
 ## Testing
 
 ```{r eval=FALSE}
+date() # "Fri Oct 9 17:21:48 2020"
 lrtlist = list()
-for (i in 1:8) {
+for (i in 1:11) {
   lrtlist[[paste0("G_",i)]] = lrTest(zlmlist[[i]], paste0("G_",i))
 }
+date() # "Fri Oct 9 20:01:41 2020"
 str(lrtlist)
 ```
-
-List of 8     
- $ G_1: num [1:14668, 1:3, 1:3] 3.307 0.128 1.151 7.833 0.28 ...     
-  ..- attr(*, "dimnames")=List of 3     
-  .. ..$ primerid : chr [1:14668] "DPM1" "SCYL3" "C1orf112" "FGR" ...     
-  .. ..$ test.type: chr [1:3] "cont" "disc" "hurdle"     
-  .. ..$ metric   : chr [1:3] "lambda" "df" "Pr(>Chisq)"     
-  ..- attr(*, "test")= chr "G_1"     
- $ G_2: num [1:14668, 1:3, 1:3] 144.102 23.308 0.704 87.375 94.948 ...     
-  ..- attr(*, "dimnames")=List of 3     
-  .. ..$ primerid : chr [1:14668] "DPM1" "SCYL3" "C1orf112" "FGR" ...     
-  .. ..$ test.type: chr [1:3] "cont" "disc" "hurdle"     
-  .. ..$ metric   : chr [1:3] "lambda" "df" "Pr(>Chisq)"     
-  ..- attr(*, "test")= chr "G_2"     
- $ G_3: num [1:14668, 1:3, 1:3] 1.15 2.11 1.09 110.54 10.36 ...     
-  ..- attr(*, "dimnames")=List of 3     
-  .. ..$ primerid : chr [1:14668] "DPM1" "SCYL3" "C1orf112" "FGR" ...     
-  .. ..$ test.type: chr [1:3] "cont" "disc" "hurdle"     
-  .. ..$ metric   : chr [1:3] "lambda" "df" "Pr(>Chisq)"     
-  ..- attr(*, "test")= chr "G_3"     
- $ G_4: num [1:14668, 1:3, 1:3] 0.1902 0.7066 0.0119 1.4043 0.069 ...     
-  ..- attr(*, "dimnames")=List of 3     
-  .. ..$ primerid : chr [1:14668] "DPM1" "SCYL3" "C1orf112" "FGR" ...     
-  .. ..$ test.type: chr [1:3] "cont" "disc" "hurdle"     
-  .. ..$ metric   : chr [1:3] "lambda" "df" "Pr(>Chisq)"     
-  ..- attr(*, "test")= chr "G_4"     
- $ G_5: num [1:14668, 1:3, 1:3] 1.142 0.42 0.292 57.944 5.098 ...     
-  ..- attr(*, "dimnames")=List of 3     
-  .. ..$ primerid : chr [1:14668] "DPM1" "SCYL3" "C1orf112" "FGR" ...     
-  .. ..$ test.type: chr [1:3] "cont" "disc" "hurdle"     
-  .. ..$ metric   : chr [1:3] "lambda" "df" "Pr(>Chisq)"     
-  ..- attr(*, "test")= chr "G_5"     
- $ G_6: num [1:14668, 1:3, 1:3] 2.15178 0.3007 0.00914 89.98802 2.4048 ...     
-  ..- attr(*, "dimnames")=List of 3     
-  .. ..$ primerid : chr [1:14668] "DPM1" "SCYL3" "C1orf112" "FGR" ...     
-  .. ..$ test.type: chr [1:3] "cont" "disc" "hurdle"     
-  .. ..$ metric   : chr [1:3] "lambda" "df" "Pr(>Chisq)"     
-  ..- attr(*, "test")= chr "G_6"     
- $ G_7: num [1:14668, 1:3, 1:3] 15.1175 0.4718 0.1394 13.3685 0.0956 ...     
-  ..- attr(*, "dimnames")=List of 3     
-  .. ..$ primerid : chr [1:14668] "DPM1" "SCYL3" "C1orf112" "FGR" ...     
-  .. ..$ test.type: chr [1:3] "cont" "disc" "hurdle"     
-  .. ..$ metric   : chr [1:3] "lambda" "df" "Pr(>Chisq)"     
-  ..- attr(*, "test")= chr "G_7"     
- $ G_8: num [1:14668, 1:3, 1:3] 0.883 0.97 1.553 17.945 4.573 ...     
-  ..- attr(*, "dimnames")=List of 3     
-  .. ..$ primerid : chr [1:14668] "DPM1" "SCYL3" "C1orf112" "FGR" ...     
-  .. ..$ test.type: chr [1:3] "cont" "disc" "hurdle"     
-  .. ..$ metric   : chr [1:3] "lambda" "df" "Pr(>Chisq)"     
-  ..- attr(*, "test")= chr "G_8"     
-
+     
 ## Get the hurdel p-values
 
 ```{r eval=FALSE}
-dim(lrtlist[[1]]) # 14668 x 3 x 3
+dim(lrtlist[[1]]) # 14577 x 3 x 3
 lrtlist[[1]][1, , ]
 #  metric
 # test.type   lambda df Pr(>Chisq)
-#    cont   3.307405  1 0.06896832
-#    disc   2.071837  1 0.15004070
-#    hurdle 5.379242  2 0.06790666
-lrtlist[[1]][1, , ][3,3] # 0.06790666
+#    cont   1.574313  1  0.2095818
+#    disc   1.819781  1  0.1773394
+#    hurdle 3.394094  2  0.1832238
+lrtlist[[1]][1, , ][3,3] # 0.1832238
 
 mast_pval_glm_list = lapply(lrtlist, FUN = function(lrt0) apply(lrt0, 1, function(x){x[3,3]}))
 str(mast_pval_glm_list)
@@ -303,23 +232,32 @@ mast_pval_glm_df = as.data.frame(mast_pval_glm_list)
 write.csv(mast_pval_glm_df, file = "MastGenePvals_by_CellType.csv", quote = FALSE)
 ```
 
-List of 8     
- $ G_1: Named num [1:14668] 6.79e-02 7.40e-01 5.06e-01 9.49e-05 3.90e-03 ...     
-  ..- attr(*, "names")= chr [1:14668] "DPM1" "SCYL3" "C1orf112" "FGR" ...     
- $ G_2: Named num [1:14668] 7.80e-35 6.31e-06 3.06e-05 2.44e-27 9.86e-49 ...     
-  ..- attr(*, "names")= chr [1:14668] "DPM1" "SCYL3" "C1orf112" "FGR" ...     
- $ G_3: Named num [1:14668] 1.50e-01 1.14e-10 1.05e-37 0.00 1.05e-55 ...     
-  ..- attr(*, "names")= chr [1:14668] "DPM1" "SCYL3" "C1orf112" "FGR" ...     
- $ G_4: Named num [1:14668] 4.42e-01 1.08e-01 3.78e-04 5.26e-12 8.77e-05 ...     
-  ..- attr(*, "names")= chr [1:14668] "DPM1" "SCYL3" "C1orf112" "FGR" ...     
- $ G_5: Named num [1:14668] 2.34e-02 5.49e-01 1.43e-23 3.68e-75 4.96e-02 ...     
-  ..- attr(*, "names")= chr [1:14668] "DPM1" "SCYL3" "C1orf112" "FGR" ...     
- $ G_6: Named num [1:14668] 1.58e-01 2.58e-02 9.54e-01 2.24e-39 2.78e-01 ...     
-  ..- attr(*, "names")= chr [1:14668] "DPM1" "SCYL3" "C1orf112" "FGR" ...     
- $ G_7: Named num [1:14668] 8.38e-05 1.24e-03 5.67e-18 5.65e-101 9.58e-33 ...     
-  ..- attr(*, "names")= chr [1:14668] "DPM1" "SCYL3" "C1orf112" "FGR" ...     
- $ G_8: Named num [1:14668] 3.79e-01 7.99e-03 1.37e-11 1.01e-06 7.23e-06 ...     
-  ..- attr(*, "names")= chr [1:14668] "DPM1" "SCYL3" "C1orf112" "FGR" ...     
+List of 11     
+ $ G_1 : Named num [1:14577] 0.18322 0.63864 0.58685 0.00551 0.01007 ...     
+  ..- attr(*, "names")= chr [1:14577] "DPM1" "SCYL3" "C1orf112" "FGR" ...     
+ $ G_2 : Named num [1:14577] 2.17e-37 6.36e-06 1.17e-05 5.19e-25 1.11e-52 ...     
+  ..- attr(*, "names")= chr [1:14577] "DPM1" "SCYL3" "C1orf112" "FGR" ...     
+ $ G_3 : Named num [1:14577] 1.03e-01 2.64e-12 3.88e-57 0.00 1.30e-80 ...     
+  ..- attr(*, "names")= chr [1:14577] "DPM1" "SCYL3" "C1orf112" "FGR" ...     
+ $ G_4 : Named num [1:14577] 4.81e-01 1.46e-01 3.20e-05 3.38e-08 7.41e-03 ...     
+  ..- attr(*, "names")= chr [1:14577] "DPM1" "SCYL3" "C1orf112" "FGR" ...     
+ $ G_5 : Named num [1:14577] 3.92e-02 6.20e-01 3.65e-20 9.04e-70 4.85e-02 ...     
+  ..- attr(*, "names")= chr [1:14577] "DPM1" "SCYL3" "C1orf112" "FGR" ...     
+ $ G_6 : Named num [1:14577] 7.23e-02 2.02e-02 9.94e-01 8.82e-42 1.03e-01 ...     
+  ..- attr(*, "names")= chr [1:14577] "DPM1" "SCYL3" "C1orf112" "FGR" ...     
+ $ G_7 : Named num [1:14577] 2.59e-03 7.71e-03 1.01e-10 7.21e-69 3.89e-18 ...     
+  ..- attr(*, "names")= chr [1:14577] "DPM1" "SCYL3" "C1orf112" "FGR" ...     
+ $ G_8 : Named num [1:14577] 5.73e-01 3.47e-02 1.50e-09 1.35e-10 2.51e-05 ...     
+  ..- attr(*, "names")= chr [1:14577] "DPM1" "SCYL3" "C1orf112" "FGR" ...     
+ $ G_9 : Named num [1:14577] 7.25e-01 2.46e-05 4.00e-29 1.11e-68 2.72e-20 ...     
+  ..- attr(*, "names")= chr [1:14577] "DPM1" "SCYL3" "C1orf112" "FGR" ...     
+ $ G_10: Named num [1:14577] 6.56e-03 1.43e-01 2.76e-02 9.00e-16 2.51e-04 ...     
+  ..- attr(*, "names")= chr [1:14577] "DPM1" "SCYL3" "C1orf112" "FGR" ...     
+ $ G_11: Named num [1:14577] 4.61e-01 2.97e-01 9.50e-01 7.49e-09 2.06e-04 ...     
+  ..- attr(*, "names")= chr [1:14577] "DPM1" "SCYL3" "C1orf112" "FGR" ...  
+  
+To downlowad the saved output, use      
+`scp rcai2@bayes.biostat.washington.edu:/home/students/rcai2/IT-predictor/R/*by_CellType* /Users/cairuoyi/Documents/GitHub/IT-predictor/R/`     
 
 ## Histogram of p-values
 
@@ -330,10 +268,10 @@ head(mast_pval_df)
 ```
 
 Histogram of p-values for each comparison
-```{r fig.height=10, fig.width=8}
-par(mgp=c(2,0.5,0), mar=c(3.5,3.5,1.5,1))
-layout(matrix(1:8,nrow=4,ncol = 2,byrow = TRUE))
-for (i in 1:8) {
+```{r fig.height=12, fig.width=8}
+par(mgp=c(2,0.5,0), mar=c(3.5,3.5,1.5,1), cex.main=0.8)
+layout(matrix(1:12,nrow=6,ncol = 2,byrow = TRUE))
+for (i in 1:11) {
   hist(mast_pval_df[,i], main = paste0("Diff. gene expression pvals when comparing cells in cluster ", i, " and all other cells"), xlab = "p-values", breaks = 500)
 }
 ```
@@ -346,10 +284,10 @@ fc_df = read.table("Average_GeneExpression_by_CellType.txt", header = TRUE)
 head(fc_df)
 ```
 
-```{r fig.height=10, fig.width=8}
+```{r fig.height=12, fig.width=8}
 par(mgp=c(2,0.5,0), mar=c(3.5,3.5,1.5,1))
-layout(matrix(1:8,nrow=4,ncol = 2,byrow = TRUE))
-for (i in 1:8) {
+layout(matrix(1:12,nrow=6,ncol = 2,byrow = TRUE))
+for (i in 1:11) {
   plot(log2(fc_df[,paste0("fc_",i)]), -log10(mast_pval_df[,i]), main = paste0("Volcano plot, cluster ", i), xlab = "log2(fold change)", ylab = "-log10(p-value)", xlim = c(-10,10), ylim = c(0, 350))
   abline(h=-log10(3.408781e-06),col="red")
   abline(v=log2(1),col="red")
@@ -359,46 +297,44 @@ for (i in 1:8) {
 
 # Select differentially expressed genes for each cell type
 
-Obtain differentially expressed genes for each cell type: genes whose p-values are smaller than the cutoff
-```{r eval=FALSE}
-n = length(he.genes) # 14668
-cutoff = 0.05 / n # 3.408781e-06
+Select around 60 genes per cell type. Select those genes with smallest p-value and fold change, by scanning a series of percentiles. For example, for 1 percentile, we select the intersection of the genes with p-value < 1 percentile and fold change smaller than 1 percentile. Choose the percentile that gives use between 55 and 65 genes. 
 
-DE.genes.list = lapply(mast_pval_glm_list, FUN = function(pval) names(pval[pval <= cutoff]))
-str(DE.genes.list)
+```{r}
+for (i in 1:11) {
+  print(length(fc_df$gene[fc_df[,paste0("fc_",i)] <= quantile(fc_df[,paste0("fc_",i)],probs=seq(0,0.1,0.01))[4] & mast_pval_df[,i] <= quantile(mast_pval_df[,i],probs=seq(0,0.1,0.01))[4]]))
+}
+
+length(fc_df$gene[fc_df[,paste0("fc_",i)] <= quantile(fc_df[,paste0("fc_",i)],probs=0.027) & mast_pval_df[,i] <= quantile(mast_pval_df[,i],probs=0.027)])
 ```
 
-List of 8     
- $ G_1: chr [1:4485] "NIPAL3" "LAP3" "CD99" "HS3ST1" ...     
- $ G_2: chr [1:9926] "DPM1" "FGR" "FUCA2" "NIPAL3" ...     
- $ G_3: chr [1:6995] "SCYL3" "C1orf112" "FGR" "FUCA2" ...     
- $ G_4: chr [1:2965] "FGR" "LAP3" "HS3ST1" "TMEM176A" ...     
- $ G_5: chr [1:2983] "C1orf112" "FGR" "ENPP4" "CYP51A1" ...     
- $ G_6: chr [1:1918] "FGR" "CYP51A1" "LAP3" "HS3ST1" ...     
- $ G_7: chr [1:5674] "C1orf112" "FGR" "FUCA2" "NIPAL3" ...     
- $ G_8: chr [1:3067] "C1orf112" "FGR" "ENPP4" "CYP51A1" ...     
+```{r}
+genes.selected.perCellType = list()
 
-For genes that are differentially expressed in each cell type，select the 50 genes with smallest expression fold change. 
-```{r eval=FALSE}
-genes.selected.perCellType = data.frame(matrix(NA, nrow = 50, ncol = 8))
-colnames(genes.selected.perCellType) = names(DE.genes.list)
+quantiles = c(0.009, 0.022, 0.007, 0.007, 0.012, 0.027, 0.021, 0.027, 0.013, 0.02, 0.018)
 
-for (i in 1:8) {
-  DE.genes = DE.genes.list[[i]] # differentially expressed genes for each cell cluster
-  fc_label = paste0("fc_",i)
-  fc = average_expression[[fc_label]][match(DE.genes, average_expression$gene)] # get the fold change for each DE gene
-  selected.genes = DE.genes[order(fc)[1:50]] # in differentially expressed genes, select 50 genes with smallest fold change
-  genes.selected.perCellType[,i] = selected.genes
+for (i in 1:11) {
+  genes.selected.perCellType[[colnames(mast_pval_df)[i]]] = as.character(fc_df$gene[fc_df[,paste0("fc_",i)] <= quantile(fc_df[,paste0("fc_",i)],probs=quantiles[i]) & mast_pval_df[,i] <= quantile(mast_pval_df[,i],probs=quantiles[i])])
 }
+
+genes.selected.perCellType
+```
+
+Check how many genes are selected by more than one cell type
+```{r}
+selected.genes = unlist(genes.selected.perCellType, use.names = FALSE) # 666 genes in total
+selected.genes[duplicated(selected.genes)] # 101 genes are selected in more than 1 cell type
 ```
 
 Save the output  
 ```{r eval=FALSE}
-write.table(average_expression, file = "Average_GeneExpression_by_CellType.txt", quote = FALSE, sep = "\t", row.names = FALSE, col.names = TRUE)
-write.table(genes.selected.perCellType, file = "50DEGs_by_CellType.txt", quote = FALSE, sep = "\t", row.names = FALSE, col.names = TRUE)
+for (i in 1:11) {
+  sig_gene = genes.selected.perCellType[[i]]
+  sig_gene_expression = fc_df[,paste0("u_",i)][match(sig_gene,as.character(fc_df$gene))]
+  signature_gene_df = data.frame(avg.expression = sig_gene_expression)
+  rownames(signature_gene_df) = sig_gene
+  write.csv(signature_gene_df, file = paste0("./Signature_gene_expression/cluster", i, ".csv"), quote = FALSE)
+}
 ```
-
-Finally, use `scp rcai2@bayes.biostat.washington.edu:/home/students/rcai2/IT-predictor/R/*by_CellType* /Users/cairuoyi/Documents/GitHub/IT-predictor/R/` to downlowad the saved output.
 
 ```{r}
 gc()
