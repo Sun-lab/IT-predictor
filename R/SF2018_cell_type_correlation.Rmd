@@ -1,0 +1,190 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+---
+```{r warning=FALSE, echo = TRUE, results = 'hide', warning = FALSE, message = FALSE}
+library(data.table)
+library(Rtsne)
+library(R.utils)
+library(ggplot2)
+library(ggcorrplot)
+```
+
+# Processing data
+
+## Sade-Feldman(2018) data
+```{r}
+fnm1 = "GSE120575_Sade_Feldman_melanoma_single_cells_nolabel_1.txt.gz"
+fnm2 = "GSE120575_Sade_Feldman_melanoma_single_cells_2.txt.gz"
+
+sf_tpm1 = fread(paste0("../scRNAseq/Sade_Feldman_2018/", fnm1), fill = TRUE, header = TRUE)
+
+sf_tpm2 = fread(paste0("../scRNAseq/Sade_Feldman_2018/", fnm2), fill = TRUE, drop = 16293, col.names = colnames(sf_tpm1))
+
+ls_tpm = list(sf_tpm1,sf_tpm2)
+sf_tpm = rbindlist(ls_tpm)
+
+rm(ls_tpm)
+rm(sf_tpm1)
+rm(sf_tpm2)
+```
+
+```{r}
+dim(sf_tpm) # 55737 x 16292
+gene.names = sf_tpm$V1
+rownames(sf_tpm) = gene.names
+sf_tpm$V1 = NULL
+```
+
+number of cells that each gene is expressed in, to select genes that have expression in a certain amount of cells 
+```{r}
+gene.grouping = rep(1:28, each = 2000)[1:dim(sf_tpm)[1]]
+cells.per.gene = NULL
+for (i in 1:28) {
+  temp.counts = rowSums(sf_tpm[gene.grouping==i,] > 0)
+  cells.per.gene = c(cells.per.gene,temp.counts)
+}
+large.express.genes.all = gene.names[which(cells.per.gene > 500)] # kept 12705 genes
+rm(gene.grouping)
+```
+
+## 11 cell types we defined from Sade-Feldman(2018) data
+
+```{r}
+cell_type = read.table("cell_type.txt",header = TRUE,sep = "\t")
+table(cell_type$type)
+clustered_cells = cell_type$cell[cell_type$type != "unclustered"]
+# select TPM data for 12705 genes with large expression in 14777 grouped cells
+clustered_tpm_LEgenes = sf_tpm[rownames(sf_tpm) %in% large.express.genes.all, ..clustered_cells] 
+rownames(clustered_tpm_LEgenes) = large.express.genes.all
+rm(sf_tpm)
+```
+
+## percentages of zero expression genes for each cell in each cell type
+```{r}
+# calculate the percentages of genes with zero expression for each cell
+zeros.per.cell = colSums(clustered_tpm_LEgenes==0) / nrow(clustered_tpm_LEgenes)
+zero.percentages = data.frame(percentage.of.zero = zeros.per.cell, grouping = factor(cell_type$type[match(clustered_cells, cell_type$cell)]))
+head(zero.percentages)
+# distribution of the percentages of zero expression genes for cells by cell type
+ggplot(data = zero.percentages) + 
+  geom_histogram(aes(x=percentage.of.zero), binwidth = 0.01) + 
+  facet_wrap(~grouping) + 
+  ggtitle("Distribution of the percentages of zero expression genes")
+rm(zeros.per.cell)
+```
+
+Based on the graph, the spread of distribution of the percentages of zero expression genes is quite different for each cell type, so I didn't use a single number as the cutoff to choose which cells to keep, instead, I select 100 cells with the smallest percentages of zero expression genes.
+```{r}
+fewzero_cells = unname(unlist(by(zero.percentages, zero.percentages$grouping, FUN = function(x) rownames(x)[order(x$percentage.of.zero)][1:100])))
+```
+
+## LM22 signature matrix  
+- select genes that appear both in the LM22 signature matrix and the SF data
+- in those genes, further select genes that have expression in a relatively large amount of cells
+```{r}
+CBST_LM22 = read.table("../_reference/LM22.txt", sep = "\t", header = TRUE, as.is = TRUE)
+head(CBST_LM22)
+CBST.SFgenes = CBST_LM22$Gene.symbol[CBST_LM22$Gene.symbol%in%gene.names] # 538 out of 547 
+CBST.largeExpression.genes = CBST.SFgenes[CBST.SFgenes %in% large.express.genes.all] # 323 out of 538
+CBST_SFLEgenes_LM22 = CBST_LM22[CBST_LM22$Gene.symbol%in%CBST.largeExpression.genes,] # 323 x 23
+head(CBST_SFLEgenes_LM22)
+```
+
+# Compare the correlation of cell types
+- Compare the correlation between our 11 cell types. 
+- Compare the correlation between the cell types in the LM22 vs. the 11 cell types we had. 
+- Two types of correlation: using all cells for each cell type to calculate mean gene expression, or calculate the mean expression using 100 cells with smallest percentages of zero expression genes. 
+
+## Correlations between our 11 cell types
+### using mean expression of large expression genes shared between SF data and LM22 matrix
+```{r}
+LEgenes_CBST_tpm = as.data.table(t(clustered_tpm_LEgenes[large.express.genes.all %in% CBST.largeExpression.genes,]))
+rownames(LEgenes_CBST_tpm) = clustered_cells
+colnames(LEgenes_CBST_tpm) = CBST.largeExpression.genes
+LEgenes_CBST_tpm[1:5,1:5]
+LEgenes_CBST_tpm$grouping = factor(cell_type$type[match(row.names(LEgenes_CBST_tpm), cell_type$cell)])
+table(LEgenes_CBST_tpm$grouping)
+LEgene_CBST_expression = LEgenes_CBST_tpm[, lapply(.SD, mean), by = grouping] # 11 x 324
+LEgene_CBST_expression = LEgene_CBST_expression[order(LEgene_CBST_expression$grouping),]
+LEgene_CBST_expression[,1:6]
+LEgene_CBST_compare_expression = as.data.frame(t(LEgene_CBST_expression[,-1]))
+colnames(LEgene_CBST_compare_expression) = LEgene_CBST_expression$grouping
+head(LEgene_CBST_compare_expression)
+rm(LEgene_CBST_expression)
+rm(LEgenes_CBST_tpm)
+```
+
+The patterns of the correlation roughly match our expectation: 
+- Plasma cells, Monocytes/Macrophages, Dendritic cells and B cells do no have major correlation with other cell types, matches the clustering result that these 4 cell types form most distinct clusters
+- The 3 NK cell clusters are closely related with each other
+- CD8 cells, NK cells, and CD4 T cells are closely related
+```{r}
+cormat_LE.CBSTgenes_11type = cor(LEgene_CBST_compare_expression, method = "spearman")
+ggcorrplot(cormat_LE.CBSTgenes_11type,type = "upper")
+```
+
+### using mean expression for large expression genes shared between SF data and LM22 matrix over cells with fewer zero gene expression 
+```{r}
+LEgenes_CBST_few0_tpm = as.data.table(t(clustered_tpm_LEgenes[large.express.genes.all %in% CBST.largeExpression.genes, ..fewzero_cells])) 
+rownames(LEgenes_CBST_few0_tpm) = fewzero_cells
+colnames(LEgenes_CBST_few0_tpm) = CBST.largeExpression.genes
+LEgenes_CBST_few0_tpm[1:5,1:5]
+LEgenes_CBST_few0_tpm$grouping = factor(cell_type$type[match(row.names(LEgenes_CBST_few0_tpm), cell_type$cell)])
+table(LEgenes_CBST_few0_tpm$grouping)
+
+LEgene_CBST_few0_expression = LEgenes_CBST_few0_tpm[, lapply(.SD, mean), by = grouping] # 11 x 324
+LEgene_CBST_few0_expression[,1:6]
+LEgene_CBST_few0_compare_expression = as.data.frame(t(LEgene_CBST_few0_expression[,-1]))
+colnames(LEgene_CBST_few0_compare_expression) = LEgene_CBST_few0_expression$grouping
+head(LEgene_CBST_few0_compare_expression)
+rm(LEgene_CBST_few0_expression)
+rm(LEgenes_CBST_few0_tpm)
+```
+
+The result using cells with fewer zero expression genes is not very different from the result using all cells. 
+```{r}
+cormat_LE.CBST.few0genes_11type = cor(LEgene_CBST_few0_compare_expression, method = "spearman")
+ggcorrplot(cormat_LE.CBST.few0genes_11type,type = "upper")
+```
+
+## Correlations between our 11 cell types and the cell types in the LM22 matrix
+### using mean expression of large expression genes shared between SF data and LM22 matrix
+```{r}
+cormat_LM22_11type = matrix(0,nrow = 22, ncol = 11)
+colnames(cormat_LM22_11type)= colnames(LEgene_CBST_compare_expression)
+rownames(cormat_LM22_11type) = colnames(CBST_SFLEgenes_LM22)[-1]
+for (i in 1:22) {
+  for (j in 1:11) {
+   cormat_LM22_11type[i,j] = cor(as.numeric(LEgene_CBST_compare_expression[,j]), as.numeric(CBST_SFLEgenes_LM22[,i+1]),method = "spearman")
+  }
+}
+```
+
+The correlations between our 11 cell types and the cell types in the LM22 matrix still have some unexpected patterns
+```{r fig.height=5, fig.width=4}
+ggcorrplot(t(cormat_LM22_11type))
+```
+
+### using mean expression for large expression genes shared between SF data and LM22 matrix over cells with fewer zero gene expression 
+```{r}
+cormat_LM22_11type_few0 = matrix(0,nrow = 22, ncol = 11)
+colnames(cormat_LM22_11type_few0)= colnames(LEgene_CBST_few0_compare_expression)
+rownames(cormat_LM22_11type_few0) = colnames(CBST_SFLEgenes_LM22)[-1]
+for (i in 1:22) {
+  for (j in 1:11) {
+   cormat_LM22_11type_few0[i,j] = cor(as.numeric(LEgene_CBST_few0_compare_expression[,j]), as.numeric(CBST_SFLEgenes_LM22[,i+1]),method = "spearman")
+  }
+}
+```
+
+The result using cells with fewer zero expression genes is not very different from the result using all cells. 
+```{r fig.height=5, fig.width=4}
+ggcorrplot(t(cormat_LM22_11type_few0))
+```
+
+
+
+

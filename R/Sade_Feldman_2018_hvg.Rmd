@@ -18,14 +18,10 @@ library(ggcorrplot)
 ```{r}
 fnm1 = "GSE120575_Sade_Feldman_melanoma_single_cells_nolabel_1.txt.gz"
 fnm2 = "GSE120575_Sade_Feldman_melanoma_single_cells_2.txt.gz"
-
 sf_tpm1 = fread(paste0("../scRNAseq/Sade_Feldman_2018/", fnm1), fill = TRUE, header = TRUE)
-
 sf_tpm2 = fread(paste0("../scRNAseq/Sade_Feldman_2018/", fnm2), fill = TRUE, drop = 16293, col.names = colnames(sf_tpm1))
-
 ls_tpm = list(sf_tpm1,sf_tpm2)
 sf_tpm = rbindlist(ls_tpm)
-
 rm(ls_tpm)
 rm(sf_tpm1)
 rm(sf_tpm2)
@@ -203,12 +199,12 @@ ggplot(data=df_top50PCs)+geom_point(aes(x=topPC_TSNE1,y=topPC_TSNE2,color=KM_12)
 table(df_top50PCs$KM_12, df_top50PCs$sf_cluster)
 ```
 
-## Select G1 B cells, G2 Plasma cells, G3 Monocytes/Macrophages, G4 Dendric cells, G7 Regulatory T cells and G10 Memory T-cells by taking the largest intersection between the clusters defined in the paper and our clusters 
+## Select G1 B cells, G2 Plasma cells, G3 Monocytes/Macrophages, G4 Dendritic cells, G7 Regulatory T cells and G10 Memory T-cells by taking the largest intersection between the clusters defined in the paper and our clusters 
  
 - 1421 B cells: 1
 - 301 Plasma cells: 2
 - 1342 Monocytes/Macrophages: 3
-- 276 Dendric cells: 4
+- 276 Dendritic cells: 4
 - 1332 CD4 T regulatory cells: 5
 - 1451 CD4 T memory cells: 6
 
@@ -220,7 +216,6 @@ cell_type$type[(df_top50PCs$KM_12==5 | df_top50PCs$KM_12==7 | df_top50PCs$KM_12=
 cell_type$type[df_top50PCs$KM_12==11 & df_top50PCs$sf_cluster == 4] = 4
 cell_type$type[df_top50PCs$KM_12==4 & df_top50PCs$sf_cluster == 7] = 5
 cell_type$type[df_top50PCs$KM_12==8 & df_top50PCs$sf_cluster == 10] = 6
-
 table(cell_type$type, df_top50PCs$sf_cluster)
 ```
 
@@ -239,7 +234,6 @@ rm(df_top50PCs)
 table_s2 = read.csv("CD8_cluster.csv", stringsAsFactors = FALSE)
 table_s2$ruoyi_cluster[is.na(table_s2$ruoyi_cluster)] = "NA"
 CD8T.cells = table_s2$Cell.Name
-
 CD8_B = table_s2$Cell.Name[table_s2$ruoyi_cluster=="CD8_B"]
 CD8_G = table_s2$Cell.Name[table_s2$ruoyi_cluster=="CD8_G"]
 cell_type$type[match(CD8_B,cell_type$cell)] = 7
@@ -255,7 +249,6 @@ First, I get all the CD8 and NK cells, corresponding to the cells in clusters 5,
 ## Data for only CD8 and NK cells
 ```{r}
 CD8.NK.cells = cell.names[as.numeric(table_s1$`Cluster number`) %in% c(5,6,8,9,11)]
-
 TNK.cells = CD8.NK.cells[! CD8.NK.cells %in% CD8T.cells] # cells that are not CD8 cells in cluster 5,6,8,9,11
 TNKcells_tpm = sf_tpm[, ..TNK.cells]
 row.names(TNKcells_tpm) = gene.names
@@ -361,7 +354,6 @@ for (num_clust in all_num_clust) {
 
 ```{r}
 df_top50PCs_TNKcells$sf_cluster = as.factor(table_s1$`Cluster number`[match(TNK.cells, cell.names)])
-
 ggplot(data=df_top50PCs_TNKcells)+geom_point(aes(x=topPC_TSNE1,y=topPC_TSNE2,color=sf_cluster),size = 0.1)+guides(color = guide_legend(override.aes = list(size = 2)))
 ```
 
@@ -375,11 +367,9 @@ Using 3 clusters would suffice.
 NK1 = row.names(df_top50PCs_TNKcells)[df_top50PCs_TNKcells$KM_3==1]
 NK2 = row.names(df_top50PCs_TNKcells)[df_top50PCs_TNKcells$KM_3==2]
 NK3 = row.names(df_top50PCs_TNKcells)[df_top50PCs_TNKcells$KM_3==3]
-
 cell_type$type[match(NK1,cell_type$cell)] = 9
 cell_type$type[match(NK2,cell_type$cell)] = 10
 cell_type$type[match(NK3,cell_type$cell)] = 11
-
 table(cell_type$type)
 ```
 
@@ -389,7 +379,7 @@ table(cell_type$type)
 - 1421 B cells: 1
 - 290 Plasma cells: 2
 - 1341 Monocytes/Macrophages: 3
-- 275 Dendric cells: 4
+- 275 Dendritic cells: 4
 - 1313 CD4 T regulatory cells: 5
 - 1099 CD4 T memory cells: 6
 - 2482 CD8_B cells: 7
@@ -542,7 +532,7 @@ Now we have 11 clusters cell types.
 - Also check the correlation matrix of our 11 cell types. 
 
 ```{r}
-cell_type = read.table("cell_type.txt",header = TRUE)
+#cell_type = read.table("cell_type.txt",header = TRUE)
 table(cell_type$type)
 clustered_cells = cell_type$cell[cell_type$type != 0]
 ```
@@ -612,7 +602,7 @@ ggcorrplot(cor(compare_expression, method = "spearman"),type = "upper")
 
 # Conclusion
 
-- G1 B cells, G2 Plasma cells, G3 Monocytes/Macrophages, G4 Dendric cells, G7 Regulatory T cells and G10 Memory T-cells could be clearly identified using k-means clustering based on the PCA of high variance genes. The tricky part is to distinguish NK cells and CD8 cells. 
+- G1 B cells, G2 Plasma cells, G3 Monocytes/Macrophages, G4 Dendritic cells, G7 Regulatory T cells and G10 Memory T-cells could be clearly identified using k-means clustering based on the PCA of high variance genes. The tricky part is to distinguish NK cells and CD8 cells. 
 - Recluster G5 - G11 cells didn't really improved the result, and G7 and G10 could also be roughly identified when clustering on all cells, so we changed to recluster cells in G5, G6, G8, G9 and G11. 
 - Recluster G5, G6, G8, G9, G11 still didn't give a clear clustering for NK cells, so we moved to excluding all CD8 T cells based on the annotation of the paper, and then cluster the remaining cells.
 - There were no strong correlations between the signature gene expressions in LM22 and the gene expression data for each of my NK cell clusters. I tried to remove some outliers, but the result didn't seem to be much different. When using Spearman correlation, regulatory CD4 T cells is the most correlated with the cell clusters. G3 is also slighted correlated with follicular helper CD4 T cells. G1 is slightly correlated with resting NK cells. Finally, we decide to label these cells as NK1, NK2, and NK3 cells for now.
