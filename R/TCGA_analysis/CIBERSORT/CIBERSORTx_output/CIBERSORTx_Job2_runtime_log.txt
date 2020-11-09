@@ -1,0 +1,28 @@
+>Running CIBERSORTx GEP imputation (representative profiles only)...
+>[Options] mixture: files/rcai2@uw.edu/CIBERSORT_input_observed_TPM_SKCM.txt
+>[Options] sigmatrix: files/rcai2@uw.edu/CIBERSORT_input_signature_gene_SKCM.txt
+>[Options] threads: 7
+>[Options] nsampling: 30
+>[Options] redo: TRUE [to rerun CIBERSORT, set 'redocibersort' to TRUE]
+>[Options] QN: FALSE
+>[Options] outdir: files/rcai2@uw.edu/results/
+>[Options] label: Job2
+>Estimating cell proportions...
+done.
+>Loaded 472 mixture samples, 535 genes, and 22 cell subsets...
+>Imputing representative cell type GEPs...done.
+>Writing output to disk...done.
+>Running time (sec): 6054
+  adding: CIBERSORTxGEP_Job2_Fractions.txt (deflated 56%)
+  adding: CIBERSORTxGEP_Job2_GEPs.txt (deflated 53%)
+  adding: CIBERSORTxGEP_Job2_GEPs_CVs.txt (deflated 51%)
+  adding: CIBERSORTxGEP_Job2_GEPs_Filtered.txt (deflated 61%)
+  adding: CIBERSORTxGEP_Job2_GEPs_Pvals.txt (deflated 55%)
+  adding: CIBERSORTxGEP_Job2_GEPs_Qvals.txt (deflated 65%)
+  adding: CIBERSORTxGEP_Job2_GEPs_StdErrs.txt (deflated 49%)
+  adding: CIBERSORTxGEP_Job2_GEPs_ThresholdPlots.jpg (deflated 1%)
+  adding: CIBERSORTxGEP_Job2_GEPs_ThresholdPlots.pdf (deflated 24%)
+  adding: CIBERSORTxGEP_Job2_SM_GEPs_Filtered.txt (deflated 61%)
+  adding: CIBERSORTxGEP_Job2_Weights.txt (deflated 62%)
+  adding: CIBERSORTx_Job2_error_log.txt (stored 0%)
+  adding: CIBERSORTx_Job2_runtime_log.txt
