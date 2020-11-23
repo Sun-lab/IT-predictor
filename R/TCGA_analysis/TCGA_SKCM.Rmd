@@ -16,10 +16,11 @@ install_github("Sun-lab/ICeDT")
 library(data.table)
 library(R.utils)
 library(ICeDT)
+library(ggcorrplot)
 ```
 
 # Data path and information datasets
-```{r}
+```{r eval=FALSE}
 TCGAfolder = "../../TCGA/"
 datafolder = paste0(TCGAfolder,"SKCM/gdc_download_20201012_225902.677830/")
 
@@ -40,10 +41,6 @@ head(geneinfo)
 # Info matrix on the length of each gene: 60483 genes
 load(paste0(TCGAfolder,"Gene_Lengths.RData"))
 head(GeneLengths.Mat) # 60483 * 3
-
-# LM22 signature matrix
-LM22_sigmat = read.table("../../_reference/LM22.txt",header = TRUE, sep = "\t", as.is = TRUE)
-LM22_sigmat[1:5,1:5] # 547*23
 ```
 
 # Step 1: Prepare count matrix
@@ -51,7 +48,7 @@ LM22_sigmat[1:5,1:5] # 547*23
 - match the filename of count data to the sample ID
 - check the gene ID of each new file is the same with the previous files
 - combine the count data of all samples to a single count matrix
-```{r}
+```{r eval=FALSE}
 # file paths for all individual count files
 countfiles = paste0(datafolder,sampleinfo$File.ID, "/",sampleinfo$File.Name)
 # save the gene names in the count files
@@ -100,79 +97,136 @@ gene.id = row.names(count.df)
 write.csv(count.df, "raw_counts.csv")
 ```
 
-# Step 2: Match gene ensembl ID to gene names
-```{r}
+```{r eval=FALSE}
+count.df = read.csv("raw_counts.csv", row.names = 1)
+count.df[1:5,1:5]
+```
+
+# Step 2: Transform count data to TPM data
+```{r eval=FALSE}
+calculate_TPM = function(count, gene_length) {
+  if (nrow(count) != length(gene_length)) stop("Number of rows of the count matrix does not match gene lengths!")
+  TPM = count / gene_length
+  t(t(TPM)*1e6/colSums(TPM))
+}
+```
+
+genome-wide TPM normalization
+```{r eval=FALSE}
+geneLength = GeneLengths.Mat$Exonic
+SKCM_TPM = calculate_TPM(count.df, geneLength) 
+gene.id = rownames(SKCM_TPM)
+dim(SKCM_TPM) # 60483 * 472
+SKCM_TPM[1:5,1:5]
+```
+
+# Step 3: Match gene ensembl ID to gene names
+```{r eval=FALSE}
 # Some ensembl ID are missing hgnc symbols
 missing.id = which(is.na(geneinfo$hgnc_symbol))
 geneinfo.nomissing = geneinfo[-missing.id,]
 # Some ensembl ID have duplicated hgnc symbols
 duplicated.id = which(duplicated(geneinfo.nomissing$hgnc_symbol))
 geneinfo.filtered = geneinfo.nomissing[-duplicated.id,]
-
-# Update count.df to only genes with 1-1 mapping between their ensembl ID and hgnc symbols, 
-# 35295 genes remained in the end. 
-count.df.filtered = cbind(ensembl_ID = as.character(geneinfo.filtered$geneId), 
-                          hgnc_symbol = as.character(geneinfo.filtered$hgnc_symbol), 
-                          count.df[match(geneinfo.filtered$geneId, gene.id),])
-rownames(count.df.filtered) = NULL
-count.df.filtered[1:5,1:5]
-
-# Update count.df to only genes intersect between TCGA data and LM22 data
-## 535 genes in common between the LM22 matrix and our count matrix
-reference.genes.id = na.omit(match(LM22_sigmat$Gene.symbol, count.df.filtered$hgnc_symbol)) 
-count.df.refgenes = count.df.filtered[reference.genes.id,]
-count.df.refgenes[1:5,1:5]
-
 rm(geneinfo.nomissing)
+
+# Update SKCM_TPM to only genes with 1-1 mapping between their ensembl ID and hgnc symbols, 
+# 35295 genes remained in the end. 
+SKCM_TPM_filtered = data.frame(geneSymbol = geneinfo.filtered$hgnc_symbol[geneinfo.filtered$geneId %in% gene.id]) 
+SKCM_TPM_filtered = cbind(SKCM_TPM_filtered, SKCM_TPM[match(geneinfo.filtered$geneId, gene.id),])
+dim(SKCM_TPM_filtered) # 35295 x 473
+rownames(SKCM_TPM_filtered) = NULL
+SKCM_TPM_filtered[1:5,1:5]
+
+rm(SKCM_TPM)
 rm(geneinfo.filtered)
 ```
 
-Save the count matrix     
+Update TPM to only genes intersect between TCGA data and LM22 data: 535 genes in common
 ```{r eval=FALSE}
-write.table(count.df.filtered, "count_matrix.txt", quote = FALSE, sep = "\t", row.names = FALSE, col.names = TRUE)
-write.table(count.df.refgenes, "count_matrix_reference_genes.txt", quote = FALSE, sep = "\t", row.names = FALSE, col.names = TRUE)
+# LM22 signature matrix
+LM22_sigmat = read.table("../../_reference/LM22.txt",header = TRUE, sep = "\t", as.is = TRUE)
+LM22_sigmat[1:5,1:5] # 547*23
+
+reference.genes.id = na.omit(match(LM22_sigmat$Gene.symbol, SKCM_TPM_filtered$geneSymbol)) 
+SKCM_TPM_LM22 = SKCM_TPM_filtered[reference.genes.id,] # 535 x 473
+SKCM_TPM_LM22[1:5,1:5]
+
+SKCM_LM22_sigmat = LM22_sigmat[LM22_sigmat$Gene.symbol %in% SKCM_TPM_filtered$geneSymbol,] # 535 x 23
+SKCM_LM22_sigmat_scaled = as.data.frame(t(t(SKCM_LM22_sigmat[,-1]) / colSums(SKCM_LM22_sigmat[,-1]) * 1e6))
+SKCM_LM22_sigmat_scaled = cbind(geneSymbol = SKCM_LM22_sigmat$Gene.symbol, SKCM_LM22_sigmat_scaled)
+SKCM_LM22_sigmat_scaled[1:5,1:5]
 ```
 
-# Step 3: Transform count data to TPM data
-```{r}
-calculate_TPM = function(count, gene_length, indices) {
-  if (nrow(count) != length(gene_length)) stop("Number of rows of the count matrix does not match gene lengths!")
-  TPM = count / gene_length
-  t(t(TPM)*1e6/colSums(TPM[indices, ]))
-}
+Update TPM to only genes intersect between TCGA data and the signature matrix `SF2018_sig_gene_matrix.txt`: 521 genes in common 
+```{r eval=FALSE}
+SF2018_sigmat = read.table("../SF2018_analysis/output/SF2018_sig_gene_matrix.txt",header = TRUE, sep = "\t", as.is = TRUE)
+SF2018_sigmat[1:5,1:5] # 565 x 12
 
-geneLength = GeneLengths.Mat$Exonic[match(count.df.refgenes$ensembl_ID, GeneLengths.Mat$Gencode.ID)]
-SKCM_TPM = calculate_TPM(count.df.refgenes[,c(-1,-2)], geneLength, 1:nrow(count.df.refgenes)) 
+SF2018.genes.id = na.omit(match(SF2018_sigmat$geneSymbol, SKCM_TPM_filtered$geneSymbol)) 
+SKCM_TPM_SF2018 = SKCM_TPM_filtered[SF2018.genes.id,] # 521 x 473
+SKCM_TPM_SF2018[1:5,1:5]
 
-rownames(SKCM_TPM) = count.df.refgenes$hgnc_symbol
-dim(SKCM_TPM) # 535 * 472
-SKCM_TPM[1:5,1:3]
+SKCM_SF2018_sigmat = SF2018_sigmat[SF2018_sigmat$geneSymbol %in% SKCM_TPM_filtered$geneSymbol,] 
+SKCM_SF2018_sigmat_scaled = as.data.frame(t(t(SKCM_SF2018_sigmat[,-1]) / colSums(SKCM_SF2018_sigmat[,-1]) * 1e6)) 
+SKCM_SF2018_sigmat_scaled = cbind(geneSymbol = SKCM_SF2018_sigmat$geneSymbol, SKCM_SF2018_sigmat_scaled) # 521 x 12
+SKCM_SF2018_sigmat_scaled[1:5,1:5]
+```
+
+Update TPM to only genes intersect between TCGA data and the signature matrix `SF2018_few0_sig_gene_matrix.txt`: 548 genes in common
+```{r eval=FALSE}
+SF2018_few0_sigmat = read.table("../SF2018_analysis/output/SF2018_few0_sig_gene_matrix.txt",header = TRUE, sep = "\t", as.is = TRUE)
+SF2018_few0_sigmat[1:5,1:5] # 621 x 12
+
+SF2018.few0.genes.id = na.omit(match(SF2018_few0_sigmat$geneSymbol, SKCM_TPM_filtered$geneSymbol)) 
+SKCM_TPM_SF2018_few0 = SKCM_TPM_filtered[SF2018.few0.genes.id,] # 548 x 473
+SKCM_TPM_SF2018_few0[1:5,1:5]
+
+SKCM_SF2018_few0_sigmat = SF2018_few0_sigmat[SF2018_few0_sigmat$geneSymbol %in% SKCM_TPM_filtered$geneSymbol,] 
+SKCM_SF2018_few0_sigmat_scaled = as.data.frame(t(t(SKCM_SF2018_few0_sigmat[,-1]) / colSums(SKCM_SF2018_few0_sigmat[,-1]) * 1e6)) 
+SKCM_SF2018_few0_sigmat_scaled = cbind(geneSymbol = SKCM_SF2018_few0_sigmat$geneSymbol, SKCM_SF2018_few0_sigmat_scaled) # 548 x 12
+SKCM_SF2018_few0_sigmat_scaled[1:5,1:5]
 ```
 
 # Generate CIBERSORT input
 
-```{r}
-# observed TPM data
-geneSymbol_and_observed_TPM = cbind(geneSymbol = count.df.refgenes$hgnc_symbol, SKCM_TPM)
-# reference gene expression data
-signature_matrix = as.matrix(LM22_sigmat[match(rownames(SKCM_TPM), LM22_sigmat$Gene.symbol),-1])
-rownames(signature_matrix) = rownames(SKCM_TPM)
-geneSymbol_and_signature_matrix = cbind(geneSymbol = count.df.refgenes$hgnc_symbol, signature_matrix)
-```
-
 ```{r eval=FALSE}
 CBSTfolder = "./CIBERSORT"
-signature_gene_file = file.path(CBSTfolder,"CIBERSORT_input_signature_gene_SKCM.txt")
-mixture_file = file.path(CBSTfolder,"CIBERSORT_input_observed_TPM_SKCM.txt")
+signature_gene_file_LM22 = file.path(CBSTfolder,"CIBERSORT_signature_gene_LM22.txt")
+mixture_file_LM22 = file.path(CBSTfolder,"CIBERSORT_observed_TPM_LM22.txt")
+signature_gene_file_SF2018 = file.path(CBSTfolder,"CIBERSORT_signature_gene_SF2018.txt")
+mixture_file_SF2018 = file.path(CBSTfolder,"CIBERSORT_observed_TPM_SF2018.txt")
+signature_gene_file_SF2018_few0 = file.path(CBSTfolder,"CIBERSORT_signature_gene_SF2018_few0.txt")
+mixture_file_SF2018_few0 = file.path(CBSTfolder,"CIBERSORT_observed_TPM_SF2018_few0.txt")
 
 # generate matrices as input for CIBERSORT online
-write.table(geneSymbol_and_observed_TPM,
-            file = mixture_file,
+write.table(SKCM_TPM_LM22,
+            file = mixture_file_LM22,
             quote = FALSE,
             row.names = FALSE,
             sep="\t")
-write.table(geneSymbol_and_signature_matrix,
-            file = signature_gene_file,
+write.table(SKCM_LM22_sigmat_scaled,
+            file = signature_gene_file_LM22,
+            quote = FALSE,
+            row.names = FALSE,
+            sep="\t")
+write.table(SKCM_TPM_SF2018,
+            file = mixture_file_SF2018,
+            quote = FALSE,
+            row.names = FALSE,
+            sep="\t")
+write.table(SKCM_SF2018_sigmat_scaled,
+            file = signature_gene_file_SF2018,
+            quote = FALSE,
+            row.names = FALSE,
+            sep="\t")
+write.table(SKCM_TPM_SF2018_few0,
+            file = mixture_file_SF2018_few0,
+            quote = FALSE,
+            row.names = FALSE,
+            sep="\t")
+write.table(SKCM_SF2018_few0_sigmat_scaled,
+            file = signature_gene_file_SF2018_few0,
             quote = FALSE,
             row.names = FALSE,
             sep="\t")
@@ -180,9 +234,106 @@ write.table(geneSymbol_and_signature_matrix,
 
 CIBERSORT output
 ```{r}
-CBSTfolder = "./CIBERSORT"
-cibersort_cell_fraction = read.table(file.path(CBSTfolder,"CIBERSORTx_output/CIBERSORTxGEP_Job2_Fractions.txt"), header = TRUE, sep = "\t")
-head(cibersort_cell_fraction)
+CBSToutputfolder = "./CIBERSORT/CIBERSORTx_output/"
+cibersort_cell_fraction_LM22 = read.csv(file.path(CBSToutputfolder,"CIBERSORTx_LM22_Results.csv"))
+#head(cibersort_cell_fraction_LM22)
+cibersort_cell_fraction_SF2018 = read.csv(file.path(CBSToutputfolder,"CIBERSORTx_SF2018_Results.csv"))
+#head(cibersort_cell_fraction_SF2018)
+cibersort_cell_fraction_SF2018_few0 = read.csv(file.path(CBSToutputfolder,"CIBERSORTx_SF2018_few0_Results.csv"))
+#head(cibersort_cell_fraction_SF2018_few0)
+```
+
+Boxplot of cell fraction for each cell type inferred using LM22 signature matrix in CIBERSORTx
+```{r fig.height=7}
+par(mar=c(10,3,1,0.8), mgp=c(1.5,0.5,0), cex.axis=0.8)
+boxplot(cibersort_cell_fraction_LM22[,2:23],las=2, main="CIBERSORT cell proportion, LM22 signature matrix")
+```
+
+Boxplot of cell fraction for each cell type inferred using SF2018 signature matrix in CIBERSORTx
+```{r fig.height=5}
+par(mar=c(8,3,1,0.8), mgp=c(1.5,0.5,0), cex.axis=0.8)
+boxplot(cibersort_cell_fraction_SF2018[,2:12],las=2, main="CIBERSORT cell proportion, SF2018 signature matrix")
+```
+
+Boxplot of cell fraction for each cell type inferred using SF2018_few0 signature matrix in CIBERSORTx
+```{r fig.height=5}
+par(mar=c(8,3,1,0.8), mgp=c(1.5,0.5,0), cex.axis=0.8)
+boxplot(cibersort_cell_fraction_SF2018_few0[,2:12],las=2, main="CIBERSORT cell proportion, SF2018_few0 signature matrix")
+```
+
+Correlation plot compare cell fractions inferred using LM22 signature matrix and SF2018 signature matrix in CIBERSORTx            
+- For most of the cell types, we see the fractions inferred using different signature matrix correlated
+- Fractions of dendritic cell inferred using the 2 types of signature matrices have small correlation
+- The fractions three types of NK cells also showed some dubious correlation: only the fraction of NK1 is more positively correlated with the fraction of resting NK cells, and they showed some correlation with other cell types. 
+```{r fig.height=5, fig.width=8, warning=FALSE, message = FALSE}
+cormat_LM22_SF2018 = matrix(0, nrow = 22, ncol = 11)
+colnames(cormat_LM22_SF2018)= colnames(cibersort_cell_fraction_SF2018)[2:12]
+rownames(cormat_LM22_SF2018) = colnames(cibersort_cell_fraction_LM22)[2:23]
+
+for (i in 1:22) {
+  for (j in 1:11) {
+   cormat_LM22_SF2018[i,j] = cor(cibersort_cell_fraction_SF2018[,j+1], cibersort_cell_fraction_LM22[,i+1],method = "spearman")
+  }
+}
+
+p = ggcorrplot(t(cormat_LM22_SF2018), tl.cex = 6)
+p + scale_fill_gradient2(limit = c(-0.7,0.7), low = "blue", high =  "red", mid = "white", midpoint = mean(c(-0.7,0.7))) 
+```
+
+Correlation plot compare cell fractions inferred using LM22 signature matrix and SF2018_few0 signature matrix in CIBERSORTx         
+- The result is in general similar to that above
+- For some cell types the correlation is weakened here (CD8_B), for some cell type we saw more noticable correlation (dendritic cells)
+```{r fig.height=5, fig.width=8, warning=FALSE, message = FALSE}
+cormat_LM22_SF2018_few0 = matrix(0, nrow = 22, ncol = 11)
+colnames(cormat_LM22_SF2018_few0)= colnames(cibersort_cell_fraction_SF2018_few0)[2:12]
+rownames(cormat_LM22_SF2018_few0) = colnames(cibersort_cell_fraction_LM22)[2:23]
+
+for (i in 1:22) {
+  for (j in 1:11) {
+   cormat_LM22_SF2018_few0[i,j] = cor(cibersort_cell_fraction_SF2018_few0[,j+1], cibersort_cell_fraction_LM22[,i+1],method = "spearman")
+  }
+}
+
+p = ggcorrplot(t(cormat_LM22_SF2018_few0), tl.cex = 6)
+p + scale_fill_gradient2(limit = c(-0.7,0.7), low = "blue", high =  "red", mid = "white", midpoint = mean(c(-0.7,0.7))) 
+```
+
+Correlation plot compare cell fractions inferred using SF2018 signature matrix and SF2018_few0 signature matrix in CIBERSORTx         
+- We saw positive correlation for the fraction of the same cell type inferred by the 2 different signature matrix. 
+```{r warning=FALSE, message = FALSE}
+cormat_SF2018andfew0 = matrix(0, nrow = 11, ncol = 11)
+colnames(cormat_SF2018andfew0)= colnames(cibersort_cell_fraction_SF2018_few0)[2:12]
+rownames(cormat_SF2018andfew0) = colnames(cibersort_cell_fraction_SF2018)[2:12]
+
+for (i in 1:11) {
+  for (j in 1:11) {
+   cormat_SF2018andfew0[i,j] = cor(cibersort_cell_fraction_SF2018_few0[,j+1], cibersort_cell_fraction_SF2018[,i+1],method = "spearman")
+  }
+}
+
+p = ggcorrplot(t(cormat_SF2018andfew0), tl.cex = 10)
+p + scale_fill_gradient2(limit = c(min(cormat_SF2018andfew0),1), low = "blue", high =  "red", mid = "white", midpoint = mean(c(min(cormat_SF2018andfew0),1))) 
+```
+
+```{r}
+par(mar=c(3,3,1,0.8), mgp=c(1.5,0.5,0), cex.axis=0.85, cex.lab=0.85, cex.main=0.85)
+layout(matrix(c(1,2,3,4),nrow=2,ncol = 2,byrow = TRUE))
+
+plot(cibersort_cell_fraction_SF2018$CD8_B.cells, cibersort_cell_fraction_LM22$T.cells.CD8, xlab = "SF2018 CD8 B cell", ylab = "LM22 CD8 T cell")
+
+plot(cibersort_cell_fraction_SF2018$CD8_G.cells, cibersort_cell_fraction_LM22$T.cells.CD8, xlab = "SF2018 CD8 G cell", ylab = "LM22 CD8 T cell")
+
+plot(cibersort_cell_fraction_SF2018_few0$CD8_B.cells, cibersort_cell_fraction_LM22$T.cells.CD8, xlab = "SF2018_few0 CD8 B cell", ylab = "LM22 CD8 T cell")
+
+plot(cibersort_cell_fraction_SF2018_few0$CD8_G.cells, cibersort_cell_fraction_LM22$T.cells.CD8, xlab = "SF2018_few0 CD8 G cell", ylab = "LM22 CD8 T cell")
+```
+
+```{r}
+plot(cibersort_cell_fraction_SF2018$CD8_B.cells, cibersort_cell_fraction_SF2018$CD8_G.cells, xlab = "SF2018 CD8 B cell", ylab = "SF2018 CD8 G cell")
+```
+
+```{r}
+plot(cibersort_cell_fraction_SF2018_few0$CD8_B.cells, cibersort_cell_fraction_SF2018_few0$CD8_G.cells, xlab = "SF2018_few0 CD8 B cell", ylab = "SF2018_few0 CD8 G cell")
 ```
 
 # Run ICeDT
