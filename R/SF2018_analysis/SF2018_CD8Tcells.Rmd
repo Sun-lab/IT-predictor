@@ -19,9 +19,11 @@ library(ggplot2)
 fnm1 = "GSE120575_Sade_Feldman_melanoma_single_cells_nolabel_1.txt.gz"
 fnm2 = "GSE120575_Sade_Feldman_melanoma_single_cells_2.txt.gz"
 
-sf_tpm1 = fread(paste0("../scRNAseq/Sade_Feldman_2018/", fnm1), fill = TRUE, header = TRUE)
+sf_tpm1 = fread(paste0("../../scRNAseq/Sade_Feldman_2018/", fnm1), 
+                fill = TRUE, header = TRUE)
 
-sf_tpm2 = fread(paste0("../scRNAseq/Sade_Feldman_2018/", fnm2), fill = TRUE, drop = 16293, col.names = colnames(sf_tpm1))
+sf_tpm2 = fread(paste0("../../scRNAseq/Sade_Feldman_2018/", fnm2), 
+                fill = TRUE, drop = 16293, col.names = colnames(sf_tpm1))
 
 ls_tpm = list(sf_tpm1,sf_tpm2)
 sf_tpm = rbindlist(ls_tpm)
@@ -33,17 +35,28 @@ rm(sf_tpm2)
 
 ```{r}
 dim(sf_tpm) # 55737 x 16292
+sf_tpm[1:2,1:5]
+
 cell.names = colnames(sf_tpm)[-1]
 gene.names = sf_tpm$V1
 rownames(sf_tpm) = gene.names
 sf_tpm$V1 = NULL
+
+dim(sf_tpm)
+sf_tpm[1:2,1:5]
 ```
 
 ## Table of CD8+ T cells 
 ```{r}
 xnm = "1-s2.0-S0092867418313941-mmc2.xlsx"
-table_s2 = readxl::read_xlsx(paste0("../_reference/Sade_Feldman_2018/", xnm), sheet = "Cluster annotation-Fig2A-B", col_names = TRUE)
-#length(match(table_s2$`Cell Name`, cell.names))
+table_s2 = readxl::read_xlsx(paste0("../../_reference/Sade_Feldman_2018/", xnm), 
+                             sheet = "Cluster annotation-Fig2A-B", col_names = TRUE)
+dim(table_s2)
+table_s2[1:2,]
+table_s2 = as.data.frame(table_s2)
+
+table(table_s2$`Cell Name` %in% cell.names)
+table(table_s2$Cluster)
 ```
 
 ## Data for only CD8+ T cells
@@ -62,36 +75,44 @@ for (i in 1:28) {
   temp.counts = apply(sf_CD8T_tpm[gene.grouping==i,], 1, FUN = function(x) sum(x>0))
   cells.per.gene = c(cells.per.gene,temp.counts)
 }
-hist(log10(cells.per.gene), main = "Distribution of number of cells each genes expressed", xlab = "log10(number of cells) each gene expressed")
+
+table(cells.per.gene == 0)
+table(cells.per.gene == 1)
+
+hist(log10(cells.per.gene), main = "CD8 T cells (CD8_B + CD8_G)", 
+     xlab = "log10(number of cells) each gene expressed", breaks=50)
 rm(gene.grouping)
 ```
 
 # Choose high-variance genes
 
+plot the variance of the expression levels for each gene against its mean expression level
+
 ```{r}
 # kept 11662 genes
 large.express.genes = gene.names[which(cells.per.gene > 200)]
 large.expressed.tpm = sf_CD8T_tpm[match(large.express.genes,rownames(sf_CD8T_tpm)),]
-# plot the variance of the expression levels for each gene against its mean expression level
-genes.mean = apply(large.expressed.tpm, 1, mean)
-genes.variance = apply(large.expressed.tpm, 1, var)
-df_mv = data.frame(gene=large.express.genes, mean=genes.mean, var=genes.variance)
+dim(large.expressed.tpm)
+
+df_mv = data.frame(gene=large.express.genes, mean=rowMeans(large.expressed.tpm),
+                   var=apply(large.expressed.tpm, 1, var))
 rm(large.express.genes)
 rm(large.expressed.tpm)
-rm(genes.mean)
-rm(genes.variance)
+
 ggplot(data = df_mv) + 
   geom_point(aes(x=mean,y=var),size = 0.1)
 ```
 
+divide the genes into 20 equal-size bins based on their mean expression levels, and select the first 50 genes with the highest variance from each bin. 
 ```{r}
-# divide the genes into 20 equal-size bins based on their mean expression levels
 df_mv$grouping = cut_number(df_mv$mean, n=20)
 table(df_mv$grouping)
-# in each bin, select the first 50 genes with the highest variance
-hv.genes.list = by(df_mv, df_mv$grouping, FUN = function(df) return(df$gene[order(df$var,decreasing = TRUE)][1:50]))
+
+hv.genes.list = by(df_mv, df_mv$grouping, 
+                   FUN = function(df) return(df$gene[order(df$var,decreasing = TRUE)][1:50]))
 hv.genes = as.character(unlist(hv.genes.list))
 rm(hv.genes.list)
+
 hvg_tpm = sf_CD8T_tpm[match(hv.genes,rownames(sf_CD8T_tpm)),]
 hvg_tpm = t(hvg_tpm)
 colnames(hvg_tpm) = hv.genes
@@ -109,14 +130,17 @@ rm(hvg_tpm)
 ```{r}
 eigvals = pca.hvg$sdev^2
 pve = eigvals/sum(eigvals)
-plot(1:50,pve[1:50],main = "scree plot (first 50 PCs)",type="b",xlab="i-th PC",ylab="Proportion of Variance Explained")
+plot(1:50, pve[1:50], main = "scree plot (first 50 PCs)", type="b", 
+     xlab="i-th PC",ylab="Proportion of Variance Explained")
 rm(eigvals)
 ```
 
 ### plot of cumulative proportion of variance explained
 ```{r}
 yvec = cumsum(pve)
-plot(yvec, type="l", main = "plot of cumulative proportion of variance", xlab = "i-th Principal Components", ylab = "Cumulative variance",ylim=c(0,1))
+plot(yvec, type="l", main = "plot of cumulative proportion of variance",  
+     xlab = "i-th Principal Components", 
+     ylab = "Cumulative variance", ylim=c(0,1))
 abline(h=0.8, lty = 2)
 rm(yvec)
 rm(pve)
@@ -132,7 +156,6 @@ rm(pca.hvg)
 ```{r}
 top50pcs = pca.scores[,1:50]
 rm(pca.scores)
-#head(top50pcs)
 ```
 
 ## Calculate TSNE
@@ -151,7 +174,8 @@ Prepare dataframe for k-means clustering using top 50 PCs
 ```{r}
 df_top50PCs = cbind(top50pcs, df_tsne)
 rm(df_tsne)
-#head(df_top50PCs)
+dim(df_top50PCs)
+df_top50PCs[1:2, c(1:2,50:52)]
 rm(top50pcs)
 ```
 
@@ -161,14 +185,19 @@ set.seed(9999)
 all_num_clust = c(2:8)
 for (num_clust in all_num_clust) {
   cat(paste0("KM with ",num_clust," clusters.\n"))
-  kmeans_out = kmeans(df_top50PCs[,1:50], centers = num_clust, iter.max = 1e3, nstart = 50, algorithm = "MacQueen")
+  kmeans_out = kmeans(df_top50PCs[,1:50], centers = num_clust, 
+                      iter.max = 1e3, nstart = 50, algorithm = "MacQueen")
   print(kmeans_out[c("betweenss","tot.withinss")])
   km_label = paste0("KM_",num_clust)
   df_top50PCs[[km_label]] = as.factor(kmeans_out$cluster)
-  #pt = ggplot(data=df_top50PCs)+geom_point(aes(x=topPC_TSNE1,y=topPC_TSNE2,color=eval(as.name(paste(km_label)))),size = 0.3)+scale_colour_discrete(name=paste(km_label))+guides(color = guide_legend(override.aes = list(size = 2)))
-  #print(pt)
+  pt = ggplot(data=df_top50PCs) + 
+    geom_point(aes(x=topPC_TSNE1,y=topPC_TSNE2,color=eval(as.name(paste(km_label)))),
+               size = 0.3) + 
+    scale_colour_discrete(name=paste(km_label)) + 
+    guides(color = guide_legend(override.aes = list(size = 2)))
+  print(pt)
   rm(kmeans_out)
-  #rm(pt)
+  rm(pt)
 }
 ```
 
@@ -180,63 +209,73 @@ df_top50PCs$CD8T = as.factor(table_s2$Cluster)
 
 # 6 CD8+ T cell clusters in Figure 4
 xnm = "1-s2.0-S0092867418313941-mmc4.xlsx"
-table_s4 = readxl::read_xlsx(paste0("../_reference/Sade_Feldman_2018/", xnm), sheet = "Cluster annotation-Fig4A-B", col_names = TRUE)
+table_s4 = readxl::read_xlsx(paste0("../../_reference/Sade_Feldman_2018/", xnm), 
+                             sheet = "Cluster annotation-Fig4A-B", col_names = TRUE)
+dim(table_s4)
+table_s4[1:2,]
+table(table_s4$Cluster)
+
+table(rownames(df_top50PCs) == table_s4$`Cell Name`)
 df_top50PCs$sf_cluster = as.factor(table_s4$Cluster)
 ```
 
 ## CD8_G cluster and CD8_B cluster annotation from Sade-Feldman et al., 2018
 ```{r}
-ggplot(data=df_top50PCs)+geom_point(aes(x=topPC_TSNE1,y=topPC_TSNE2,color=CD8T),size = 0.3)+guides(color = guide_legend(override.aes = list(size = 2)))
+ggplot(data=df_top50PCs) + 
+  geom_point(aes(x=topPC_TSNE1,y=topPC_TSNE2,color=CD8T),size = 0.3) + 
+  guides(color = guide_legend(override.aes = list(size = 2)))
 ```
 
 In the K-means analysis result using 3 clusters, the cluster of CD8_B cells and that of CD8_D cells could be roughly identified. Cluster 1 contains all CD8_B cells, cluster 2 contains mostly CD8_B cells, and cluster 3 contains mostly CD8_G cells. 
 
 ```{r}
-ggplot(data=df_top50PCs)+geom_point(aes(x=topPC_TSNE1,y=topPC_TSNE2,color=KM_3),size = 0.3)+guides(color = guide_legend(override.aes = list(size = 2)))
+ggplot(data=df_top50PCs) + 
+  geom_point(aes(x=topPC_TSNE1,y=topPC_TSNE2,color=KM_3),size = 0.3) + 
+  guides(color = guide_legend(override.aes = list(size = 2)))
 ```
 
 ```{r}
-table(df_top50PCs$KM_3, df_top50PCs$CD8T)
+tb1 = table(df_top50PCs$KM_3, df_top50PCs$CD8T)
+tb1
 ```
 
 ```{r}
-table_s2$ruoyi_cluster = "NA"
-table_s2$ruoyi_cluster[df_top50PCs$KM_3 %in% c(1,2) & df_top50PCs$CD8T == "CD8_B"] = "CD8_B"
-table_s2$ruoyi_cluster[df_top50PCs$KM_3 == 3 & df_top50PCs$CD8T == "CD8_G"] = "CD8_G"
+CD8B_prop = tb1[,"CD8_B"]/rowSums(tb1)
+CD8G_prop = tb1[,"CD8_G"]/rowSums(tb1)
+
+CD8B_prop
+CD8G_prop
+
+CD8B_cluster = which(CD8B_prop > 0.8)
+CD8G_cluster = which(CD8G_prop > 0.8)
+
+table_s2$ruoyi_cluster = rep(NA, nrow(table_s2))
+table_s2$ruoyi_cluster[df_top50PCs$KM_3 %in% CD8B_cluster & df_top50PCs$CD8T == "CD8_B"] = "CD8_B"
+table_s2$ruoyi_cluster[df_top50PCs$KM_3 %in% CD8G_cluster & df_top50PCs$CD8T == "CD8_G"] = "CD8_G"
 ```
 
 ```{r}
-table(table_s2$Cluster, table_s2$sf_cluster)
+table(table_s2$ruoyi_cluster, table_s2$Cluster, useNA = "ifany")
 ```
 
 ```{r}
-table(table_s2$ruoyi_cluster, table_s2$sf_cluster)
-```
-
-```{r}
-table(table_s2$ruoyi_cluster, table_s2$Cluster)
-```
-
-```{r}
-write.csv(table_s2, "CD8_cluster.csv", quote = FALSE, row.names = FALSE)
+write.csv(table_s2, "output/CD8_cluster.csv", quote = FALSE, row.names = FALSE)
 ```
 
 ## Fine clustering of CD8+ T cells in Sade-Feldman et al., 2018
 
 ```{r}
-ggplot(data=df_top50PCs)+geom_point(aes(x=topPC_TSNE1,y=topPC_TSNE2,color=sf_cluster),size = 0.3)+guides(color = guide_legend(override.aes = list(size = 2)))
+ggplot(data=df_top50PCs) + 
+  geom_point(aes(x=topPC_TSNE1,y=topPC_TSNE2,color=sf_cluster),size = 0.3) + 
+  guides(color = guide_legend(override.aes = list(size = 2)))
 ```
 
-K-means analysis using 8 clusters identified the most CD8+ T cells clusters defined by the paper.   
-CD8_1 cells are mostly covered by clusters 3 and 5, but part of them are also in cluster 1.  
-CD8_2 cells could not be clearly identified by one or two clusters.  
-CD8_3 cells are mostly covered by cluster 1, but some of them could not be identified from CD8_1 cells and CD8_2 cells in cluster 6.  
-CD8_4 cells are mostly covered by cluster 7, but some of them are mixed in cluster 4.  
-CD8_5 cells could not be clearly identified from CD8_3 cells, CD8_4 cells, and CD8_6 cells cluster 4.  
-Cluster 2 contains roughly a half of CD8_6 cells, the other half is mixed in clusters 1, 4, 8.  
+K-means analysis using 8 clusters have some overlap with the CD8+ T cells clusters defined by the paper.
 
 ```{r}
-ggplot(data=df_top50PCs)+geom_point(aes(x=topPC_TSNE1,y=topPC_TSNE2,color=KM_8),size = 0.3)+guides(color = guide_legend(override.aes = list(size = 2)))
+ggplot(data=df_top50PCs) + 
+  geom_point(aes(x=topPC_TSNE1,y=topPC_TSNE2,color=KM_8),size = 0.3) + 
+  guides(color = guide_legend(override.aes = list(size = 2)))
 ```
 
 ```{r}
