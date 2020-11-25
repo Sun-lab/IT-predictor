@@ -61,40 +61,16 @@ rm(gene.grouping)
 
 ## 11 cell types we defined from Sade-Feldman(2018) data
 
-Merge the cell type definition from the Kmeans clustering of all the cells (`cell_type$type1`) and the Kmean clustering of the CD8+ T cells and NK cells  (`cell_type$type2`). 
 ```{r}
 cell_type = read.table("./output/cell_type.txt", header = TRUE, sep = "\t", 
                        as.is = TRUE)
 dim(cell_type)
 cell_type[1:2,]
 
-table(cell_type$type1)
-table(cell_type$type1, cell_type$type2)
-
-# remove the cluster membership for any cells classified as CD8T or NK
-cell_type$type = cell_type$type1
-cell_type$type[which(cell_type$type2 != "others")] = "unclustered"
-
-# now only CD4+ T cells are left for T memory cells
-cell_type$type[which(cell_type$type == "memory_T")] = "CD4T_memory"
-
-# add labels of CD8+ T and NK cells
-ct_TNK = (cell_type$type1 == "unclustered")
-cell_type$type[which(ct_TNK & cell_type$type2 == "CD8T_B")] = "CD8T_B"
-
-ct_TmemNK = (cell_type$type1 %in% c("memory_T", "unclustered"))
-cell_type$type[which(ct_TmemNK & cell_type$type2 == "CD8T_G")] = "CD8T_G"
-
-cell_type$type[which(cell_type$type2 == "NK1")] = "NK1"
-cell_type$type[which(cell_type$type2 == "NK2")] = "NK2"
-cell_type$type[which(cell_type$type2 == "NK3")] = "NK3"
-
-table(cell_type$type, cell_type$type1, useNA = "ifany")
-table(cell_type$type, cell_type$type2, useNA = "ifany")
-
 clustered_cells = cell_type$cell[cell_type$type != "unclustered"]
+length(clustered_cells)
 
-# select TPM data for 12705 genes with large expression in 14777 grouped cells
+# select TPM data for 12705 genes with large expression in 14743 clustered cells
 clustered_tpm_LEgenes = sf_tpm[match(large.express.genes.all, rownames(sf_tpm)), ..clustered_cells] 
 rownames(clustered_tpm_LEgenes) = large.express.genes.all
 
@@ -164,7 +140,7 @@ CBST_SFLEgenes_LM22[1:2,]
 - Compare the correlation between the cell types in the LM22 vs. the 11 cell types we had. 
 - Two types of correlation: using all cells for each cell type to calculate mean gene expression, or calculate the mean expression using 200 cells with smallest percentages of zero expression genes. 
 
-## Correlations between our 11 cell types
+## Correlation matrix for our 11 cell types
 ### using mean expression of filtered genes shared between SF data and LM22 matrix
 ```{r}
 table(rownames(clustered_tpm_LEgenes) == large.express.genes.all)
@@ -213,15 +189,17 @@ rm(LEgenes_CBST_tpm)
 ```
 
 The patterns of the correlation roughly match our expectation: 
+
 - Plasma cells, Monocytes/Macrophages, Dendritic cells and B cells do no have major correlation with other cell types, matches the clustering result that these 4 cell types form most distinct clusters
 - The 3 NK cell clusters are closely related with each other
 - CD8 cells, NK cells, and CD4 T cells are closely related
+
 ```{r}
 cormat_LE.CBSTgenes_11type = cor(LEgene_CBST_compare_expression, method = "spearman")
 ggcorrplot(cormat_LE.CBSTgenes_11type)
 ```
 
-### using mean expression for filtered genes shared between SF data and LM22 matrix over the cells with fewer zero gene expression 
+### using mean expression for filtered genes shared between SF data and LM22 matrix, over the cells with fewer zero gene expression 
 
 ```{r}
 match1 = match(CBST.largeExpression.genes, large.express.genes.all)
@@ -233,7 +211,8 @@ LEgenes_CBST_few0_tpm[1:5,1:5]
 LEgenes_CBST_few0_tpm$grouping = factor(cell_type$type[match(fewzero_cells, cell_type$cell)])
 table(LEgenes_CBST_few0_tpm$grouping)
 
-LEgene_CBST_few0_expression = LEgenes_CBST_few0_tpm[, lapply(.SD, mean), by = grouping] # 11 x 324
+# 11 x 324
+LEgene_CBST_few0_expression = LEgenes_CBST_few0_tpm[, lapply(.SD, mean), by = grouping] 
 LEgene_CBST_few0_expression[,1:6]
 
 LEgene_CBST_few0_compare_expression = as.data.frame(t(LEgene_CBST_few0_expression[,-1]))
@@ -245,8 +224,17 @@ rm(LEgenes_CBST_few0_tpm)
 
 The result using cells with fewer zero expression genes is not very different from the result using all cells. 
 ```{r}
-cormat_LE.CBST.few0genes_11type = cor(LEgene_CBST_few0_compare_expression, method = "spearman")
+cormat_LE.CBST.few0genes_11type = cor(LEgene_CBST_few0_compare_expression, 
+                                      method = "spearman")
 ggcorrplot(cormat_LE.CBST.few0genes_11type)
+
+table(colnames(LEgene_CBST_few0_compare_expression) == 
+        colnames(LEgene_CBST_compare_expression))
+
+cor_2signatures = cor(LEgene_CBST_compare_expression, 
+                      LEgene_CBST_few0_compare_expression, 
+                      method = "spearman")
+summary(diag(cor_2signatures))
 ```
 
 ## Correlations between our 11 cell types and the cell types in the LM22 matrix

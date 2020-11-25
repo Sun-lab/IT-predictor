@@ -499,6 +499,32 @@ table(cell_type$type1, cell_type$type2, useNA = "ifany")
 ```
 
 
+Merge the cell type definition from the Kmeans clustering of all the cells (`cell_type$type1`) and the Kmean clustering of the CD8+ T cells and NK cells  (`cell_type$type2`). 
+```{r}
+cell_type$type1[which(is.na(cell_type$type1))] = "unclustered"
+
+# remove the cluster membership for any cells classified as CD8T or NK
+cell_type$type = cell_type$type1
+cell_type$type[which(cell_type$type2 != "others")] = "unclustered"
+
+# now only CD4+ T cells are left for T memory cells
+cell_type$type[which(cell_type$type == "memory_T")] = "CD4T_memory"
+
+# add labels of CD8+ T and NK cells
+ct_TNK = (cell_type$type1 == "unclustered")
+cell_type$type[which(ct_TNK & cell_type$type2 == "CD8T_B")] = "CD8T_B"
+
+ct_TmemNK = (cell_type$type1 %in% c("memory_T", "unclustered"))
+cell_type$type[which(ct_TmemNK & cell_type$type2 == "CD8T_G")] = "CD8T_G"
+
+cell_type$type[which(cell_type$type2 == "NK1")] = "NK1"
+cell_type$type[which(cell_type$type2 == "NK2")] = "NK2"
+cell_type$type[which(cell_type$type2 == "NK3")] = "NK3"
+
+table(cell_type$type, cell_type$type1, useNA = "ifany")
+table(cell_type$type, cell_type$type2, useNA = "ifany")
+```
+
 ## Save the current labeling of the cells that we obtained from the K-means analysis
 
 ```{r}

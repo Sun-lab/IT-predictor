@@ -18,9 +18,11 @@ library(R.utils)
 fnm1 = "GSE120575_Sade_Feldman_melanoma_single_cells_nolabel_1.txt.gz"
 fnm2 = "GSE120575_Sade_Feldman_melanoma_single_cells_2.txt.gz"
 
-sf_tpm1 = fread(paste0("../../scRNAseq/Sade_Feldman_2018/", fnm1), fill = TRUE, header = TRUE)
+sf_tpm1 = fread(paste0("../../scRNAseq/Sade_Feldman_2018/", fnm1), 
+                fill = TRUE, header = TRUE)
 
-sf_tpm2 = fread(paste0("../../scRNAseq/Sade_Feldman_2018/", fnm2), fill = TRUE, drop = 16293, col.names = colnames(sf_tpm1))
+sf_tpm2 = fread(paste0("../../scRNAseq/Sade_Feldman_2018/", fnm2), 
+                fill = TRUE, drop = 16293, col.names = colnames(sf_tpm1))
 
 ls_tpm = list(sf_tpm1,sf_tpm2)
 rm(sf_tpm1)
@@ -33,17 +35,18 @@ rm(ls_tpm)
 ```
 
 ```{r eval=FALSE}
-#dim(sf_tpm) # 55737 x 16292
-#cell.names = colnames(sf_tpm)[-1]
+dim(sf_tpm) # 55737 x 16292
+sf_tpm[1:2,1:4]
+
 gene.names = sf_tpm$V1
 rownames(sf_tpm) = gene.names
 sf_tpm$V1 = NULL
-
 ```
 
 Only select classified cells  
 ```{r eval=FALSE}
-cell_type = read.table("./output/cell_type.txt",header = TRUE, sep = "\t", as.is = TRUE)
+cell_type = read.table("./output/cell_type.txt", header = TRUE, 
+                       sep = "\t", as.is = TRUE)
 dim(cell_type)
 cell_type[1:2,]
 
@@ -96,10 +99,15 @@ average_expression = data.frame(gene = he.genes)
 
 for (i in levels(factor(cell_type$type))[-12]) {
   cc = cell_type$cell[cell_type$type == i] # select cells in each cell cluster
-  cluster.exp = apply(HEgenes_cluster_tpm[, ..cc], 1, sum) # total expression of each gene across all cells in a particular cluster
-  exclu.exp = all.expression - cluster.exp # total expression of each gene across all other cells
-  aveg.cluster.exp = cluster.exp / length(cc) # divide by the number of cells in the cluster to get the average expression
-  aveg.exclu.exp = exclu.exp / (ncol(HEgenes_cluster_tpm) - length(cc)) # divide by the number of all other cells to get the average expression
+  # total expression of each gene across all cells in a particular cluster
+  cluster.exp = apply(HEgenes_cluster_tpm[, ..cc], 1, sum)
+  # total expression of each gene across all other cells
+  exclu.exp = all.expression - cluster.exp
+  # divide by the number of cells in the cluster to get the average expression
+  aveg.cluster.exp = cluster.exp / length(cc)
+  # divide by the number of all other cells to get the average expression
+  aveg.exclu.exp = exclu.exp / (ncol(HEgenes_cluster_tpm) - length(cc))
+  
   fc = aveg.exclu.exp / aveg.cluster.exp
   ulabel = paste0("u_",i)
   average_expression[[ulabel]] = aveg.cluster.exp
