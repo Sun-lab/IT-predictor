@@ -285,18 +285,18 @@ colSums(tb1 > 100)
  
 
 ```{r}
-cell_type = data.frame(cell = cell.names, type = NA)
+cell_type = data.frame(cell = cell.names, type1 = NA)
 for(ct1 in c("B_cells", "Dendritic_cells", "Monocytes_Macrophages", "Plasma_cells")){
   kmc = which(tb1[,ct1] > 100)
-  cell_type$type[which(df_top50PCs$KM_12 %in% kmc & df_top50PCs$sf_label==ct1)] = ct1
+  cell_type$type1[which(df_top50PCs$KM_12 %in% kmc & df_top50PCs$sf_label==ct1)] = ct1
 }
 
 for(ct1 in c("Tregs", "memory_T")){
   kmc = which.max(tb1[,ct1])
-  cell_type$type[which(df_top50PCs$KM_12 %in% kmc & df_top50PCs$sf_label==ct1)] = ct1
+  cell_type$type1[which(df_top50PCs$KM_12 %in% kmc & df_top50PCs$sf_label==ct1)] = ct1
 }
 
-table(cell_type$type, df_top50PCs$KM_12)
+table(cell_type$type1, df_top50PCs$KM_12)
 ```
 
 ```{r}
@@ -327,7 +327,7 @@ cell_type$type2 = rep("others", nrow(cell_type))
 cell_type$type2[match(CD8_B,cell_type$cell)] = "CD8T_B"
 cell_type$type2[match(CD8_G,cell_type$cell)] = "CD8T_G"
 
-table(cell_type$type, cell_type$type2, useNA="ifany")
+table(cell_type$type1, cell_type$type2, useNA="ifany")
 
 ```
 
@@ -493,18 +493,18 @@ cell_type$type2[match(NK3,cell_type$cell)] = "NK3"
 dim(cell_type)
 cell_type[1:2,]
 
-table(cell_type$type, useNA = "ifany")
+table(cell_type$type1, useNA = "ifany")
 table(cell_type$type2, useNA = "ifany")
-table(cell_type$type, cell_type$type2, useNA = "ifany")
+table(cell_type$type1, cell_type$type2, useNA = "ifany")
 ```
 
 
 ## Save the current labeling of the cells that we obtained from the K-means analysis
 
-```{r eval=FALSE}
-table(cell_type$type[cell_type$type2=="others"])
+```{r}
+table(cell_type$type1[cell_type$type2=="others"])
 
-write.table(cell_type, "cell_type.txt", quote = FALSE, col.names = TRUE, 
+write.table(cell_type, "output/cell_type.txt", quote = FALSE, col.names = TRUE, 
             row.names = FALSE, na = "unclustered", sep = "\t")
 ```
 
