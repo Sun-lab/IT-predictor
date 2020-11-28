@@ -107,8 +107,10 @@ rm(zeros.per.cell)
 
 Based on the graph, the spread of distribution of the percentages of zero expression genes is quite different for each cell type, here we try to select 200 cells with the smallest percentages of zero expression genes.
 ```{r}
+fun1 <- function(x) { rownames(x)[order(x$percentage.of.zero)][1:200] }
+
 fewzero_cells = unname(unlist(by(zero.percentages, zero.percentages$grouping, 
-                                 FUN = function(x) rownames(x)[order(x$percentage.zero)][1:200])))
+                                 FUN = fun1)))
 fewzero_cells[1:3]
 ```
 

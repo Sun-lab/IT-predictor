@@ -34,7 +34,6 @@ rm(sf_tpm2)
 sf_tpm = rbindlist(ls_tpm)
 
 rm(ls_tpm)
-
 ```
 
 ```{r}
@@ -68,12 +67,9 @@ rm(clustered_cells)
 
 Calculate the proportion of cells that each gene is expressed in
 ```{r}
-cells.per.gene    = rowSums(cluster_sf_tpm > 0)
-cellprop.per.gene = cells.per.gene/ncol(cluster_sf_tpm)
+cellprop.per.gene = rowMeans(cluster_sf_tpm > 0)
 summary(cellprop.per.gene)
-```
 
-```{r}
 table(cellprop.per.gene > 0.02)
 table(cellprop.per.gene > 0.03)
 table(cellprop.per.gene > 0.04)
@@ -87,7 +83,6 @@ dim(HEgenes_cluster_tpm)
 summary(cellprop.per.gene[cellprop.per.gene > 0.05])
 
 rm(cellprop.per.gene)
-rm(cells.per.gene)
 rm(cluster_sf_tpm)
 ```
 
@@ -246,7 +241,7 @@ gc()
   
 ## Fitting model, for one cell type to compare standard model vs. mixed effect model
 
-First try to fit two models, one is the standard MAST model and the other one is a mixed effect model that account for the dependency of cells that are from the same patient. For this dataset with around 10,000 genes and 14,743 cells, MAST will could take around 8G memory per thread. With 5 threads, zlm without mixed effect model takes about 7 minutes, and subsequent lrt takes about 6 minutes. zlm with mixed effect takes about 1 hour, and subsequent lrt takes about 37 minutes. 
+First try to fit two models, one is the standard MAST model and the other one is a mixed effect model that accounts for the dependency of cells that are from the same patient. For this dataset with around 10,000 genes and 14,743 cells, MAST takes around 5-7G memory per thread. With 5 threads, standard MAST takes about 5 minutes, and subsequent lrt takes about 5 minutes. zlm with mixed effect takes about 1 hour, and subsequent lrt takes about 30 minutes. 
 
 ```{r}
 # number of cores for multi-core computation
@@ -295,7 +290,9 @@ plot(-log10(mast_pval_zlm), -log10(mas_pval_zlmer), xlim=c(0,10), ylim=c(0,10), 
 abline(0, 1, col="orange", lwd=2)
 ```
 
-## Fitting model, for all other cell types
+## Fitting model, for all cell types
+
+Since the above results show that p-values from standard MAST and mixed model are similar and mixed model is much slower. Here we just use the standard MAST. 
 
 ```{r}
 # number of cores for multi-core computation

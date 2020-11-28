@@ -1,0 +1,137 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r warning=FALSE, echo = TRUE, results = 'hide', message = FALSE}
+library(lme4)
+library(data.table)
+library(R.utils)
+library(stringr)
+```
+
+# Check the DE resutls from MAST analysis
+
+## Histogram of p-values
+
+Histogram of p-values for each comparison
+```{r fig.height=12, fig.width=8}
+mast_pval_df = read.csv("./output/MastGenePvals_by_CellType_filtered_cells.csv", 
+                        header = TRUE, row.names = 1, as.is=TRUE)
+head(mast_pval_df)
+
+par(mgp=c(2,0.5,0), mar=c(3.5,3.5,1.5,1), cex.main=0.8)
+layout(matrix(1:12,nrow=6,ncol = 2,byrow = TRUE))
+for (i in 2:ncol(mast_pval_df)) {
+  cti = names(mast_pval_df)[i]
+  hist(mast_pval_df[,i], xlab = "p-values", breaks = 500, 
+       main = paste("DE pvals of", cti, "vs. all other cells"))
+}
+```
+
+## Volcano plot of p-values for each comparison
+
+Read in dataframe of fold changes.
+```{r}
+fc_df = read.table("./output/Average_GeneExpression_by_CellType_filtered_cells.txt", 
+                   header = TRUE, sep = "\t", as.is=TRUE)
+head(fc_df)
+types = names(mast_pval_df)[-1]
+types
+
+table(fc_df$gene == mast_pval_df$gene)
+fc_df = merge(fc_df, mast_pval_df, by="gene")
+```
+
+```{r fig.height=12, fig.width=8}
+par(mgp=c(2,0.5,0), mar=c(3.5,3.5,1.5,1))
+layout(matrix(1:12,nrow=6,ncol = 2,byrow = TRUE))
+
+for (i in 1:length(types)) {
+  cti = types[i]
+  pval = fc_df[[cti]]
+  pval[which(pval < 1e-100)] = 1e-100
+  log2_fc = log2(fc_df[[paste0("fc_",cti)]])
+  log2_fc[which(log2_fc > 6)] = 6
+  log2_fc[which(log2_fc < -6)] = -6
+  
+  plot(log2_fc, -log10(pval), 
+       main = paste0("Volcano plot, ", types[i]), 
+       xlab = "log2(fold change)", ylab = "-log10(p-value)", 
+       xlim = c(-6,6), ylim = c(0, 100), cex=0.4, pch=20)
+  abline(h=-log10(0.05/nrow(mast_pval_df)),col="red")
+  abline(v=log2(1),col="red")
+}
+
+```
+
+# Select differentially expressed genes for each cell type
+
+Select around 60 genes per cell type. Select those genes with smallest p-value and fold change, by scanning a series of percentiles. For example, for 1 percentile, we select the intersection of the genes with p-value < 1 percentile and fold change smaller than 1 percentile. Choose the percentile that gives use between 55 and 65 genes. 
+
+```{r}
+qs = seq(0.001, 0.05, by=0.001)
+
+q2use = n2choose = rep(NA, 11)
+
+for (i in 1:11) {
+  fc_i = fc_df[,paste0("fc_",types[i])]
+  pv_i = fc_df[[types[i]]]
+  
+  ni = rep(NA, length(qs))
+  
+  for(j in 1:length(qs)){
+    qj = qs[j]
+    ni[j] = sum(fc_i <= quantile(fc_i, probs=qj) & 
+                  pv_i <=  quantile(pv_i, probs=qj))
+  }
+  q2use[i]    = qs[which.min(abs(ni- 60))]
+  n2choose[i] = ni[which.min(abs(ni- 60))]
+}
+data.frame(types, q2use, n2choose)
+```
+
+```{r}
+genes.selected.perCellType = list()
+
+for (i in 1:11) {
+  type_i = types[i]
+  fc_i = fc_df[,paste0("fc_",types[i])]
+  fc_q = quantile(fc_i ,probs=q2use[i])
+  pv_i = fc_df[[type_i]]
+  pv_q = quantile(pv_i, probs=q2use[i])
+  genes.selected.perCellType[[type_i]] = fc_df$gene[fc_i <= fc_q & pv_i <= pv_q]
+}
+
+genes.selected.perCellType
+```
+
+Check how many genes are selected by more than one cell type
+```{r}
+selected.genes = unlist(genes.selected.perCellType, use.names = FALSE) 
+length(selected.genes)
+t1 = table(selected.genes)
+table(t1)
+t1[t1 >= 3]
+```
+
+Save the output  
+```{r}
+sig.genes = sort(unique(selected.genes))
+signature_gene_df = fc_df[match(sig.genes, fc_df$gene), c("gene",paste0("u_",types))]
+colnames(signature_gene_df) = c("geneSymbol", types)
+write.table(signature_gene_df, 
+            file = "./output/SF2018_sig_gene_matrix_filtered_cells.txt", 
+            quote = FALSE, sep = "\t", row.names = FALSE)
+```
+
+
+```{r}
+gc()
+sessionInfo()
+```
