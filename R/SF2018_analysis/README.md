@@ -13,6 +13,10 @@ Re-clustering the CD8 T cells using a simple approach (PCA followed by K-means) 
 > and reduced expression of co-inhibitory molecules; and CD8_B enriched for genes linked to cell exhaustion 
 (e.g., CD38, HAVCR2, ENTPD1, PDCD1, BATF, LAG3, CTLA4, and PTPN6)
 
+## 2_Sade_Feldman_2018_hvg: Refine the clustering of all the cells.
+
+Re-clustering the CD8 T cells using a simple approach (PCA followed by K-means) and compare the results versus Sade-Feldman et al. (2018). We also combine the definition of CD8_G and CD8_B cells from ```1_SF2018_CD8Tcells```, and seek to re-clustering NK cells separately. 
+
 
 ## Reference
 
