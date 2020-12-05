@@ -138,6 +138,8 @@ sig_info_filtered[1:2,c(1:4,(ncol(sig_info)-3):ncol(sig_info)), with=F]
 ```{r, fig.asp = 0.5}
 cluster_ct = cell_type$type[match(names(HEgenes_cluster_tpm), cell_type$cell)]
 marker_col = grep("^marker_", names(sig_info), value = TRUE)
+u_col  = grep("^u_", names(sig_info), value = TRUE)
+fc_col = grep("^fc_", names(sig_info), value = TRUE)
 
 plot1 <- function(gene1, edata, cluster_ct, sig_info){
   y      = as.numeric(edata[which(rownames(edata) == gene1),])
@@ -150,6 +152,10 @@ plot1 <- function(gene1, edata, cluster_ct, sig_info){
   
   ct = marker_col[unlist(sig_info[gene==gene1, marker_col, with=FALSE])==1]
   print(ct)
+  
+  sig_info[gene==gene1, c("gene", u_col), with=F]
+  sig_info[gene==gene1, c("gene", fc_col), with=F]
+
 }
 
 plot1("FOXP3", HEgenes_cluster_tpm, cluster_ct, sig_info)

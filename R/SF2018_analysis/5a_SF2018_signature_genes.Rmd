@@ -13,6 +13,7 @@ library(lme4)
 library(data.table)
 library(R.utils)
 library(stringr)
+library(ggcorrplot)
 ```
 
 # Check the DE resutls from MAST analysis
@@ -29,7 +30,17 @@ par(mgp=c(2,0.5,0), mar=c(3.5,3.5,1.5,1), cex.main=0.8)
 layout(matrix(1:12,nrow=6,ncol = 2,byrow = TRUE))
 for (i in 2:ncol(mast_pval_df)) {
   cti = names(mast_pval_df)[i]
-  hist(mast_pval_df[,i], xlab = "p-values", breaks = 500, 
+  hist(mast_pval_df[,i], xlab = "p-values", breaks = 100, 
+       main = paste("DE pvals of", cti, "vs. all other cells"))
+}
+
+par(mgp=c(2,0.5,0), mar=c(3.5,3.5,1.5,1), cex.main=0.8)
+layout(matrix(1:12,nrow=6,ncol = 2,byrow = TRUE))
+for (i in 2:ncol(mast_pval_df)) {
+  cti = names(mast_pval_df)[i]
+  pvi = mast_pval_df[,i]
+  pvi[which(pvi < 1e-50)] = 1e-50
+  hist(-log10(pvi), xlab = "p-values", breaks = 100, 
        main = paste("DE pvals of", cti, "vs. all other cells"))
 }
 ```
@@ -72,9 +83,24 @@ for (i in 1:length(types)) {
 
 # Select differentially expressed genes for each cell type
 
-Select around 60 genes per cell type. Select those genes with smallest p-value and fold change, by scanning a series of percentiles. For example, for 1 percentile, we select the intersection of the genes with p-value < 1 percentile and fold change smaller than 1 percentile. Choose the percentile that gives use between 55 and 65 genes. 
+Select around 60 genes per cell type. Select those genes with smallest p-value and fold change, by scanning a series of percentiles. We selected those with smallest fold changes because we define fold changes as the average expression from other cell types versus the average expression of the cell type of interest. For example, for 1 percentile, we select the intersection of the genes with p-value < 1 percentile and fold change smaller than 1 percentile. Choose the percentile that gives use between 55 and 65 genes. In addition, also require the fold change to be smaller than 0.75
 
 ```{r}
+
+fc_cols = grep("^fc_", names(fc_df), value=TRUE)
+u_cols  = grep("^u_", names(fc_df), value=TRUE)
+
+apply(fc_df[,fc_cols], 2, function(v){table(v < 0.5)})
+apply(fc_df[,fc_cols], 2, function(v){table(v < 0.7)})
+
+u_mtrx = fc_df[,u_cols]
+u_mtrx[u_mtrx < 1e-3] = 1e-3
+u_mtrx = log10(u_mtrx)
+cr_mtrx = cor(u_mtrx, use="pair", method = "spearman")
+summary(c(cr_mtrx))
+ggcorrplot(cr_mtrx) + 
+  scale_fill_gradient2(limit = c(0.6,1), low = "blue", high =  "red", mid = "white", midpoint = 0.8)
+
 qs = seq(0.001, 0.05, by=0.001)
 
 q2use = n2choose = rep(NA, 11)
@@ -88,7 +114,7 @@ for (i in 1:11) {
   for(j in 1:length(qs)){
     qj = qs[j]
     ni[j] = sum(fc_i <= quantile(fc_i, probs=qj) & 
-                  pv_i <=  quantile(pv_i, probs=qj))
+                  pv_i <=  quantile(pv_i, probs=2*qj))
   }
   q2use[i]    = qs[which.min(abs(ni- 60))]
   n2choose[i] = ni[which.min(abs(ni- 60))]
