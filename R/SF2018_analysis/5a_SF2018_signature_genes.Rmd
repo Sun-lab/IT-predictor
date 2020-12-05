@@ -105,10 +105,16 @@ for (i in 1:11) {
   fc_q = quantile(fc_i ,probs=q2use[i])
   pv_i = fc_df[[type_i]]
   pv_q = quantile(pv_i, probs=q2use[i])
-  genes.selected.perCellType[[type_i]] = fc_df$gene[fc_i <= fc_q & pv_i <= pv_q]
+  
+  w2use = fc_i <= fc_q & pv_i <= pv_q
+  genes.selected.perCellType[[type_i]] = fc_df$gene[w2use]
+  marker = rep(0, nrow(fc_df))
+  marker[w2use] = 1
+  fc_df[[paste0("marker_",types[i])]] = marker
 }
 
 genes.selected.perCellType
+
 ```
 
 Check how many genes are selected by more than one cell type
@@ -123,10 +129,18 @@ t1[t1 >= 3]
 Save the output  
 ```{r}
 sig.genes = sort(unique(selected.genes))
-signature_gene_df = fc_df[match(sig.genes, fc_df$gene), c("gene",paste0("u_",types))]
+signature_gene_df = fc_df[match(sig.genes, fc_df$gene), 
+                          c("gene", paste0("u_",types))]
 colnames(signature_gene_df) = c("geneSymbol", types)
 write.table(signature_gene_df, file = "./output/SF2018_sig_gene_matrix.txt", 
             quote = FALSE, sep = "\t", row.names = FALSE)
+
+dim(fc_df)
+fc_df[1:2,]
+
+write.table(fc_df, file = "./output/SF2018_sig_gene_details.txt", 
+            quote = FALSE, sep = "\t", row.names = FALSE)
+
 ```
 
 
