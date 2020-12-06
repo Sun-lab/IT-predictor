@@ -9,7 +9,9 @@ output:
 library(data.table)
 library(Rtsne)
 library(R.utils)
+library(umap)
 library(ggplot2)
+theme_set(theme_bw())
 ```
 
 # Processing data
@@ -122,8 +124,8 @@ rm(df_mv)
 ## Perform PCA on selected genes
 
 ```{r}
-pca.hvg = princomp(hvg_tpm, cor = TRUE)
-rm(hvg_tpm)
+hvg_tpm_log = log(hvg_tpm + 1)
+pca.hvg = princomp(hvg_tpm_log, cor = TRUE)
 ```
 
 ### screen plot
@@ -142,8 +144,11 @@ plot(yvec, type="l", main = "plot of cumulative proportion of variance",
      xlab = "i-th Principal Components", 
      ylab = "Cumulative variance", ylim=c(0,1))
 abline(h=0.8, lty = 2)
-rm(yvec)
-rm(pve)
+
+plot(yvec[1:100], type="l", main = "plot of cumulative proportion of variance",  
+     xlab = "i-th Principal Components", 
+     ylab = "Cumulative variance")
+
 ```
 
 ```{r}
@@ -168,14 +173,26 @@ names(df_tsne) = paste0("topPC_TSNE",seq(ncol(tsne$Y)))
 rm(tsne)
 ```
 
+## Calculate UMAP
+```{r}
+pcs_umap = umap(top50pcs)
+df_umap  = as.data.frame(pcs_umap$layout)
+names(df_umap) = paste0("topPC_UMAP",seq(ncol(df_umap)))
+rm(pcs_umap)
+```
+
 ## K-means clustering on top 50 PCs
 
 Prepare dataframe for k-means clustering using top 50 PCs
 ```{r}
 df_top50PCs = cbind(top50pcs, df_tsne)
+df_top50PCs = cbind(df_top50PCs, df_umap)
+
 rm(df_tsne)
+rm(df_umap)
+
 dim(df_top50PCs)
-df_top50PCs[1:2, c(1:2,50:52)]
+df_top50PCs[1:2, c(1:2,40:52)]
 rm(top50pcs)
 ```
 
@@ -183,6 +200,7 @@ Try Kmeans for 2 to 8 clusters
 ```{r}
 set.seed(9999)
 all_num_clust = c(2:8)
+
 for (num_clust in all_num_clust) {
   cat(paste0("KM with ",num_clust," clusters.\n"))
   kmeans_out = kmeans(df_top50PCs[,1:50], centers = num_clust, 
@@ -190,14 +208,25 @@ for (num_clust in all_num_clust) {
   print(kmeans_out[c("betweenss","tot.withinss")])
   km_label = paste0("KM_",num_clust)
   df_top50PCs[[km_label]] = as.factor(kmeans_out$cluster)
-  pt = ggplot(data=df_top50PCs) + 
+  
+  pt1 = ggplot(data=df_top50PCs) + 
     geom_point(aes(x=topPC_TSNE1,y=topPC_TSNE2,color=eval(as.name(paste(km_label)))),
                size = 0.3) + 
     scale_colour_discrete(name=paste(km_label)) + 
     guides(color = guide_legend(override.aes = list(size = 2)))
-  print(pt)
+  
+  pt2 = ggplot(data=df_top50PCs) + 
+    geom_point(aes(x=topPC_UMAP1,y=topPC_UMAP2,color=eval(as.name(paste(km_label)))),
+               size = 0.3) + 
+    scale_colour_discrete(name=paste(km_label)) + 
+    guides(color = guide_legend(override.aes = list(size = 2)))
+    
+  print(pt1)
+  print(pt2)
+
   rm(kmeans_out)
-  rm(pt)
+  rm(pt1)
+  rm(pt2)
 }
 ```
 
@@ -224,13 +253,18 @@ df_top50PCs$sf_cluster = as.factor(table_s4$Cluster)
 ggplot(data=df_top50PCs) + 
   geom_point(aes(x=topPC_TSNE1,y=topPC_TSNE2,color=CD8T),size = 0.3) + 
   guides(color = guide_legend(override.aes = list(size = 2)))
+
+ggplot(data=df_top50PCs) + 
+  geom_point(aes(x=topPC_UMAP1,y=topPC_UMAP2,color=CD8T),size = 0.3) + 
+  guides(color = guide_legend(override.aes = list(size = 2)))
+
 ```
 
 In the K-means analysis result using 3 clusters, the cluster of CD8_B cells and that of CD8_D cells could be roughly identified. Cluster 1 contains all CD8_B cells, cluster 2 contains mostly CD8_B cells, and cluster 3 contains mostly CD8_G cells. 
 
 ```{r}
 ggplot(data=df_top50PCs) + 
-  geom_point(aes(x=topPC_TSNE1,y=topPC_TSNE2,color=KM_3),size = 0.3) + 
+  geom_point(aes(x=topPC_UMAP1,y=topPC_UMAP2,color=KM_3),size = 0.3) + 
   guides(color = guide_legend(override.aes = list(size = 2)))
 ```
 
@@ -266,7 +300,7 @@ write.csv(table_s2, "output/CD8_cluster.csv", quote = FALSE, row.names = FALSE)
 
 ```{r}
 ggplot(data=df_top50PCs) + 
-  geom_point(aes(x=topPC_TSNE1,y=topPC_TSNE2,color=sf_cluster),size = 0.3) + 
+  geom_point(aes(x=topPC_UMAP1,y=topPC_UMAP2,color=sf_cluster),size = 0.3) + 
   guides(color = guide_legend(override.aes = list(size = 2)))
 ```
 
@@ -274,7 +308,7 @@ K-means analysis using 8 clusters have some overlap with the CD8+ T cells cluste
 
 ```{r}
 ggplot(data=df_top50PCs) + 
-  geom_point(aes(x=topPC_TSNE1,y=topPC_TSNE2,color=KM_8),size = 0.3) + 
+  geom_point(aes(x=topPC_UMAP1,y=topPC_UMAP2,color=KM_8),size = 0.3) + 
   guides(color = guide_legend(override.aes = list(size = 2)))
 ```
 
