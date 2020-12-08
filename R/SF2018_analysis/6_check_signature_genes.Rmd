@@ -70,9 +70,10 @@ rm(clustered_cells)
 Calculate the proportion of cells that each gene is expressed in
 ```{r}
 cellprop.per.gene = rowMeans(cluster_sf_tpm > 0)
+table(cellprop.per.gene > 0.02)
 
-he.genes = gene.names[cellprop.per.gene > 0.05]
-HEgenes_cluster_tpm = cluster_sf_tpm[cellprop.per.gene > 0.05, ]
+he.genes = gene.names[cellprop.per.gene > 0.02]
+HEgenes_cluster_tpm = cluster_sf_tpm[cellprop.per.gene > 0.02, ]
 rownames(HEgenes_cluster_tpm) = he.genes
 dim(HEgenes_cluster_tpm)
 
@@ -83,55 +84,31 @@ rm(cellprop.per.gene)
 # Read in the two versions of signature genes
 ```{r}
 sig_gene = fread("./output/SF2018_sig_gene_matrix.txt")
-sig_gene_filtered = fread("./output/SF2018_sig_gene_matrix_filtered_cells.txt")
 
 dim(sig_gene)
-dim(sig_gene_filtered)
-
 sig_gene[1:2,]
-sig_gene_filtered[1:2,]
 ```
 
-# Check the correlations between these two versions of signature matrix. 
-
-The signature of CD8T_B does change a lot after selecting the top 200 cells with highiest expression. In fact, CD8T_B using all cells has highest correation with NK3 using filered cells, and CD8T_B using filered cells has highest correlation with NK1 using all the cells. 
+# Check the correlations between cell types using this signature matrix. 
 
 ```{r}
-genes_shared = intersect(sig_gene$geneSymbol, 
-                         sig_gene_filtered$geneSymbol)
-
-mat1 = match(genes_shared, sig_gene$geneSymbol)
-mat2 = match(genes_shared, sig_gene_filtered$geneSymbol)
-
-sig_mtrx = data.matrix(sig_gene[mat1, -1])
-sig_mtrx_filtered = data.matrix(sig_gene_filtered[mat2, -1])
-
+sig_mtrx = data.matrix(sig_gene[, -1])
 dim(sig_mtrx)
-dim(sig_mtrx_filtered)
-
 sig_mtrx[1:2,]
-sig_mtrx_filtered[1:2,]
 
-cr1 = cor(sig_mtrx, sig_mtrx_filtered)
-summary(diag(cr1))
-sort(diag(cr1))[1:5]
-summary(c(cr1))
+cr1 = cor(sig_mtrx)
 ggcorrplot(cr1, tl.cex = 6)
 
 round(cr1[c(2:4,7:9),c(2:4,7:9)], 2)
-cor(sig_mtrx[,"CD8T_B"], sig_mtrx_filtered[,"NK3"])
 ```
 
 # Read in the details of DE analysis
 ```{r}
 sig_info = fread("./output/SF2018_sig_gene_details.txt")
-sig_info_filtered = fread("./output/SF2018_sig_gene_details_filtered_cells.txt")
 
 dim(sig_info)
-dim(sig_info_filtered)
 
 sig_info[1:2,c(1:4,(ncol(sig_info)-3):ncol(sig_info)), with=F]
-sig_info_filtered[1:2,c(1:4,(ncol(sig_info)-3):ncol(sig_info)), with=F]
 ```
 
 # illustrate the results for a few fenes
@@ -155,7 +132,6 @@ plot1 <- function(gene1, edata, cluster_ct, sig_info){
   
   sig_info[gene==gene1, c("gene", u_col), with=F]
   sig_info[gene==gene1, c("gene", fc_col), with=F]
-
 }
 
 plot1("FOXP3", HEgenes_cluster_tpm, cluster_ct, sig_info)
@@ -172,38 +148,38 @@ plot1("CD14",  HEgenes_cluster_tpm, cluster_ct, sig_info)
 plot1("CD19",  HEgenes_cluster_tpm, cluster_ct, sig_info)
 
 plot1("LMNA",  HEgenes_cluster_tpm, cluster_ct, sig_info)
-plot1("FASLG",  HEgenes_cluster_tpm, cluster_ct, sig_info)
-plot1("VCAM1",  HEgenes_cluster_tpm, cluster_ct, sig_info)
+plot1("FASLG", HEgenes_cluster_tpm, cluster_ct, sig_info)
+plot1("VCAM1", HEgenes_cluster_tpm, cluster_ct, sig_info)
 plot1("LEF1",  HEgenes_cluster_tpm, cluster_ct, sig_info)
 
-setdiff(sig_info$gene[sig_info$marker_NK1 == 1], 
-        sig_info_filtered$gene[sig_info_filtered$marker_NK1 == 1])
+sig_info$gene[sig_info$marker_NK1 == 1]
 
-intersect(sig_info$gene[sig_info$marker_NK1 == 1], 
-          sig_info_filtered$gene[sig_info_filtered$marker_NK1 == 1])
-
-plot1("CCNB2", HEgenes_cluster_tpm, cluster_ct, sig_info)
 plot1("CCNA2", HEgenes_cluster_tpm, cluster_ct, sig_info)
+plot1("CCNB2", HEgenes_cluster_tpm, cluster_ct, sig_info)
+plot1("KIF11", HEgenes_cluster_tpm, cluster_ct, sig_info)
 
-setdiff(sig_info$gene[sig_info$marker_NK2 == 1], 
-        sig_info_filtered$gene[sig_info_filtered$marker_NK2 == 1])
+sig_info$gene[sig_info$marker_NK2 == 1]
 
-intersect(sig_info$gene[sig_info$marker_NK2 == 1], 
-          sig_info_filtered$gene[sig_info_filtered$marker_NK2 == 1])
+plot1("FGFBP2",  HEgenes_cluster_tpm, cluster_ct, sig_info)
+plot1("KIR2DL3", HEgenes_cluster_tpm, cluster_ct, sig_info)
+plot1("KLRC1", HEgenes_cluster_tpm, cluster_ct, sig_info)
+plot1("NCR1",  HEgenes_cluster_tpm, cluster_ct, sig_info)
+plot1("GNLY",  HEgenes_cluster_tpm, cluster_ct, sig_info)
+plot1("TRDC",  HEgenes_cluster_tpm, cluster_ct, sig_info)
+plot1("TRGV7", HEgenes_cluster_tpm, cluster_ct, sig_info)
+plot1("TRGV9", HEgenes_cluster_tpm, cluster_ct, sig_info)
 
-plot1("NFKB1",  HEgenes_cluster_tpm, cluster_ct, sig_info)
-plot1("FCGR3A", HEgenes_cluster_tpm, cluster_ct, sig_info)
+sig_info$gene[sig_info$marker_NK3 == 1]
 
-setdiff(sig_info$gene[sig_info$marker_NK3 == 1], 
-        sig_info_filtered$gene[sig_info_filtered$marker_NK3 == 1])
-
-intersect(sig_info$gene[sig_info$marker_NK3 == 1], 
-          sig_info_filtered$gene[sig_info_filtered$marker_NK3 == 1])
-
-plot1("CCL4L2", HEgenes_cluster_tpm, cluster_ct, sig_info)
-plot1("CCL4",   HEgenes_cluster_tpm, cluster_ct, sig_info)
-plot1("GZMK",   HEgenes_cluster_tpm, cluster_ct, sig_info)
-
+plot1("GZMK", HEgenes_cluster_tpm, cluster_ct, sig_info)
+plot1("HAVCR1",   HEgenes_cluster_tpm, cluster_ct, sig_info)
+plot1("KIR2DL4",  HEgenes_cluster_tpm, cluster_ct, sig_info)
+plot1("TRGC1",  HEgenes_cluster_tpm, cluster_ct, sig_info)
+plot1("TRGC2",  HEgenes_cluster_tpm, cluster_ct, sig_info)
+plot1("TRGV2",  HEgenes_cluster_tpm, cluster_ct, sig_info)
+plot1("TRGV4",  HEgenes_cluster_tpm, cluster_ct, sig_info)
+plot1("TRGV5",  HEgenes_cluster_tpm, cluster_ct, sig_info)
+plot1("TRGV8",  HEgenes_cluster_tpm, cluster_ct, sig_info)
 ```
 
 
