@@ -105,13 +105,13 @@ rm(cf)
 count.df[(nrow(count.df) - 5):nrow(count.df),1:5]
 
 plot(unlist(count.df[60488,]), unlist(count.df[60485,]), 
-     xlab="alignment_not_unique", ylab="ambiguous")
+     xlab="alignment_not_unique", ylab="ambiguous", pch=20, cex=0.6)
 
 plot(unlist(count.df[60488,]), unlist(count.df[60484,]), 
-     xlab="alignment_not_unique", ylab="no_feature")
+     xlab="alignment_not_unique", ylab="no_feature", pch=20, cex=0.6)
 
 plot(colSums(count.df[1:60483,]), unlist(count.df[60488,]),  
-     xlab="total read-depth", ylab="alignment_not_unique")
+     xlab="total read-depth", ylab="alignment_not_unique", pch=20, cex=0.6)
 
 names(count.df)[which(count.df[60488,] > 5e7)]
 
@@ -152,7 +152,7 @@ SKCM_TPM[1:5,1:5]
 
 # Step 3: Match gene ensembl ID to gene names
 ```{r}
-# Some ensembl IDs are missing hgnc symbols
+# Some ensembl IDs miss hgnc symbols
 missing.id = which(is.na(geneinfo$hgnc_symbol))
 length(missing.id)
 geneinfo.nomissing = geneinfo[-missing.id,]
@@ -174,7 +174,7 @@ table(gene.id == rownames(SKCM_TPM))
 w2match = match(geneinfo.filtered$geneId, gene.id)
 SKCM_TPM_filtered = data.frame(geneSymbol = geneinfo.filtered$hgnc_symbol) 
 SKCM_TPM_filtered = cbind(SKCM_TPM_filtered, SKCM_TPM[w2match,])
-dim(SKCM_TPM_filtered) # 35295 x 473
+dim(SKCM_TPM_filtered)
 SKCM_TPM_filtered[1:5,1:5]
 
 rm(SKCM_TPM)
@@ -200,7 +200,7 @@ dim(SKCM_LM22_sigmat)
 SKCM_LM22_sigmat[1:2,1:5]
 ```
 
-Filter data and singature matrix using the genes shared between TCGA data and the signature matrix `SF2018_sig_gene_matrix.txt`: 514 genes in common.
+Filter data and singature matrix using the genes shared between TCGA data and the signature matrix `SF2018_sig_gene_matrix.txt`: 531 genes in common.
 
 ```{r}
 SF2018_sigmat = read.table("../SF2018_analysis/output/SF2018_sig_gene_matrix.txt", 
@@ -221,27 +221,6 @@ dim(SKCM_SF2018_sigmat)
 SKCM_SF2018_sigmat[1:2,1:5]
 ```
 
-Filter data and singature matrix using the genes shared between TCGA data and the signature matrix `SF2018_sig_gene_matrix_filtered_cells.txt`: 514 genes in common.
-
-```{r}
-fname = "../SF2018_analysis/output/SF2018_sig_gene_matrix_filtered_cells.txt"
-SF2018_few0_sigmat = read.table(fname, header = TRUE, sep = "\t", as.is = TRUE)
-dim(SF2018_few0_sigmat)
-SF2018_few0_sigmat[1:2,1:5]
-
-genes2use    = intersect(SF2018_few0_sigmat$geneSymbol, SKCM_TPM_filtered$geneSymbol)
-match.TCGA   = match(genes2use, SKCM_TPM_filtered$geneSymbol)
-match.SF2018_filtered = match(genes2use, SF2018_few0_sigmat$geneSymbol)
-
-SKCM_TPM_SF2018_few0 = SKCM_TPM_filtered[match.TCGA,]
-dim(SKCM_TPM_SF2018_few0)
-SKCM_TPM_SF2018_few0[1:2,1:5]
-
-SKCM_SF2018_few0_sigmat = SF2018_few0_sigmat[match.SF2018_filtered,]
-dim(SKCM_SF2018_few0_sigmat)
-SKCM_SF2018_few0_sigmat[1:2,1:5]
-```
-
 # Generate CIBERSORT input
 
 ```{r}
@@ -250,11 +229,6 @@ sig_file_LM22   = file.path(CBSTfolder, "signature_gene_LM22.txt")
 mix_file_LM22   = file.path(CBSTfolder, "observed_TPM_LM22.txt")
 sig_file_SF2018 = file.path(CBSTfolder, "signature_gene_SF2018.txt")
 mix_file_SF2018 = file.path(CBSTfolder, "observed_TPM_SF2018.txt")
-
-sig_file_SF2018_filtered = file.path(CBSTfolder, 
-                                     "signature_gene_SF2018_filtered_cells.txt")
-mix_file_SF2018_filtered = file.path(CBSTfolder, 
-                                     "observed_TPM_SF2018_filtered_cells.txt")
 
 # generate matrices as input for CIBERSORT online
 write.table(SKCM_TPM_LM22, file = mix_file_LM22, quote = FALSE,
@@ -267,12 +241,6 @@ write.table(SKCM_TPM_SF2018, file = mix_file_SF2018,
             quote = FALSE, row.names = FALSE, sep="\t")
 
 write.table(SKCM_SF2018_sigmat, file = sig_file_SF2018,
-            quote = FALSE, row.names = FALSE, sep="\t")
-
-write.table(SKCM_TPM_SF2018_few0, file = mix_file_SF2018_filtered,
-            quote = FALSE, row.names = FALSE, sep="\t")
-
-write.table(SKCM_SF2018_few0_sigmat, file = sig_file_SF2018_filtered,
             quote = FALSE, row.names = FALSE, sep="\t")
 ```
 
@@ -301,32 +269,6 @@ date()
 summary(icedt_SF2018$cProp)
 
 saveRDS(icedt_SF2018, "ICeDT/SKCM_ICeDT_SF2018.rds")
-```
-
-Use SF2018 signature matirx after selecting 200 cells with largest proportion of non-zero expression for each cell type.
-
-```{r}
-SKCM_TPM_SF2018_mtrx = data.matrix(SKCM_TPM_SF2018_few0[,-1])
-rownames(SKCM_TPM_SF2018_mtrx) = SKCM_TPM_SF2018_few0$geneSymbol
-
-SKCM_SF2018_sigmat_mtrx = data.matrix(SKCM_SF2018_few0_sigmat[,-1])
-rownames(SKCM_SF2018_sigmat_mtrx) = SKCM_SF2018_few0_sigmat$geneSymbol
-
-dim(SKCM_TPM_SF2018_mtrx)
-SKCM_TPM_SF2018_mtrx[1:2,1:5]
-
-dim(SKCM_SF2018_sigmat_mtrx)
-SKCM_SF2018_sigmat_mtrx[1:2,1:5]
-
-date()
-icedt_SF2018_filtered = ICeDT(Y = SKCM_TPM_SF2018_mtrx, 
-                              Z = SKCM_SF2018_sigmat_mtrx, 
-                              tumorPurity = NULL, refVar = NULL)
-date()
-
-summary(icedt_SF2018_filtered$cProp)
-
-saveRDS(icedt_SF2018_filtered, "ICeDT/SKCM_ICeDT_SF2018_filtered_cells.rds")
 ```
 
 Use LM22 signature matrix

@@ -1,0 +1,92 @@
+---
+title: "TCGA Data Analysis"
+output:
+  html_document:
+    df_print: paged
+---
+
+# Load required library
+```{r warning=FALSE, echo = TRUE, results = 'hide', warning = FALSE, message = FALSE}
+library(data.table)
+library(R.utils)
+library(ICeDT)
+library(ggcorrplot)
+```
+
+
+Read CIBERSORT cell fraction estimates. The output could be txt or csv format. Here we just double check that the results are the same from the two formats. 
+
+```{r}
+CBST_folder = "./CIBERSORT/CIBERSORTx_output"
+
+cb_LM22    = fread(file.path(CBST_folder,"CIBERSORTx_LM22_Adjusted.txt"))
+cb_SF2018  = fread(file.path(CBST_folder,"CIBERSORTx_SF2018_Adjusted.txt"))
+
+dim(cb_LM22)
+cb_LM22[1:2,c(1:2,23:26)]
+
+dim(cb_SF2018)
+cb_SF2018[1:2,c(1:2,12:15)]
+
+summary(cb_LM22$Correlation)
+summary(cb_SF2018$Correlation)
+```
+
+Boxplot of cell fraction for each cell type inferred using LM22 signature matrix in CIBERSORTx
+```{r fig.height=7}
+par(mar=c(10,3,1,0.8), mgp=c(1.5,0.5,0), cex.axis=0.8, bty="n")
+boxplot(cb_LM22[,2:23],las=2, 
+        main="CIBERSORT cell proportion, LM22 signature matrix")
+```
+
+Boxplot of cell fraction for each cell type inferred using SF2018 signature matrix in CIBERSORTx
+```{r fig.height=5}
+par(mar=c(8,3,1,0.8), mgp=c(1.5,0.5,0), cex.axis=0.8, bty="n")
+boxplot(cb_SF2018[,2:12], las=2, 
+        main="CIBERSORT cell proportion, SF2018 signature matrix")
+```
+
+
+Correlation plot compare cell fractions inferred using LM22 signature matrix and SF2018 signature matrix in CIBERSORTx            
+- For most of the cell types, we see the fractions inferred using different signature matrix correlated
+- Fractions of dendritic cell inferred using the 2 types of signature matrices have small correlation
+- The fractions three types of NK cells also showed some dubious correlation: such as correlation between NK1 and Macrophages.M0. 
+```{r fig.height=5, fig.width=8, warning=FALSE, message = FALSE}
+
+table(cb_LM22$Mixture == cb_SF2018$Mixture)
+cb_LM22_mtrx   = data.matrix(cb_LM22[,2:23])
+cb_SF2018_mtrx = data.matrix(cb_SF2018[,2:12])
+
+cormat_LM22_SF2018 = cor(cb_LM22_mtrx, cb_SF2018_mtrx, 
+                         method = "spearman")
+
+summary(c(cormat_LM22_SF2018))
+
+ggcorrplot(t(cormat_LM22_SF2018), tl.cex = 6) + 
+  scale_fill_gradient2(limit = c(-0.8, 0.8), low = "blue", 
+                       high =  "red", mid = "white") 
+
+round(cormat_LM22_SF2018,2)
+```
+
+
+```{r}
+par(mar=c(3,3,1,0.8), mgp=c(1.5,0.5,0), cex.axis=0.85, cex.lab=0.85, cex.main=0.85)
+layout(matrix(c(1,2,3,4),nrow=2, ncol = 2,byrow = TRUE))
+
+plot(cb_SF2018$CD8T_B, cb_LM22$T.cells.CD8, 
+     xlab = "SF2018 CD8 B cell", ylab = "LM22 CD8 T cell")
+
+plot(cb_SF2018$CD8T_G, cb_LM22$T.cells.CD8, 
+     xlab = "SF2018 CD8 G cell", ylab = "LM22 CD8 T cell")
+
+plot(cb_SF2018$CD8T_B, cb_SF2018$CD8T_G, 
+     xlab = "SF2018 CD8 B cell", ylab = "SF2018 CD8 G cell")
+```
+
+
+
+```{r}
+gc()
+sessionInfo()
+```

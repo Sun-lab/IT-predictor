@@ -6,7 +6,7 @@
 >[Options] rmbatchBmode: TRUE
 >[Options] QN: FALSE
 >[Options] outdir: files/wsun@fredhutch.org/results/
->[Options] label: Job2
+>[Options] label: Job1
 >=============CIBERSORTx Settings===============
 >Mixture file: files/wsun@fredhutch.org/observed_TPM_LM22.txt 
 >Signature matrix file: files/wsun@fredhutch.org/signature_gene_LM22.txt 
@@ -17,7 +17,7 @@
 >Batch correction:.
 >Run CIBERSORTx on B-mode batch corrected mixtures.
 >=============CIBERSORTx Settings===============
->Mixture file: files/wsun@fredhutch.org/results//CIBERSORTx_Job2_Mixtures_Adjusted.txt 
+>Mixture file: files/wsun@fredhutch.org/results//CIBERSORTx_Job1_Mixtures_Adjusted.txt 
 >Signature matrix file: files/wsun@fredhutch.org/signature_gene_LM22.txt 
 >Number of permutations set to: 1 
 >Enable verbose output
