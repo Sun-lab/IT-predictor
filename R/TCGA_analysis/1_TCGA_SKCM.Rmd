@@ -126,7 +126,7 @@ count.df[c(1:3, nrow(count.df)), 1:5]
 gene.id = row.names(count.df)
 
 # save the raw matrix of count
-saveRDS(count.df, file="raw_counts.rds")
+saveRDS(count.df, file="TCGA_SKCM_raw_counts.rds")
 ```
 
 # Step 2: Transform count data to TPM data
@@ -246,10 +246,47 @@ write.table(SKCM_SF2018_sigmat, file = sig_file_SF2018,
 
 # Run ICeDT
 
-Use SF2018 signature matirx
+## Read in tumor purity information. 
+```{r}
+fnm = "pan_cancer_data/TCGA_mastercalls.abs_tables_JSedit.fixed.txt"
+tumor_purity = fread(fnm)
+dim(tumor_purity)
+tumor_purity[1:2,]
+
+length(unique(tumor_purity$array))
+sample_id = names(SKCM_TPM_filtered)[-1]
+sample_id[1:2]
+sample_id = gsub(".", "-", sample_id, fixed = TRUE)
+sample_id = substring(sample_id, 1, 15)
+sample_id[1:2]
+
+table(sample_id %in% tumor_purity$array)
+sample2use  = intersect(sample_id, tumor_purity$array)
+SKCM_purity = tumor_purity[match(sample2use, tumor_purity$array),]
+dim(SKCM_purity)
+SKCM_purity[1:2,]
+
+summary(SKCM_purity$purity)
+summary(SKCM_purity$ploidy)
+summary(SKCM_purity$`Subclonal genome fraction`)
+
+hist(SKCM_purity$purity, breaks=50, xlab="tumor purity", main="")
+plot(SKCM_purity$purity, SKCM_purity$`Subclonal genome fraction`, 
+     xlab="tumor purity", ylab="subclonal genome fraction")
+
+table(SKCM_purity$purity < 0.95, useNA = "ifany")
+table(SKCM_purity$purity < 0.99, useNA = "ifany")
+
+SKCM_purity = SKCM_purity[which(SKCM_purity$purity < 0.99),]
+dim(SKCM_purity)
+```
+
+## Run ICeDT using SF2018 signature matirx
+
 ```{r}
 SKCM_TPM_SF2018_mtrx = data.matrix(SKCM_TPM_SF2018[,-1])
 rownames(SKCM_TPM_SF2018_mtrx) = SKCM_TPM_SF2018$geneSymbol
+SKCM_TPM_SF2018_mtrx = SKCM_TPM_SF2018_mtrx[,match(SKCM_purity$array, sample_id)]
 
 SKCM_SF2018_sigmat_mtrx = data.matrix(SKCM_SF2018_sigmat[,-1])
 rownames(SKCM_SF2018_sigmat_mtrx) = SKCM_SF2018_sigmat$geneSymbol
@@ -260,10 +297,14 @@ SKCM_TPM_SF2018_mtrx[1:2,1:5]
 dim(SKCM_SF2018_sigmat_mtrx)
 SKCM_SF2018_sigmat_mtrx[1:2,1:5]
 
+tcga_id = gsub(".", "-", colnames(SKCM_TPM_SF2018_mtrx), fixed = TRUE)
+tcga_id = substring(tcga_id, 1, 15)
+table(tcga_id == SKCM_purity$array)
+
 date()
 icedt_SF2018 = ICeDT(Y = SKCM_TPM_SF2018_mtrx, 
                      Z = SKCM_SF2018_sigmat_mtrx, 
-                     tumorPurity = NULL, refVar = NULL)
+                     tumorPurity = SKCM_purity$purity, refVar = NULL)
 date()
 
 summary(icedt_SF2018$cProp)
@@ -271,11 +312,12 @@ summary(icedt_SF2018$cProp)
 saveRDS(icedt_SF2018, "ICeDT/SKCM_ICeDT_SF2018.rds")
 ```
 
-Use LM22 signature matrix
+## Run ICeDT using LM22 signature matirx
 
 ```{r}
 SKCM_TPM_LM22_mtrx = data.matrix(SKCM_TPM_LM22[,-1])
 rownames(SKCM_TPM_LM22_mtrx) = SKCM_TPM_LM22$geneSymbol
+SKCM_TPM_LM22_mtrx = SKCM_TPM_LM22_mtrx[,match(SKCM_purity$array, sample_id)]
 
 SKCM_LM22_sigmat_mtrx = data.matrix(SKCM_LM22_sigmat[,-1])
 rownames(SKCM_LM22_sigmat_mtrx) = SKCM_LM22_sigmat$Gene.symbol
@@ -286,10 +328,14 @@ SKCM_TPM_LM22_mtrx[1:2,1:5]
 dim(SKCM_LM22_sigmat_mtrx)
 SKCM_LM22_sigmat_mtrx[1:2,1:5]
 
+tcga_id = gsub(".", "-", colnames(SKCM_TPM_LM22_mtrx), fixed = TRUE)
+tcga_id = substring(tcga_id, 1, 15)
+table(tcga_id == SKCM_purity$array)
+
 date()
 icedt_LM22 = ICeDT(Y = SKCM_TPM_LM22_mtrx, 
                    Z = SKCM_LM22_sigmat_mtrx, 
-                   tumorPurity = NULL, refVar = NULL)
+                   tumorPurity = SKCM_purity$purity, refVar = NULL)
 date()
 
 summary(icedt_LM22$cProp)
