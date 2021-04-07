@@ -1,0 +1,130 @@
+
+R version 3.4.2 (2017-09-28) -- "Short Summer"
+Copyright (C) 2017 The R Foundation for Statistical Computing
+Platform: x86_64-pc-linux-gnu (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> 
+> # ------------------------------------------------------------------------
+> # read in sample information
+> # ------------------------------------------------------------------------
+> 
+> setwd("/fh/fast/sun_w/research/Immuno/data/Hugo_2016")
+> 
+> info1 = read.table("SraRunTable.txt", sep="\t", as.is=TRUE, header=TRUE)
+> dim(info1)
+[1] 47 33
+> info1[1:2,]
+  AvgSpotLen    BioSample Experiment Library_Name   LoadDate MBases MBytes
+1        200 SAMN04377921 SRX1515321 Pt1-baseline 2016-01-05  17279   7663
+2        200 SAMN04377922 SRX1515322   Pt1-normal 2016-01-05  11907   4701
+         Run SRA_Sample  Sample_Name age cell_line      description  disease
+1 SRR3083837 SRS1229498 Pt1-baseline  62      <NA> Pt4-HugoCell2016 Melanoma
+2 SRR3083838 SRS1234074   Pt1-normal  62      <NA> Pt4-HugoCell2016     <NA>
+  disease_stage isolate  sex                             tissue Assay_Type
+1           M1c     Pt1 male                    melanoma biopsy        WXS
+2          <NA>     Pt1 male peripheral blood mononuclear cells        WXS
+   BioProject BioSampleModel Center_Name Consent InsertSize          Instrument
+1 PRJNA307199          Human        UCLA  public          0 Illumina HiSeq 2500
+2 PRJNA307199          Human        UCLA  public          0 Illumina HiSeq 2500
+  LibraryLayout LibrarySelection LibrarySource     Organism Platform
+1        PAIRED Hybrid Selection       GENOMIC Homo sapiens ILLUMINA
+2        PAIRED Hybrid Selection       GENOMIC Homo sapiens ILLUMINA
+  ReleaseDate SRA_Study biomaterial_provider
+1  2016-09-27 SRP067938  Ribas, Antoni, UCLA
+2  2016-09-27 SRP067938  Ribas, Antoni, UCLA
+> 
+> info2 = read.table("SraRunTable_Vanderbilt.txt", sep="\t", as.is=TRUE, 
++                    header=TRUE)
+> dim(info2)
+[1] 31 30
+> info2[1:2,]
+  AvgSpotLen    BioSample Experiment               Library_Name   LoadDate
+1        200 SAMN05797414 SRX2185266 Pt8-normal-PD1Cell2016-WES 2016-09-22
+2        200 SAMN05797415 SRX2185267  Pt8-tumor-PD1Cell2016-WES 2016-09-22
+  MBases MBytes        Run SRA_Sample                Sample_Name age
+1  12759   5497 SRR4289714 SRS1708946 Pt8-normal-PD1Cell2016-WES  69
+2  12961   5653 SRR4289715 SRS1708947  Pt8-tumor-PD1Cell2016-WES  69
+  biomaterial_provider  disease             isolate  sex              tissue
+1                 UCLA     <NA> Pt8-PD1Cell2016-WES male                PBMC
+2                 UCLA Melanoma Pt8-PD1Cell2016-WES male R leg, subcutaneous
+  Assay_Type  BioProject BioSampleModel Center_Name Consent InsertSize
+1        WXS PRJNA343789          Human        UCLA  public          0
+2        WXS PRJNA343789          Human        UCLA  public          0
+           Instrument LibraryLayout LibrarySelection LibrarySource     Organism
+1 Illumina HiSeq 2500        PAIRED Hybrid Selection       GENOMIC Homo sapiens
+2 Illumina HiSeq 2500        PAIRED Hybrid Selection       GENOMIC Homo sapiens
+  Platform ReleaseDate SRA_Study
+1 ILLUMINA  2016-09-27 SRP090294
+2 ILLUMINA  2016-09-27 SRP090294
+> 
+> ww1 = which(info1$tissue == "melanoma biopsy")
+> subjects1 = info1$Sample_Name[ww1]
+> subjects1 = gsub("-baseline", "", subjects1)
+> subjects1
+ [1] "Pt1"  "Pt2"  "Pt3"  "Pt4"  "Pt5"  "Pt6"  "Pt7"  "Pt8"  "Pt10" "Pt11"
+[11] "Pt12" "Pt14" "Pt15" "Pt16" "Pt17" "Pt18" "Pt19" "Pt20" "Pt21" "Pt22"
+[21] "Pt23"
+> 
+> ww2 = which(info2$tissue != "PBMC")
+> subjects = info2$Library_Name[ww2]
+> subjects = gsub("-PD1Cell2016-WES", "", subjects)
+> subjects = gsub("-tumor", "", subjects)
+> subjects = gsub("-", "_", subjects)
+> subjects = paste0("Vand_", subjects)
+> subjects
+ [1] "Vand_Pt8"    "Vand_Pt10"   "Vand_Pt11"   "Vand_Pt16"   "Vand_Pt17"  
+ [6] "Vand_Pt27"   "Vand_Pt27_2" "Vand_Pt30"   "Vand_Pt31"   "Vand_Pt32"  
+[11] "Vand_Pt33"   "Vand_Pt34"   "Vand_Pt35"   "Vand_Pt36"   "Vand_Pt37"  
+[16] "Vand_Pt38"  
+> 
+> subjects = c(subjects1, subjects)
+> length(subjects)
+[1] 37
+> 
+> # ------------------------------------------------------------------------
+> # collect strelka_results
+> # ------------------------------------------------------------------------
+> 
+> setwd("/fh/fast/sun_w/research/Immuno/data/Hugo_2016")
+> 
+> nn = length(subjects)
+> 
+> for(sub1 in subjects){
++   dir1 = paste0("strelka/", sub1, "/results")
++   
++   f1 = sprintf("%s/passed.somatic.snvs.vcf", dir1)
++   f2 = sprintf("%s/passed.somatic.indels.vcf", dir1)
++ 
++   if(! file.exists(f1)){
++     cat("cannot find file", f1, "\n")
++   }
++   
++   if(! file.exists(f2)){
++     cat("cannot find file", f2, "\n")
++   }
++   
++   cmd1 = sprintf("cp %s strelka_results/%s_passed.somatic.snvs.vcf", f1, sub1)
++   cmd2 = sprintf("cp %s strelka_results/%s_passed.somatic.indels.vcf", f2, sub1)
++   
++   system(cmd1)
++   system(cmd2)
++ }
+> 
+> q(save="no")
+> proc.time()
+   user  system elapsed 
+  0.344   1.191   6.107 

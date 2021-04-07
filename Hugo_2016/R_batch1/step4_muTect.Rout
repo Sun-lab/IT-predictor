@@ -1,0 +1,442 @@
+
+R version 3.4.2 (2017-09-28) -- "Short Summer"
+Copyright (C) 2017 The R Foundation for Statistical Computing
+Platform: x86_64-pc-linux-gnu (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> 
+> # ------------------------------------------------------------------------
+> # read in sample information
+> # ------------------------------------------------------------------------
+> 
+> setwd("/fh/fast/sun_w/research/Immuno/data/Hugo_2016")
+> 
+> srr1 = scan(file="SRR_Acc_List.txt", what=character(0))
+Read 47 items
+> srr2 = scan(file="SRR_Acc_List_Vanderbilt.txt", what=character(0))
+Read 31 items
+> 
+> srr1[1:5]
+[1] "SRR3083837" "SRR3083838" "SRR3083839" "SRR3083840" "SRR3083841"
+> srr2[1:5]
+[1] "SRR4289714" "SRR4289715" "SRR4289716" "SRR4289717" "SRR4289718"
+> 
+> srr = c(srr1, srr2)
+> 
+> info1 = read.table("SraRunTable.txt", sep="\t", as.is=TRUE, header=TRUE)
+> dim(info1)
+[1] 47 33
+> info1[1:2,]
+  AvgSpotLen    BioSample Experiment Library_Name   LoadDate MBases MBytes
+1        200 SAMN04377921 SRX1515321 Pt1-baseline 2016-01-05  17279   7663
+2        200 SAMN04377922 SRX1515322   Pt1-normal 2016-01-05  11907   4701
+         Run SRA_Sample  Sample_Name age cell_line      description  disease
+1 SRR3083837 SRS1229498 Pt1-baseline  62      <NA> Pt4-HugoCell2016 Melanoma
+2 SRR3083838 SRS1234074   Pt1-normal  62      <NA> Pt4-HugoCell2016     <NA>
+  disease_stage isolate  sex                             tissue Assay_Type
+1           M1c     Pt1 male                    melanoma biopsy        WXS
+2          <NA>     Pt1 male peripheral blood mononuclear cells        WXS
+   BioProject BioSampleModel Center_Name Consent InsertSize          Instrument
+1 PRJNA307199          Human        UCLA  public          0 Illumina HiSeq 2500
+2 PRJNA307199          Human        UCLA  public          0 Illumina HiSeq 2500
+  LibraryLayout LibrarySelection LibrarySource     Organism Platform
+1        PAIRED Hybrid Selection       GENOMIC Homo sapiens ILLUMINA
+2        PAIRED Hybrid Selection       GENOMIC Homo sapiens ILLUMINA
+  ReleaseDate SRA_Study biomaterial_provider
+1  2016-09-27 SRP067938  Ribas, Antoni, UCLA
+2  2016-09-27 SRP067938  Ribas, Antoni, UCLA
+> 
+> info2 = read.table("SraRunTable_Vanderbilt.txt", sep="\t", as.is=TRUE, 
++                    header=TRUE)
+> dim(info2)
+[1] 31 30
+> info2[1:2,]
+  AvgSpotLen    BioSample Experiment               Library_Name   LoadDate
+1        200 SAMN05797414 SRX2185266 Pt8-normal-PD1Cell2016-WES 2016-09-22
+2        200 SAMN05797415 SRX2185267  Pt8-tumor-PD1Cell2016-WES 2016-09-22
+  MBases MBytes        Run SRA_Sample                Sample_Name age
+1  12759   5497 SRR4289714 SRS1708946 Pt8-normal-PD1Cell2016-WES  69
+2  12961   5653 SRR4289715 SRS1708947  Pt8-tumor-PD1Cell2016-WES  69
+  biomaterial_provider  disease             isolate  sex              tissue
+1                 UCLA     <NA> Pt8-PD1Cell2016-WES male                PBMC
+2                 UCLA Melanoma Pt8-PD1Cell2016-WES male R leg, subcutaneous
+  Assay_Type  BioProject BioSampleModel Center_Name Consent InsertSize
+1        WXS PRJNA343789          Human        UCLA  public          0
+2        WXS PRJNA343789          Human        UCLA  public          0
+           Instrument LibraryLayout LibrarySelection LibrarySource     Organism
+1 Illumina HiSeq 2500        PAIRED Hybrid Selection       GENOMIC Homo sapiens
+2 Illumina HiSeq 2500        PAIRED Hybrid Selection       GENOMIC Homo sapiens
+  Platform ReleaseDate SRA_Study
+1 ILLUMINA  2016-09-27 SRP090294
+2 ILLUMINA  2016-09-27 SRP090294
+> 
+> table(info1$tissue)
+
+                   melanoma biopsy  melanoma biopsy derived cell line 
+                                21                                  3 
+peripheral blood mononuclear cells 
+                                23 
+> t1 = table(info1$isolate)
+> t1[1:5]
+
+ Pt1 Pt10 Pt11 Pt12 Pt13 
+   2    2    2    2    2 
+> table(t1)
+t1
+ 2  3 
+22  1 
+> 
+> info1[which(info1$isolate == names(t1)[t1==3]),]
+   AvgSpotLen    BioSample Experiment       Library_Name   LoadDate MBases
+29        200 SAMN04377949 SRX1515349      Pt15-baseline 2016-01-05  20189
+30        195 SAMN04377950 SRX1515350 Pt15-baseline-M431 2016-01-05  28068
+31        200 SAMN04377951 SRX1515351        Pt15-normal 2016-01-05  22050
+   MBytes        Run SRA_Sample        Sample_Name age cell_line
+29   8722 SRR3083865 SRS1234047      Pt15-baseline  66      <NA>
+30  13037 SRR3083866 SRS1234046 Pt15-baseline-M431  66      M431
+31   9671 SRR3083867 SRS1234045        Pt15-normal  66      <NA>
+        description  disease disease_stage isolate    sex
+29             <NA> Melanoma           M1b    Pt15 female
+30 Pt1-HugoCell2016 Melanoma           M1b    Pt15 female
+31 Pt1-HugoCell2016     <NA>          <NA>    Pt15 female
+                               tissue Assay_Type  BioProject BioSampleModel
+29                    melanoma biopsy        WXS PRJNA307199          Human
+30  melanoma biopsy derived cell line        WXS PRJNA307199          Human
+31 peripheral blood mononuclear cells        WXS PRJNA307199          Human
+   Center_Name Consent InsertSize          Instrument LibraryLayout
+29        UCLA  public          0 Illumina HiSeq 2500        PAIRED
+30        UCLA  public          0 Illumina HiSeq 2500        PAIRED
+31        UCLA  public          0 Illumina HiSeq 2500        PAIRED
+   LibrarySelection LibrarySource     Organism Platform ReleaseDate SRA_Study
+29 Hybrid Selection       GENOMIC Homo sapiens ILLUMINA  2016-09-27 SRP067938
+30 Hybrid Selection       GENOMIC Homo sapiens ILLUMINA  2016-09-27 SRP067938
+31 Hybrid Selection       GENOMIC Homo sapiens ILLUMINA  2016-09-27 SRP067938
+   biomaterial_provider
+29  Ribas, Antoni, UCLA
+30  Ribas, Antoni, UCLA
+31  Ribas, Antoni, UCLA
+> 
+> table(tapply(info1$tissue, info1$isolate, paste, collapse=":"))
+
+                melanoma biopsy derived cell line:peripheral blood mononuclear cells 
+                                                                                   2 
+melanoma biopsy:melanoma biopsy derived cell line:peripheral blood mononuclear cells 
+                                                                                   1 
+                                  melanoma biopsy:peripheral blood mononuclear cells 
+                                                                                  20 
+> 
+> table(info2$tissue)
+
+               Abdominal wall                   Axillary LN 
+                            2                             1 
+         Cervical, lymph node                         Flank 
+                            1                             1 
+          Groin, subcutaneous             L face, cutaneous 
+                            1                             1 
+                         Lung            Neck, subcutaneous 
+                            1                             1 
+                         PBMC           R leg, subcutaneous 
+                           15                             1 
+                  R upper arm                  R upper back 
+                            1                             1 
+              Retrocecal mass                 Sigmoid colon 
+                            1                             1 
+                  Small bowel subcutaneousalp, subcutaneous 
+                            1                             1 
+> table(info2$disease)
+
+Melanoma 
+      16 
+> 
+> t2 = table(info2$isolate)
+> t2[1:5]
+
+Pt10-PD1Cell2016-WES Pt11-PD1Cell2016-WES Pt16-PD1Cell2016-WES 
+                   2                    2                    2 
+Pt17-PD1Cell2016-WES Pt27-PD1Cell2016-WES 
+                   2                    3 
+> table(t2)
+t2
+ 2  3 
+14  1 
+> 
+> info2[which(info2$isolate == names(t2)[t2==3]),]
+   AvgSpotLen    BioSample Experiment                 Library_Name   LoadDate
+11        200 SAMN05797424 SRX2185276  Pt27-normal-PD1Cell2016-WES 2016-09-22
+12        200 SAMN05797426 SRX2185277   Pt27-tumor-PD1Cell2016-WES 2016-09-23
+13        200 SAMN05797425 SRX2185278 Pt27-tumor-2-PD1Cell2016-WES 2016-09-23
+   MBases MBytes        Run SRA_Sample                 Sample_Name age
+11  35620  15965 SRR4289724 SRS1708956 Pt27-normal-PD1Cell2016-WES  83
+12  26996  12088 SRR4289725 SRS1708957  Pt27-tumor-PD1Cell2016-WES  83
+13  21319   9585 SRR4289726 SRS1708958 Pt27-tumor2-PD1Cell2016-WES  83
+   biomaterial_provider  disease              isolate  sex       tissue
+11                 UCLA     <NA> Pt27-PD1Cell2016-WES male         PBMC
+12                 UCLA Melanoma Pt27-PD1Cell2016-WES male  R upper arm
+13                 UCLA Melanoma Pt27-PD1Cell2016-WES male R upper back
+   Assay_Type  BioProject BioSampleModel Center_Name Consent InsertSize
+11        WXS PRJNA343789          Human        UCLA  public          0
+12        WXS PRJNA343789          Human        UCLA  public          0
+13        WXS PRJNA343789          Human        UCLA  public          0
+            Instrument LibraryLayout LibrarySelection LibrarySource
+11 Illumina HiSeq 2500        PAIRED Hybrid Selection       GENOMIC
+12 Illumina HiSeq 2500        PAIRED Hybrid Selection       GENOMIC
+13 Illumina HiSeq 2500        PAIRED Hybrid Selection       GENOMIC
+       Organism Platform ReleaseDate SRA_Study
+11 Homo sapiens ILLUMINA  2016-09-27 SRP090294
+12 Homo sapiens ILLUMINA  2016-09-27 SRP090294
+13 Homo sapiens ILLUMINA  2016-09-27 SRP090294
+> 
+> dim(info1)
+[1] 47 33
+> dim(info2)
+[1] 31 30
+> length(unique(c(info1$Run, info2$Run)))
+[1] 78
+> length(srr)
+[1] 78
+> setequal(c(info1$Run, info2$Run), srr)
+[1] TRUE
+> 
+> # ------------------------------------------------------------------------
+> # prepare muTect codes for batch 1
+> # ------------------------------------------------------------------------
+> 
+> setwd("/fh/fast/sun_w/research/Immuno/R_batch2")
+> 
+> codes = scan("step4_muTect_ex.sh", what=character(), sep="\n", 
++              blank.lines.skip=FALSE)
+Read 27 items
+> length(codes)
+[1] 27
+> codes[1:8]
+[1] "#!/bin/bash"                                                             
+[2] ""                                                                        
+[3] "sampleID=\"AL4602\""                                                     
+[4] "nSample=\"SRR2648102\""                                                  
+[5] "tSample=\"SRR2648103\""                                                  
+[6] ""                                                                        
+[7] "muTect=\"/fh/fast/sun_w/bin/muTect-1/muTect-1.1.7.jar\""                 
+[8] "bamDir=\"/fh/fast/sun_w/research/Immuno/data/Hugo_2016/bams_processed/\""
+> 
+> dim(info1)
+[1] 47 33
+> info1[1:2,]
+  AvgSpotLen    BioSample Experiment Library_Name   LoadDate MBases MBytes
+1        200 SAMN04377921 SRX1515321 Pt1-baseline 2016-01-05  17279   7663
+2        200 SAMN04377922 SRX1515322   Pt1-normal 2016-01-05  11907   4701
+         Run SRA_Sample  Sample_Name age cell_line      description  disease
+1 SRR3083837 SRS1229498 Pt1-baseline  62      <NA> Pt4-HugoCell2016 Melanoma
+2 SRR3083838 SRS1234074   Pt1-normal  62      <NA> Pt4-HugoCell2016     <NA>
+  disease_stage isolate  sex                             tissue Assay_Type
+1           M1c     Pt1 male                    melanoma biopsy        WXS
+2          <NA>     Pt1 male peripheral blood mononuclear cells        WXS
+   BioProject BioSampleModel Center_Name Consent InsertSize          Instrument
+1 PRJNA307199          Human        UCLA  public          0 Illumina HiSeq 2500
+2 PRJNA307199          Human        UCLA  public          0 Illumina HiSeq 2500
+  LibraryLayout LibrarySelection LibrarySource     Organism Platform
+1        PAIRED Hybrid Selection       GENOMIC Homo sapiens ILLUMINA
+2        PAIRED Hybrid Selection       GENOMIC Homo sapiens ILLUMINA
+  ReleaseDate SRA_Study biomaterial_provider
+1  2016-09-27 SRP067938  Ribas, Antoni, UCLA
+2  2016-09-27 SRP067938  Ribas, Antoni, UCLA
+> 
+> table(info1$tissue)
+
+                   melanoma biopsy  melanoma biopsy derived cell line 
+                                21                                  3 
+peripheral blood mononuclear cells 
+                                23 
+> ww1 = which(info1$tissue == "melanoma biopsy")
+> info1$Sample_Name[ww1]
+ [1] "Pt1-baseline"  "Pt2-baseline"  "Pt3-baseline"  "Pt4-baseline" 
+ [5] "Pt5-baseline"  "Pt6-baseline"  "Pt7-baseline"  "Pt8-baseline" 
+ [9] "Pt10-baseline" "Pt11-baseline" "Pt12-baseline" "Pt14-baseline"
+[13] "Pt15-baseline" "Pt16-baseline" "Pt17-baseline" "Pt18-baseline"
+[17] "Pt19-baseline" "Pt20-baseline" "Pt21-baseline" "Pt22-baseline"
+[21] "Pt23-baseline"
+> table(info1$Library_Name[ww1] == info1$Sample_Name[ww1])
+
+TRUE 
+  21 
+> 
+> tN = "peripheral blood mononuclear cells"
+> 
+> subjects = info1$Sample_Name[ww1]
+> subjects = gsub("-baseline", "", subjects)
+> shells = paste0("step4/step4_muTect_", subjects, ".sh")
+> 
+> for(k in 1:length(subjects)){
++   rowId   = ww1[k]
++   sub1    = subjects[k]
++   id1     = info1$isolate[rowId]
++   tSample = info1$Run[rowId]
++   nSample = info1$Run[which(info1$tissue == tN & info1$isolate == id1)]
++   
++   if(length(nSample) != 1 || length(tSample) != 1){
++     stop("unexpected number of sample names\n")
++   }
++   
++   codes[3] = sprintf("sampleID=\"%s\"", sub1)
++   codes[4] = sprintf("nSample=\"%s\"", nSample)
++   codes[5] = sprintf("tSample=\"%s\"", tSample)
++   
++   cat(codes, file=shells[k], sep="\n")
++   cat("\n", file=shells[k], append=TRUE)
++ }
+> 
+> logFile = paste0("muTect_", subjects, ".txt")
+> cmds = "sbatch -n 1 -c 2 --mem=16192 --error="
+> cmds = paste0(cmds, logFile, " --output=", logFile, " ", shells)
+> 
+> # ------------------------------------------------------------------------
+> # prepare muTect codes for batch 2
+> # ------------------------------------------------------------------------
+> 
+> setwd("/fh/fast/sun_w/research/Immuno/R_batch2")
+> 
+> codes = scan("step4_muTect_ex.sh", what=character(), sep="\n", 
++              blank.lines.skip=FALSE)
+Read 27 items
+> length(codes)
+[1] 27
+> codes[1:8]
+[1] "#!/bin/bash"                                                             
+[2] ""                                                                        
+[3] "sampleID=\"AL4602\""                                                     
+[4] "nSample=\"SRR2648102\""                                                  
+[5] "tSample=\"SRR2648103\""                                                  
+[6] ""                                                                        
+[7] "muTect=\"/fh/fast/sun_w/bin/muTect-1/muTect-1.1.7.jar\""                 
+[8] "bamDir=\"/fh/fast/sun_w/research/Immuno/data/Hugo_2016/bams_processed/\""
+> 
+> dim(info2)
+[1] 31 30
+> info2[1:2,]
+  AvgSpotLen    BioSample Experiment               Library_Name   LoadDate
+1        200 SAMN05797414 SRX2185266 Pt8-normal-PD1Cell2016-WES 2016-09-22
+2        200 SAMN05797415 SRX2185267  Pt8-tumor-PD1Cell2016-WES 2016-09-22
+  MBases MBytes        Run SRA_Sample                Sample_Name age
+1  12759   5497 SRR4289714 SRS1708946 Pt8-normal-PD1Cell2016-WES  69
+2  12961   5653 SRR4289715 SRS1708947  Pt8-tumor-PD1Cell2016-WES  69
+  biomaterial_provider  disease             isolate  sex              tissue
+1                 UCLA     <NA> Pt8-PD1Cell2016-WES male                PBMC
+2                 UCLA Melanoma Pt8-PD1Cell2016-WES male R leg, subcutaneous
+  Assay_Type  BioProject BioSampleModel Center_Name Consent InsertSize
+1        WXS PRJNA343789          Human        UCLA  public          0
+2        WXS PRJNA343789          Human        UCLA  public          0
+           Instrument LibraryLayout LibrarySelection LibrarySource     Organism
+1 Illumina HiSeq 2500        PAIRED Hybrid Selection       GENOMIC Homo sapiens
+2 Illumina HiSeq 2500        PAIRED Hybrid Selection       GENOMIC Homo sapiens
+  Platform ReleaseDate SRA_Study
+1 ILLUMINA  2016-09-27 SRP090294
+2 ILLUMINA  2016-09-27 SRP090294
+> 
+> table(info2$tissue)
+
+               Abdominal wall                   Axillary LN 
+                            2                             1 
+         Cervical, lymph node                         Flank 
+                            1                             1 
+          Groin, subcutaneous             L face, cutaneous 
+                            1                             1 
+                         Lung            Neck, subcutaneous 
+                            1                             1 
+                         PBMC           R leg, subcutaneous 
+                           15                             1 
+                  R upper arm                  R upper back 
+                            1                             1 
+              Retrocecal mass                 Sigmoid colon 
+                            1                             1 
+                  Small bowel subcutaneousalp, subcutaneous 
+                            1                             1 
+> ww2 = which(info2$tissue != "PBMC")
+> info2[ww2, c("Sample_Name", "Library_Name", "tissue")]
+                   Sample_Name                 Library_Name
+2    Pt8-tumor-PD1Cell2016-WES    Pt8-tumor-PD1Cell2016-WES
+4   Pt10-tumor-PD1Cell2016-WES   Pt10-tumor-PD1Cell2016-WES
+6   Pt11-tumor-PD1Cell2016-WES   Pt11-tumor-PD1Cell2016-WES
+8   Pt16-tumor-PD1Cell2016-WES   Pt16-tumor-PD1Cell2016-WES
+10  Pt17-tumor-PD1Cell2016-WES   Pt17-tumor-PD1Cell2016-WES
+12  Pt27-tumor-PD1Cell2016-WES   Pt27-tumor-PD1Cell2016-WES
+13 Pt27-tumor2-PD1Cell2016-WES Pt27-tumor-2-PD1Cell2016-WES
+15  Pt30-tumor-PD1Cell2016-WES   Pt30-tumor-PD1Cell2016-WES
+17  Pt31-tumor-PD1Cell2016-WES   Pt31-tumor-PD1Cell2016-WES
+19  Pt32-tumor-PD1Cell2016-WES   Pt32-tumor-PD1Cell2016-WES
+21  Pt33-tumor-PD1Cell2016-WES   Pt33-tumor-PD1Cell2016-WES
+23  Pt34-tumor-PD1Cell2016-WES   Pt34-tumor-PD1Cell2016-WES
+25  Pt35-tumor-PD1Cell2016-WES   Pt35-tumor-PD1Cell2016-WES
+27  Pt36-tumor-PD1Cell2016-WES   Pt36-tumor-PD1Cell2016-WES
+29  Pt37-tumor-PD1Cell2016-WES   Pt37-tumor-PD1Cell2016-WES
+31  Pt38-tumor-PD1Cell2016-WES   Pt38-tumor-PD1Cell2016-WES
+                          tissue
+2            R leg, subcutaneous
+4             Neck, subcutaneous
+6              L face, cutaneous
+8                           Lung
+10 subcutaneousalp, subcutaneous
+12                   R upper arm
+13                  R upper back
+15               Retrocecal mass
+17                 Sigmoid colon
+19                Abdominal wall
+21           Groin, subcutaneous
+23                Abdominal wall
+25                         Flank
+27                   Axillary LN
+29                   Small bowel
+31          Cervical, lymph node
+> 
+> tN = "PBMC"
+> 
+> subjects = info2$Library_Name[ww2]
+> subjects = gsub("-PD1Cell2016-WES", "", subjects)
+> subjects = gsub("-tumor", "", subjects)
+> subjects = gsub("-", "_", subjects)
+> subjects = paste0("Vand_", subjects)
+> 
+> shells = paste0("step4/step4_muTect_", subjects, ".sh")
+> 
+> for(k in 1:length(subjects)){
++   rowId   = ww2[k]
++   sub1    = subjects[k]
++   id1     = info2$isolate[rowId]
++   tSample = info2$Run[rowId]
++   nSample = info2$Run[which(info2$tissue == tN & info2$isolate == id1)]
++   
++   if(length(nSample) != 1 || length(tSample) != 1){
++     stop("unexpected number of sample names\n")
++   }
++   
++   codes[3] = sprintf("sampleID=\"%s\"", sub1)
++   codes[4] = sprintf("nSample=\"%s\"", nSample)
++   codes[5] = sprintf("tSample=\"%s\"", tSample)
++   
++   cat(codes, file=shells[k], sep="\n")
++   cat("\n", file=shells[k], append=TRUE)
++ }
+> 
+> logFile = paste0("muTect_", subjects, ".txt")
+> cmds2 = "sbatch -n 1 -c 2 --mem=16192 --error="
+> cmds2 = paste0(cmds2, logFile, " --output=", logFile, " ", shells)
+> 
+> cmds = c(cmds, cmds2)
+> 
+> cat(cmds, file="step4_muTect_batch.sh", sep="\n")
+> 
+> q(save="no")
+> proc.time()
+   user  system elapsed 
+  0.333   0.080   0.736 

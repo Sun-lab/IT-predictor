@@ -1,0 +1,515 @@
+
+R version 3.4.0 (2017-04-21) -- "You Stupid Darkness"
+Copyright (C) 2017 The R Foundation for Statistical Computing
+Platform: x86_64-pc-linux-gnu (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> 
+> library(data.table)
+> 
+> # ------------------------------------------------------------------------
+> # read in sample information
+> # ------------------------------------------------------------------------
+> 
+> setwd("/fh/fast/sun_w/research/Immuno/data/Hugo_2016")
+> 
+> info1 = read.table("SraRunTable.txt", sep="\t", as.is=TRUE, header=TRUE)
+> dim(info1)
+[1] 47 33
+> info1[1:2,]
+  AvgSpotLen    BioSample Experiment Library_Name   LoadDate MBases MBytes
+1        200 SAMN04377921 SRX1515321 Pt1-baseline 2016-01-05  17279   7663
+2        200 SAMN04377922 SRX1515322   Pt1-normal 2016-01-05  11907   4701
+         Run SRA_Sample  Sample_Name age cell_line      description  disease
+1 SRR3083837 SRS1229498 Pt1-baseline  62      <NA> Pt4-HugoCell2016 Melanoma
+2 SRR3083838 SRS1234074   Pt1-normal  62      <NA> Pt4-HugoCell2016     <NA>
+  disease_stage isolate  sex                             tissue Assay_Type
+1           M1c     Pt1 male                    melanoma biopsy        WXS
+2          <NA>     Pt1 male peripheral blood mononuclear cells        WXS
+   BioProject BioSampleModel Center_Name Consent InsertSize          Instrument
+1 PRJNA307199          Human        UCLA  public          0 Illumina HiSeq 2500
+2 PRJNA307199          Human        UCLA  public          0 Illumina HiSeq 2500
+  LibraryLayout LibrarySelection LibrarySource     Organism Platform
+1        PAIRED Hybrid Selection       GENOMIC Homo sapiens ILLUMINA
+2        PAIRED Hybrid Selection       GENOMIC Homo sapiens ILLUMINA
+  ReleaseDate SRA_Study biomaterial_provider
+1  2016-09-27 SRP067938  Ribas, Antoni, UCLA
+2  2016-09-27 SRP067938  Ribas, Antoni, UCLA
+> 
+> info2 = read.table("SraRunTable_Vanderbilt.txt", sep="\t", as.is=TRUE, 
++                    header=TRUE)
+> dim(info2)
+[1] 31 30
+> info2[1:2,]
+  AvgSpotLen    BioSample Experiment               Library_Name   LoadDate
+1        200 SAMN05797414 SRX2185266 Pt8-normal-PD1Cell2016-WES 2016-09-22
+2        200 SAMN05797415 SRX2185267  Pt8-tumor-PD1Cell2016-WES 2016-09-22
+  MBases MBytes        Run SRA_Sample                Sample_Name age
+1  12759   5497 SRR4289714 SRS1708946 Pt8-normal-PD1Cell2016-WES  69
+2  12961   5653 SRR4289715 SRS1708947  Pt8-tumor-PD1Cell2016-WES  69
+  biomaterial_provider  disease             isolate  sex              tissue
+1                 UCLA     <NA> Pt8-PD1Cell2016-WES male                PBMC
+2                 UCLA Melanoma Pt8-PD1Cell2016-WES male R leg, subcutaneous
+  Assay_Type  BioProject BioSampleModel Center_Name Consent InsertSize
+1        WXS PRJNA343789          Human        UCLA  public          0
+2        WXS PRJNA343789          Human        UCLA  public          0
+           Instrument LibraryLayout LibrarySelection LibrarySource     Organism
+1 Illumina HiSeq 2500        PAIRED Hybrid Selection       GENOMIC Homo sapiens
+2 Illumina HiSeq 2500        PAIRED Hybrid Selection       GENOMIC Homo sapiens
+  Platform ReleaseDate SRA_Study
+1 ILLUMINA  2016-09-27 SRP090294
+2 ILLUMINA  2016-09-27 SRP090294
+> 
+> ww1 = which(info1$tissue == "melanoma biopsy")
+> subjects1 = info1$Sample_Name[ww1]
+> subjects1 = gsub("-baseline", "", subjects1)
+> subjects1
+ [1] "Pt1"  "Pt2"  "Pt3"  "Pt4"  "Pt5"  "Pt6"  "Pt7"  "Pt8"  "Pt10" "Pt11"
+[11] "Pt12" "Pt14" "Pt15" "Pt16" "Pt17" "Pt18" "Pt19" "Pt20" "Pt21" "Pt22"
+[21] "Pt23"
+> 
+> ww2 = which(info2$tissue != "PBMC")
+> subjects = info2$Library_Name[ww2]
+> subjects = gsub("-PD1Cell2016-WES", "", subjects)
+> subjects = gsub("-tumor", "", subjects)
+> subjects = gsub("-", "_", subjects)
+> subjects = paste0("Vand_", subjects)
+> subjects
+ [1] "Vand_Pt8"    "Vand_Pt10"   "Vand_Pt11"   "Vand_Pt16"   "Vand_Pt17"  
+ [6] "Vand_Pt27"   "Vand_Pt27_2" "Vand_Pt30"   "Vand_Pt31"   "Vand_Pt32"  
+[11] "Vand_Pt33"   "Vand_Pt34"   "Vand_Pt35"   "Vand_Pt36"   "Vand_Pt37"  
+[16] "Vand_Pt38"  
+> 
+> subjects = c(subjects1, subjects)
+> length(subjects)
+[1] 37
+> 
+> # ----------------------------------------------------------------------
+> # load data of strelka, check the number of called mutations
+> # ----------------------------------------------------------------------
+> 
+> setwd("/fh/fast/sun_w/research/Immuno/data/Hugo_2016/data_strelka")
+> 
+> setequal(paste0("strelka_", subjects, ".txt"), list.files(pattern="strelka_"))
+[1] TRUE
+> 
+> strelka = list()
+> 
+> for(sub1 in subjects){
++   fnm1 = paste0("strelka_", sub1, ".txt")
++   v1   = read.table(fnm1, header=TRUE, sep="\t", as.is=TRUE)
++   strelka[[sub1]] = v1
++ }
+> 
+> # ----------------------------------------------------------------------
+> # load data of muTect, check the number of called mutations
+> # here we look at all the mutations instead of those filtered ones
+> # ----------------------------------------------------------------------
+> 
+> setwd("/fh/fast/sun_w/research/Immuno/data/Hugo_2016/muTect")
+> 
+> setequal(paste0(subjects, "_hg38_muTect_call_stats.txt"), 
++          list.files(pattern="_call_stats.txt"))
+[1] TRUE
+> 
+> muTect = list()
+> nInt   = rep(0, length(subjects))
+> 
+> for(i in 1:length(subjects)){
++   if(i %% 5 == 0){
++     cat(i, date(), "\n")
++   }
++   
++   sub1 = subjects[i]
++   fnm1 = paste0(sub1, "_hg38_muTect_call_stats.txt")
++   v1   = fread(fnm1)
++   
++   w2kp = which(v1$judgement=="KEEP")
++   v1   = v1[w2kp,]
++   
++   nms  = paste0(v1$contig, ":", v1$position, "_", v1$ref_allele, "/", v1$alt_allele)
++   rownames(v1) = nms
++   
++   muTect[[sub1]] = v1
++   
++   nInt[i] = length(intersect(rownames(strelka[[sub1]]), rownames(v1)))
++ }
+Read 88.9% of 438805 rowsRead 438805 rows and 51 (of 51) columns from 0.122 GB file in 00:00:03
+Read 92.1% of 510192 rowsRead 510192 rows and 51 (of 51) columns from 0.141 GB file in 00:00:03
+5 Sun Feb  4 22:56:50 2018 
+Read 94.9% of 495198 rowsRead 495198 rows and 51 (of 51) columns from 0.138 GB file in 00:00:03
+Read 98.0% of 499932 rowsRead 499932 rows and 51 (of 51) columns from 0.139 GB file in 00:00:03
+Read 83.3% of 540414 rowsRead 540414 rows and 51 (of 51) columns from 0.149 GB file in 00:00:03
+10 Sun Feb  4 22:57:00 2018 
+Read 51.8% of 772105 rowsRead 90.7% of 772105 rowsRead 772105 rows and 51 (of 51) columns from 0.210 GB file in 00:00:04
+Read 94.4% of 487442 rowsRead 487442 rows and 51 (of 51) columns from 0.135 GB file in 00:00:03
+Read 48.4% of 909131 rowsRead 82.5% of 909131 rowsRead 909131 rows and 51 (of 51) columns from 0.246 GB file in 00:00:04
+Read 99.8% of 461005 rowsRead 461005 rows and 51 (of 51) columns from 0.128 GB file in 00:00:03
+15 Sun Feb  4 22:57:13 2018 
+Read 89.1% of 605962 rowsRead 605962 rows and 51 (of 51) columns from 0.166 GB file in 00:00:03
+Read 99.7% of 481409 rowsRead 481409 rows and 51 (of 51) columns from 0.134 GB file in 00:00:03
+Read 61.4% of 651552 rowsRead 651552 rows and 51 (of 51) columns from 0.178 GB file in 00:00:03
+Read 84.1% of 546899 rowsRead 546899 rows and 51 (of 51) columns from 0.151 GB file in 00:00:03
+20 Sun Feb  4 22:57:24 2018 
+Read 70.3% of 583043 rowsRead 583043 rows and 51 (of 51) columns from 0.161 GB file in 00:00:03
+Read 58.9% of 644960 rowsRead 644960 rows and 51 (of 51) columns from 0.180 GB file in 00:00:03
+Read 88.2% of 532987 rowsRead 532987 rows and 51 (of 51) columns from 0.146 GB file in 00:00:03
+25 Sun Feb  4 22:57:36 2018 
+Read 43.9% of 980506 rowsRead 75.5% of 980506 rowsRead 980506 rows and 51 (of 51) columns from 0.264 GB file in 00:00:04
+Read 71.5% of 699200 rowsRead 699200 rows and 51 (of 51) columns from 0.191 GB file in 00:00:03
+Read 64.1% of 639846 rowsRead 639846 rows and 51 (of 51) columns from 0.176 GB file in 00:00:03
+Read 93.0% of 451609 rowsRead 451609 rows and 51 (of 51) columns from 0.126 GB file in 00:00:03
+30 Sun Feb  4 22:57:50 2018 
+Read 49.4% of 829692 rowsRead 88.0% of 829692 rowsRead 829692 rows and 51 (of 51) columns from 0.221 GB file in 00:00:04
+Read 99.4% of 452887 rowsRead 452887 rows and 51 (of 51) columns from 0.126 GB file in 00:00:03
+Read 36.0% of 1194722 rowsRead 62.8% of 1194722 rowsRead 87.9% of 1194722 rowsRead 1194722 rows and 51 (of 51) columns from 0.313 GB file in 00:00:05
+Read 73.4% of 558458 rowsRead 558458 rows and 51 (of 51) columns from 0.155 GB file in 00:00:03
+Read 86.0% of 604921 rowsRead 604921 rows and 51 (of 51) columns from 0.167 GB file in 00:00:03
+35 Sun Feb  4 22:58:05 2018 
+Read 56.2% of 871558 rowsRead 91.8% of 871558 rowsRead 871558 rows and 51 (of 51) columns from 0.232 GB file in 00:00:04
+There were 37 warnings (use warnings() to see them)
+> 
+> nMt0 = sapply(strelka, function(x){length(which(x$type=="SNV"))})
+> summary(nMt0)
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+    909    1585    3281    6087    5979   55253 
+> 
+> nMt1 = sapply(muTect, nrow)
+> summary(nMt1)
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+   1161    2594    4789    8160    8946   79425 
+> 
+> summary(nInt/nMt0)
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+ 0.4653  0.7601  0.8506  0.7997  0.8761  0.9462 
+> summary(nInt/nMt1)
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+ 0.3525  0.5170  0.5634  0.5622  0.6241  0.7863 
+> 
+> # ----------------------------------------------------------------------
+> # check the count
+> # ----------------------------------------------------------------------
+> 
+> setwd("/fh/fast/sun_w/research/Immuno/data/Hugo_2016/")
+> 
+> summary(log10(nMt0 + 1))
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+  2.959   3.200   3.516   3.543   3.777   4.742 
+> summary(log10(nMt1 + 1))
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+  3.065   3.414   3.680   3.696   3.952   4.900 
+> 
+> pdf("figures/n_mutations_strealka_vs_muTect.pdf",
++       width=12, height=8)
+> 
+> par(mfrow=c(2,3), mar=c(5,4,1,1), bty="n", cex=0.9)
+> 
+> hist(log10(nMt0), xlab="log10(# of mutations by strelka)", main="")
+> hist(log10(nMt1), xlab="log10(# of mutations by muTect", main="")
+> hist(log10(nInt), xlab="log10(# of mutations by both methods)", main="")
+> 
+> plot(log10(nMt0 + 1), log10(nMt1 + 1), xlim=c(0,5), ylim=c(0,5), 
++      xlab="log10(# of mutations by strelka + 1)",
++      ylab="log10(# of mutations by muTect + 1)")
+> abline(0, 1, col="darkred", lwd=2)
+> 
+> hist(nInt/nMt0, xlab="Prop. strelka mutations called by MuTect", 
++      ylab="Freq", main="", breaks=seq(0,1,by=0.1))
+> 
+> hist(nInt/nMt1, xlab="Prop. MuTect mutations called by strelka", 
++      ylab="Freq", main="", breaks=seq(0,1,by=0.1))
+> 
+> dev.off()
+null device 
+          1 
+> 
+> # ----------------------------------------------------------------------
+> # take intersection
+> # ----------------------------------------------------------------------
+> 
+> snvs = NULL
+> indels = NULL
+> 
+> col1 = rgb(0.8, 0.2, 0.2, 0.5)
+> 
+> filter1 <- function(snvs, rd.n, rd.t, nalt, lod, qss.nt){
++   w2kp = (snvs$n_q20_count >= rd.n & snvs$rdNormalFiltered >= rd.n)
++   w2kp = w2kp & (snvs$n_ref_count + snvs$n_alt_count >= rd.n)
++   w2kp = w2kp & (snvs$nAltNormal + snvs$nRefNormal >= rd.n)
++   
++   w2kp = (w2kp & snvs$t_q20_count >= rd.t & snvs$rdTumorFiltered >= rd.t)
++   w2kp = w2kp & (snvs$t_ref_count + snvs$t_alt_count >= rd.t)
++   w2kp = w2kp & (snvs$nAltTumor  + snvs$nRefTumor >= rd.t)
++   
++   w2kp = (w2kp & snvs$t_alt_count >= nalt & snvs$nAltTumor >= nalt)
++   w2kp = (w2kp & snvs$t_lod_fstar >= lod & snvs$QSS_NT >= qss.nt)
++   
++   w2kp
++ }
+> 
+> w2kp1 <- function(snvs){
++   filter1(snvs, rd.n=20, rd.t=20, nalt=5, lod=10, qss.nt=20)
++ }
+> 
+> 
+> for(id1 in subjects){
++   
++   v1  = strelka[[id1]]
++   v2  = muTect[[id1]]
++   
++   windel = which(v1$type == "indel")
++   if(length(windel) > 0){
++     vindel = v1[windel,,drop=FALSE]
++     vindel = cbind(rep(id1, nrow(vindel)), vindel)
++     names(vindel)[1] = "id"
++     indels = rbind(indels, vindel)
++   }
++   
++   if(nrow(v1) == 0 || nrow(v2) == 0){ next }
++   
++   ww1 = which(rownames(v1) %in% rownames(v2))
++   if(length(ww1) == 0){ next }
++   
++   v1  = v1[ww1,]
++   v2  = v2[match(rownames(v1), rownames(v2)),]
++   
++   v3  = cbind(rep(id1, nrow(v1)), v1, v2)
++   names(v3)[1] = "id"
++   
++   w2kp = w2kp1(v3)
++ 
++   ff1 = sprintf("figures/_strelka_vs_muTect/%s.png", id1)
++   png(ff1, width=9, height=6, res=300, units="in")
++   par(mfrow=c(2,3), bty="n", cex=0.8)
++   plot(log10(v3$n_q20_count), log10(v3$rdNormalFiltered),  xlab="MuTect",
++       ylab="Strelka", main="log10(rd) @ normal", col="grey")
++   abline(0, 1, lwd=2, col="darkgrey")
++       
++   points(log10(v3$n_q20_count)[w2kp], log10(v3$rdNormalFiltered)[w2kp], 
++          pch=20, col=col1)
++   
++   plot(log10(v3$t_q20_count), log10(v3$rdTumorFiltered),  xlab="MuTect",
++       ylab="Strelka", main="log10(rd) @ tumor", col="grey")
++   abline(0, 1, lwd=2, col="darkgrey")
++   
++   points(log10(v3$t_q20_count)[w2kp], log10(v3$rdTumorFiltered)[w2kp], 
++          pch=20, col=col1)
++   
++   plot(log10(v3$QSS_NT), log10(v3$t_lod_fstar), col="grey", main=id1, 
++       xlab="log10(Strelka QSS_NT)", ylab="log10(MuTect LOD)")
++   points(log10(v3$QSS_NT)[w2kp], log10(v3$t_lod_fstar)[w2kp], pch=20, col=col1)
++   abline(h = log10(10), col="darkgrey")
++   abline(v = log10(20), col="darkgrey")
++ 
++   normal_f_strelka = v3$nAltNormal/(v3$nAltNormal + v3$nRefNormal)
++   plot(normal_f_strelka, v3$normal_f, col="grey", main="VAF @ normal",
++       xlab="Strelka", ylab="MuTect")
++   abline(0, 1, lwd=2, col="darkgrey")
++   
++   points(normal_f_strelka[w2kp], v3$normal_f[w2kp], pch=20, col=col1)
++ 
++   tumor_f_strelka = v3$nAltTumor/(v3$nAltTumor + v3$nRefTumor)
++   plot(tumor_f_strelka, v3$tumor_f, col="grey", main="VAF @ tumor",
++     xlab="Strelka", ylab="MuTect")
++   abline(0, 1, lwd=2, col="darkgrey")
++   
++   points(tumor_f_strelka[w2kp], v3$tumor_f[w2kp], pch=20, col=col1)
++   
++   plot(log10(v3$QSS_NT), log10(tumor_f_strelka), col="grey",
++       xlab="log10(Strelka QSS_NT)", ylab="log10(tumor VAF)")
++   abline(h = -1, col="skyblue")
++   abline(v = log10(20), col="darkgrey")
++ 
++   points(log10(v3$QSS_NT)[w2kp], log10(tumor_f_strelka)[w2kp], pch=20, col=col1)
++ 
++   dev.off()
++   
++   snvs = rbind(snvs, v3)
++ }
+> 
+> dim(snvs)
+[1] 187186     73
+> snvs[1:2,]
+    id QSS TQSS  NT QSS_NT TQSS_NT    SGT SOMATIC seqnames  start    end REF
+1: Pt1  56    1 ref     56       1 GG->GT    TRUE     chr1  16841  16841   G
+2: Pt1  36    1 ref     36       1 CC->CT    TRUE     chr1 135161 135161   C
+   ALT nAltTumor nRefTumor nAltNormal nRefNormal rdNormalFiltered
+1:   T        15       274          0        150              150
+2:   T        17       114          0         81               81
+   rdTumorFiltered type   vafTumor vafNormal contig position context ref_allele
+1:             289  SNV 0.05190311         0   chr1    16841 CCAxAAC          G
+2:             131  SNV 0.12977099         0   chr1   135161 GTCxGCT          C
+   alt_allele tumor_name normal_name score   dbsnp_site covered power
+1:          T SRR3083837  SRR3083838     0 DBSNP+COSMIC COVERED     1
+2:          T SRR3083837  SRR3083838     0        NOVEL COVERED     1
+   tumor_power normal_power normal_power_nsp normal_power_wsp total_reads
+1:           1            1                1                1         719
+2:           1            1                1                1         268
+   map_Q0_reads init_t_lod t_lod_fstar t_lod_fstar_forward t_lod_fstar_reverse
+1:          262  -32.73023    30.05081            24.42753             9.76257
+2:           18   32.05693    52.77566            39.02392            13.64194
+    tumor_f contaminant_fraction contaminant_lod t_q20_count t_ref_count
+1: 0.051020                 0.02        8.070755         293         279
+2: 0.132911                 0.02        5.581172         155         137
+   t_alt_count t_ref_sum t_alt_sum t_ref_max_mapq t_alt_max_mapq t_ins_count
+1:          15      9768       486             45             44           0
+2:          21      4496       696             60             46           0
+   t_del_count normal_best_gt init_n_lod normal_f n_q20_count n_ref_count
+1:           0             GG   79.44342        0         163         264
+2:           0             CC   29.47743        0          91          98
+   n_alt_count n_ref_sum n_alt_sum power_to_detect_positive_strand_artifact
+1:           0      8872         0                                 0.930857
+2:           0      3065         0                                 0.958413
+   power_to_detect_negative_strand_artifact strand_bias_counts
+1:                                 0.999755      (229,79,12,5)
+2:                                 0.999999      (114,26,16,5)
+   tumor_alt_fpir_median tumor_alt_fpir_mad tumor_alt_rpir_median
+1:                    52                  9                    47
+2:                    39                 23                    60
+   tumor_alt_rpir_mad observed_in_normals_count failure_reasons judgement
+1:                  9                         0                      KEEP
+2:                 23                         0                      KEEP
+> 
+> dim(indels)
+[1] 1330   22
+> indels[1:2,]
+                         id QSS TQSS  NT QSS_NT TQSS_NT      SGT SOMATIC
+chr1:6678471_CAAATTAA/C Pt1 118    1 ref    105       1 ref->het    TRUE
+chr1:12938856_C/CG      Pt1 449    1 ref    217       1 ref->het    TRUE
+                        seqnames    start      end      REF ALT nAltTumor
+chr1:6678471_CAAATTAA/C     chr1  6678471  6678478 CAAATTAA   C        31
+chr1:12938856_C/CG          chr1 12938856 12938856        C  CG       160
+                        nRefTumor nAltNormal nRefNormal rdNormalFiltered
+chr1:6678471_CAAATTAA/C        46          0         84            96.70
+chr1:12938856_C/CG            273          0        317           365.99
+                        rdTumorFiltered  type  vafTumor vafNormal
+chr1:6678471_CAAATTAA/C          100.00 indel 0.4025974         0
+chr1:12938856_C/CG               497.78 indel 0.3695150         0
+> 
+> # ----------------------------------------------------------------------
+> # write out intersections
+> # ----------------------------------------------------------------------
+> 
+> write.table(snvs, "snvs_by_strelka_and_Mutect.txt", 
++             append = FALSE, quote = FALSE, sep = "\t", row.names = TRUE, 
++             col.names = TRUE)
+> 
+> write.table(indels, "indels_by_strelka.txt", append = FALSE, 
++             quote = FALSE, sep = "\t", row.names = TRUE, 
++             col.names = TRUE)
+> 
+> # ----------------------------------------------------------------------
+> # compare VAF of strelka and muTect
+> # ----------------------------------------------------------------------
+> 
+> tumor_f_strelka = snvs$nAltTumor/(snvs$nAltTumor + snvs$nRefTumor)
+> tumor_f = snvs$tumor_f
+> 
+> summary(tumor_f)
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+0.02344 0.13462 0.22500 0.26126 0.35948 1.00000 
+> summary(tumor_f_strelka)
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+0.01862 0.13514 0.22472 0.26117 0.35897 1.00000 
+> 
+> table(snvs$judgement, snvs$failure_reasons)
+      
+             
+  KEEP 187186
+> 
+> w2kp = w2kp1(snvs)
+> 
+> col1 = rgb(0.8, 0.2, 0.2, 0.5)
+> 
+> png("figures/VAF_strelka_vs_muTect_mutations_pass_by_both.png", width=7, 
++     height=3.5, units="in", res=300)
+> par(mar=c(5,4,3,1), mfrow=c(1,2), bty="n")
+> plot(tumor_f_strelka, tumor_f, xlab="Strelka", ylab="MuTect",
++   main="VAF", col="grey", cex=0.5)
+> points(tumor_f_strelka[w2kp], tumor_f[w2kp], pch=20, col=col1, cex=0.5)
+> 
+> plot(log10(tumor_f_strelka), log10(tumor_f), xlab="Strelka",
++      ylab="MuTect", main="log10(VAF)", col="grey", cex=0.5)
+> points(log10(tumor_f_strelka)[w2kp], log10(tumor_f)[w2kp], pch=20, 
++        col=col1, cex=0.5)
+> dev.off()
+null device 
+          1 
+> 
+> # ----------------------------------------------------------------------
+> # additional summary of read-depth
+> # ----------------------------------------------------------------------
+> 
+> table(snvs$n_q20_count >= 20, snvs$rdNormalFiltered >= 20)
+       
+         FALSE   TRUE
+  FALSE   2805    921
+  TRUE     137 183323
+> table(snvs$t_q20_count >= 20, snvs$rdTumorFiltered >= 20)
+       
+         FALSE   TRUE
+  FALSE   3898    614
+  TRUE     110 182564
+> 
+> table(snvs$n_ref_count + snvs$n_alt_count >= 20)
+
+ FALSE   TRUE 
+  3384 183802 
+> table(snvs$nAltNormal + snvs$nRefNormal >= 20)
+
+ FALSE   TRUE 
+  2956 184230 
+> 
+> table(snvs$t_ref_count + snvs$t_alt_count >= 20)
+
+ FALSE   TRUE 
+  4499 182687 
+> table(snvs$nAltTumor  + snvs$nRefTumor >= 20)
+
+ FALSE   TRUE 
+  3943 183243 
+> 
+> table(snvs$t_alt_count >= 5, snvs$nAltTumor >= 5)
+       
+         FALSE   TRUE
+  FALSE   1919   1827
+  TRUE      91 183349
+> 
+> summary(snvs$rdNormalFiltered - (snvs$nAltNormal + snvs$nRefNormal))
+     Min.   1st Qu.    Median      Mean   3rd Qu.      Max. 
+-665.0000    0.0000    0.0000   -0.0732    0.0000   16.0000 
+> summary(snvs$rdTumorFiltered  - (snvs$nAltTumor  + snvs$nRefTumor))
+     Min.   1st Qu.    Median      Mean   3rd Qu.      Max. 
+-713.0000    0.0000    0.0000   -0.2093    0.0000   18.0000 
+> 
+> summary(snvs$t_q20_count  - (snvs$t_ref_count + snvs$t_alt_count))
+    Min.  1st Qu.   Median     Mean  3rd Qu.     Max. 
+-70.0000  -1.0000  -1.0000  -0.7129   0.0000 377.0000 
+> summary(snvs$n_q20_count  - (snvs$n_ref_count + snvs$n_alt_count))
+    Min.  1st Qu.   Median     Mean  3rd Qu.     Max. 
+-569.000   -1.000   -1.000   -2.766    0.000   14.000 
+> 
+> summary(snvs$t_q20_count / (snvs$nAltTumor  + snvs$nRefTumor))
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+ 0.1198  0.9318  0.9565  0.9518  0.9773  3.9123 
+> summary(snvs$n_q20_count / (snvs$nAltNormal + snvs$nRefNormal))
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+ 0.1489  0.9310  0.9565  0.9540  0.9792  5.9744 
+> 
+> q(save="no")
+> proc.time()
+   user  system elapsed 
+192.374   2.820 196.309 
