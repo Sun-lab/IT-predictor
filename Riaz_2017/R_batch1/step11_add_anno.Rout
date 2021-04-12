@@ -1,0 +1,504 @@
+
+R version 3.5.2 (2018-12-20) -- "Eggshell Igloo"
+Copyright (C) 2018 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin15.6.0 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> 
+> # ----------------------------------------------------------------------
+> # read in mutation calls
+> # ----------------------------------------------------------------------
+> 
+> setwd("~/research/Immuno/R_batch5/step9")
+> 
+> snvs = read.table("snvs_by_strelka_and_Mutect.txt", header=TRUE, 
++                   sep="\t", as.is=TRUE)
+> dim(snvs)
+[1] 96713    73
+> snvs[1:2,]
+       id QSS TQSS  NT QSS_NT TQSS_NT    SGT SOMATIC seqnames    start      end
+1 Pt10_on 216    1 ref     95       1 CC->CT    TRUE     chr1 10623191 10623191
+2 Pt10_on  24    1 ref     24       1 TT->CT    TRUE     chr1 16483392 16483392
+  REF ALT nAltTumor nRefTumor nAltNormal nRefNormal rdNormalFiltered
+1   C   T       140        50          0         56               56
+2   T   C        17       177          1         96               97
+  rdTumorFiltered type   vafTumor  vafNormal contig position context ref_allele
+1             191  SNV 0.73684211 0.00000000   chr1 10623191 TCCxCTC          C
+2             194  SNV 0.08762887 0.01030928   chr1 16483392 TGTxCCT          T
+  alt_allele tumor_name normal_name score dbsnp_site covered power tumor_power
+1          T SRR5134751  SRR5134829     0      NOVEL COVERED     1           1
+2          C SRR5134751  SRR5134829     0      NOVEL COVERED     1           1
+  normal_power normal_power_nsp normal_power_wsp total_reads map_Q0_reads
+1            1                1                1         255            0
+2            1                1                1         274            2
+  init_t_lod t_lod_fstar t_lod_fstar_forward t_lod_fstar_reverse  tumor_f
+1 536.130652   545.76747            15.62162           530.17201 0.733333
+2   8.184406    39.93935            24.51675            20.69969 0.083333
+  contaminant_fraction contaminant_lod t_q20_count t_ref_count t_alt_count
+1                 0.02        6.952572         192          52         143
+2                 0.02        6.375821         180         165          15
+  t_ref_sum t_alt_sum t_ref_max_mapq t_alt_max_mapq t_ins_count t_del_count
+1      1895      5266             60             60           0           0
+2      5947       552             60             60           0           1
+  normal_best_gt init_n_lod normal_f n_q20_count n_ref_count n_alt_count
+1             CC   17.72717 0.000000          54          59           0
+2             TT   24.18341 0.010989          86          90           1
+  n_ref_sum n_alt_sum power_to_detect_positive_strand_artifact
+1      1971         0                                 1.000000
+2      3145        27                                 0.996627
+  power_to_detect_negative_strand_artifact strand_bias_counts
+1                                 0.998036       (1,51,4,139)
+2                                 0.997619        (92,87,9,8)
+  tumor_alt_fpir_median tumor_alt_fpir_mad tumor_alt_rpir_median
+1                    50                 15                    25
+2                    35                 22                    40
+  tumor_alt_rpir_mad observed_in_normals_count failure_reasons judgement
+1                 15                         0              NA      KEEP
+2                 22                         0              NA      KEEP
+> 
+> indels = read.table("indels_by_strelka.txt", header=TRUE, 
++                     sep="\t", as.is=TRUE)
+> dim(indels)
+[1] 575  22
+> indels[1:2,]
+                          id QSS TQSS  NT QSS_NT TQSS_NT      SGT SOMATIC
+chr2:176119052_GAA/G Pt10_on  46    1 ref     46       1 ref->het    TRUE
+chr9:130702161_TC/T  Pt10_on  60    1 ref     60       1 ref->het    TRUE
+                     seqnames     start       end REF ALT nAltTumor nRefTumor
+chr2:176119052_GAA/G     chr2 176119052 176119054 GAA   G        39       274
+chr9:130702161_TC/T      chr9 130702161 130702162  TC   T        33        67
+                     nAltNormal nRefNormal rdNormalFiltered rdTumorFiltered
+chr2:176119052_GAA/G          0        102           101.73          365.57
+chr9:130702161_TC/T           0         42            45.00          124.00
+                      type  vafTumor vafNormal
+chr2:176119052_GAA/G indel 0.1246006         0
+chr9:130702161_TC/T  indel 0.3300000         0
+> 
+> sort(table(snvs$id), decreasing=TRUE)[1:10]
+
+Pt54_pre Pt65_pre  Pt7_pre  Pt58_on  Pt47_on Pt68_pre Pt47_pre Pt58_pre 
+   20411     5810     4377     2756     2605     2560     2511     2171 
+ Pt60_on Pt49_pre 
+    2159     2058 
+> sort(table(indels$id), decreasing=TRUE)[1:10]
+
+ Pt54_pre   Pt7_pre  Pt79_pre Pt106_pre   Pt93_on  Pt92_pre  Pt44_pre   Pt60_on 
+       31        27        21        19        17        14        13        13 
+ Pt87_pre Pt102_pre 
+       13        12 
+> 
+> cols = c("seqnames", "start", "end", "REF", "ALT", "id")
+> 
+> input = rbind(snvs[,cols], indels[,cols])
+> dim(input)
+[1] 97288     6
+> input[1:2,]
+  seqnames    start      end REF ALT      id
+1     chr1 10623191 10623191   C   T Pt10_on
+2     chr1 16483392 16483392   T   C Pt10_on
+> 
+> # ----------------------------------------------------------------------
+> # read output 
+> # ----------------------------------------------------------------------
+> 
+> setwd("~/research/Immuno/R_batch5/step10")
+> f1 = "snvs_indels_by_strelka_and_Mutect.hg38_multianno.txt"
+> annotated = read.table(f1, sep="\t", header=TRUE, as.is=TRUE, na.string=".", 
++                        quote="")
+> names(annotated)
+ [1] "Chr"                                 
+ [2] "Start"                               
+ [3] "End"                                 
+ [4] "Ref"                                 
+ [5] "Alt"                                 
+ [6] "Func.ensGene"                        
+ [7] "Gene.ensGene"                        
+ [8] "GeneDetail.ensGene"                  
+ [9] "ExonicFunc.ensGene"                  
+[10] "AAChange.ensGene"                    
+[11] "SIFT_score"                          
+[12] "SIFT_converted_rankscore"            
+[13] "SIFT_pred"                           
+[14] "Polyphen2_HDIV_score"                
+[15] "Polyphen2_HDIV_rankscore"            
+[16] "Polyphen2_HDIV_pred"                 
+[17] "Polyphen2_HVAR_score"                
+[18] "Polyphen2_HVAR_rankscore"            
+[19] "Polyphen2_HVAR_pred"                 
+[20] "LRT_score"                           
+[21] "LRT_converted_rankscore"             
+[22] "LRT_pred"                            
+[23] "MutationTaster_score"                
+[24] "MutationTaster_converted_rankscore"  
+[25] "MutationTaster_pred"                 
+[26] "MutationAssessor_score"              
+[27] "MutationAssessor_score_rankscore"    
+[28] "MutationAssessor_pred"               
+[29] "FATHMM_score"                        
+[30] "FATHMM_converted_rankscore"          
+[31] "FATHMM_pred"                         
+[32] "PROVEAN_score"                       
+[33] "PROVEAN_converted_rankscore"         
+[34] "PROVEAN_pred"                        
+[35] "VEST3_score"                         
+[36] "VEST3_rankscore"                     
+[37] "MetaSVM_score"                       
+[38] "MetaSVM_rankscore"                   
+[39] "MetaSVM_pred"                        
+[40] "MetaLR_score"                        
+[41] "MetaLR_rankscore"                    
+[42] "MetaLR_pred"                         
+[43] "M.CAP_score"                         
+[44] "M.CAP_rankscore"                     
+[45] "M.CAP_pred"                          
+[46] "CADD_raw"                            
+[47] "CADD_raw_rankscore"                  
+[48] "CADD_phred"                          
+[49] "DANN_score"                          
+[50] "DANN_rankscore"                      
+[51] "fathmm.MKL_coding_score"             
+[52] "fathmm.MKL_coding_rankscore"         
+[53] "fathmm.MKL_coding_pred"              
+[54] "Eigen_coding_or_noncoding"           
+[55] "Eigen.raw"                           
+[56] "Eigen.PC.raw"                        
+[57] "GenoCanyon_score"                    
+[58] "GenoCanyon_score_rankscore"          
+[59] "integrated_fitCons_score"            
+[60] "integrated_fitCons_score_rankscore"  
+[61] "integrated_confidence_value"         
+[62] "GERP.._RS"                           
+[63] "GERP.._RS_rankscore"                 
+[64] "phyloP100way_vertebrate"             
+[65] "phyloP100way_vertebrate_rankscore"   
+[66] "phyloP20way_mammalian"               
+[67] "phyloP20way_mammalian_rankscore"     
+[68] "phastCons100way_vertebrate"          
+[69] "phastCons100way_vertebrate_rankscore"
+[70] "phastCons20way_mammalian"            
+[71] "phastCons20way_mammalian_rankscore"  
+[72] "SiPhy_29way_logOdds"                 
+[73] "SiPhy_29way_logOdds_rankscore"       
+[74] "Interpro_domain"                     
+[75] "GTEx_V6_gene"                        
+[76] "GTEx_V6_tissue"                      
+[77] "ExAC_nontcga_ALL"                    
+[78] "ExAC_nontcga_AFR"                    
+[79] "ExAC_nontcga_AMR"                    
+[80] "ExAC_nontcga_EAS"                    
+[81] "ExAC_nontcga_FIN"                    
+[82] "ExAC_nontcga_NFE"                    
+[83] "ExAC_nontcga_OTH"                    
+[84] "ExAC_nontcga_SAS"                    
+[85] "avsnp150"                            
+[86] "CLINSIG"                             
+[87] "CLNDBN"                              
+[88] "CLNACC"                              
+[89] "CLNDSDB"                             
+[90] "CLNDSDBID"                           
+> 
+> dim(annotated)
+[1] 97288    90
+> annotated[1:2,1:8]
+   Chr    Start      End Ref Alt Func.ensGene     Gene.ensGene
+1 chr1 10623191 10623191   C   T     intronic            PEX14
+2 chr1 16483392 16483392   T   C   intergenic LINC01772;RNU1-1
+     GeneDetail.ensGene
+1                  <NA>
+2 dist=14911;dist=30730
+> 
+> # ----------------------------------------------------------------------
+> # make sure input and annotated ones are one-to-one matach 
+> # ----------------------------------------------------------------------
+> 
+> ids.input = apply(input[,1:5], 1, paste, collapse=":")
+> ids.annot = apply(annotated[,1:5], 1, paste, collapse=":")
+> table(ids.input == ids.annot)
+
+ TRUE 
+97288 
+> 
+> # ----------------------------------------------------------------------
+> # table a subset of the many columns of annoations 
+> # ----------------------------------------------------------------------
+> 
+> setwd("~/research/Immuno/R_batch5/step11")
+> 
+> anno1 = annotated[,c(1:13,25,28,31,34,39,42,75:77,85:90)]
+> dim(anno1)
+[1] 97288    28
+> anno1[1:2,]
+   Chr    Start      End Ref Alt Func.ensGene     Gene.ensGene
+1 chr1 10623191 10623191   C   T     intronic            PEX14
+2 chr1 16483392 16483392   T   C   intergenic LINC01772;RNU1-1
+     GeneDetail.ensGene ExonicFunc.ensGene AAChange.ensGene SIFT_score
+1                  <NA>               <NA>             <NA>         NA
+2 dist=14911;dist=30730               <NA>             <NA>         NA
+  SIFT_converted_rankscore SIFT_pred MutationTaster_pred MutationAssessor_pred
+1                       NA      <NA>                <NA>                  <NA>
+2                       NA      <NA>                <NA>                  <NA>
+  FATHMM_pred PROVEAN_pred MetaSVM_pred MetaLR_pred GTEx_V6_gene GTEx_V6_tissue
+1        <NA>         <NA>         <NA>        <NA>         <NA>           <NA>
+2        <NA>         <NA>         <NA>        <NA>         <NA>           <NA>
+  ExAC_nontcga_ALL avsnp150 CLINSIG CLNDBN CLNACC CLNDSDB CLNDSDBID
+1               NA     <NA>    <NA>   <NA>   <NA>    <NA>      <NA>
+2               NA     <NA>    <NA>   <NA>   <NA>    <NA>      <NA>
+> 
+> summary(anno1$ExAC_nontcga_ALL)
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max.    NA's 
+   0.00    0.00    0.00    0.02    0.00    0.94   84614 
+> table(anno1$ExAC_nontcga_ALL >= 1e-4)
+
+FALSE  TRUE 
+ 9657  3017 
+> table(anno1$ExAC_nontcga_ALL >= 5e-4)
+
+FALSE  TRUE 
+10856  1818 
+> table(anno1$ExAC_nontcga_ALL >= 0.001)
+
+FALSE  TRUE 
+11154  1520 
+> table(anno1$ExAC_nontcga_ALL >= 0.005)
+
+FALSE  TRUE 
+11554  1120 
+> table(anno1$ExAC_nontcga_ALL >= 0.010)
+
+FALSE  TRUE 
+11675   999 
+> 
+> pdf("figures/ExAC_VAF.pdf", width=5, height=4)
+> hist(log10(anno1$ExAC_nontcga_ALL), main="", xlab="ExAC_nontcga_ALL")
+> dev.off()
+null device 
+          1 
+> 
+> table(is.na(anno1$avsnp150))
+
+FALSE  TRUE 
+19933 77355 
+> summary(anno1$ExAC_nontcga_ALL[which(! is.na(anno1$avsnp150))])
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max.    NA's 
+  0.000   0.000   0.000   0.022   0.000   0.943    7312 
+> 
+> get1 <- function(v){ 
++   if(is.na(v)){ res = NA }else{
++     res = strsplit(v, split=";")[[1]][1]
++   }
++   res
++ }
+> 
+> table(anno1$Func.ensGene)
+
+           downstream                exonic       exonic;splicing 
+                  234                 53376                    19 
+           intergenic              intronic          ncRNA_exonic 
+                11036                 24100                  1485 
+ncRNA_exonic;splicing        ncRNA_intronic        ncRNA_splicing 
+                    3                  3065                    10 
+             splicing              upstream   upstream;downstream 
+                  487                   608                    75 
+                 UTR3                  UTR5             UTR5;UTR3 
+                 1514                  1270                     6 
+> table(anno1$ExonicFunc.ensGene)
+
+   frameshift substitution nonframeshift substitution 
+                       215                         56 
+         nonsynonymous SNV                   stopgain 
+                     32322                       2013 
+                  stoploss             synonymous SNV 
+                         2                      18670 
+                   unknown 
+                       117 
+> 
+> table(anno1$Func.ensGene=="exonic", is.na(anno1$ExonicFunc.ensGene))
+       
+        FALSE  TRUE
+  FALSE    19 43893
+  TRUE  53376     0
+> 
+> w2check = which(anno1$Func.ensGene!="exonic"& !is.na(anno1$ExonicFunc.ensGene))
+> table(anno1$Func.ensGene[w2check])
+
+exonic;splicing 
+             19 
+> table(anno1$ExonicFunc.ensGene[w2check])
+
+nonsynonymous SNV    synonymous SNV 
+               12                 7 
+> 
+> # ----------------------------------------------------------------------
+> # generate a new file with mutation call status from Mutect
+> # as well as some annoation columns
+> # ----------------------------------------------------------------------
+> 
+> dim(snvs)
+[1] 96713    73
+> snvs[1:2,]
+       id QSS TQSS  NT QSS_NT TQSS_NT    SGT SOMATIC seqnames    start      end
+1 Pt10_on 216    1 ref     95       1 CC->CT    TRUE     chr1 10623191 10623191
+2 Pt10_on  24    1 ref     24       1 TT->CT    TRUE     chr1 16483392 16483392
+  REF ALT nAltTumor nRefTumor nAltNormal nRefNormal rdNormalFiltered
+1   C   T       140        50          0         56               56
+2   T   C        17       177          1         96               97
+  rdTumorFiltered type   vafTumor  vafNormal contig position context ref_allele
+1             191  SNV 0.73684211 0.00000000   chr1 10623191 TCCxCTC          C
+2             194  SNV 0.08762887 0.01030928   chr1 16483392 TGTxCCT          T
+  alt_allele tumor_name normal_name score dbsnp_site covered power tumor_power
+1          T SRR5134751  SRR5134829     0      NOVEL COVERED     1           1
+2          C SRR5134751  SRR5134829     0      NOVEL COVERED     1           1
+  normal_power normal_power_nsp normal_power_wsp total_reads map_Q0_reads
+1            1                1                1         255            0
+2            1                1                1         274            2
+  init_t_lod t_lod_fstar t_lod_fstar_forward t_lod_fstar_reverse  tumor_f
+1 536.130652   545.76747            15.62162           530.17201 0.733333
+2   8.184406    39.93935            24.51675            20.69969 0.083333
+  contaminant_fraction contaminant_lod t_q20_count t_ref_count t_alt_count
+1                 0.02        6.952572         192          52         143
+2                 0.02        6.375821         180         165          15
+  t_ref_sum t_alt_sum t_ref_max_mapq t_alt_max_mapq t_ins_count t_del_count
+1      1895      5266             60             60           0           0
+2      5947       552             60             60           0           1
+  normal_best_gt init_n_lod normal_f n_q20_count n_ref_count n_alt_count
+1             CC   17.72717 0.000000          54          59           0
+2             TT   24.18341 0.010989          86          90           1
+  n_ref_sum n_alt_sum power_to_detect_positive_strand_artifact
+1      1971         0                                 1.000000
+2      3145        27                                 0.996627
+  power_to_detect_negative_strand_artifact strand_bias_counts
+1                                 0.998036       (1,51,4,139)
+2                                 0.997619        (92,87,9,8)
+  tumor_alt_fpir_median tumor_alt_fpir_mad tumor_alt_rpir_median
+1                    50                 15                    25
+2                    35                 22                    40
+  tumor_alt_rpir_mad observed_in_normals_count failure_reasons judgement
+1                 15                         0              NA      KEEP
+2                 22                         0              NA      KEEP
+> 
+> dim(indels)
+[1] 575  22
+> indels[1:2,]
+                          id QSS TQSS  NT QSS_NT TQSS_NT      SGT SOMATIC
+chr2:176119052_GAA/G Pt10_on  46    1 ref     46       1 ref->het    TRUE
+chr9:130702161_TC/T  Pt10_on  60    1 ref     60       1 ref->het    TRUE
+                     seqnames     start       end REF ALT nAltTumor nRefTumor
+chr2:176119052_GAA/G     chr2 176119052 176119054 GAA   G        39       274
+chr9:130702161_TC/T      chr9 130702161 130702162  TC   T        33        67
+                     nAltNormal nRefNormal rdNormalFiltered rdTumorFiltered
+chr2:176119052_GAA/G          0        102           101.73          365.57
+chr9:130702161_TC/T           0         42            45.00          124.00
+                      type  vafTumor vafNormal
+chr2:176119052_GAA/G indel 0.1246006         0
+chr9:130702161_TC/T  indel 0.3300000         0
+> 
+> match(names(indels), names(snvs))
+ [1]  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22
+> 
+> indels.fill = matrix(NA, nrow=nrow(indels), ncol=ncol(snvs)-ncol(indels))
+> indels = cbind(indels, indels.fill)
+> names(indels) = names(snvs)
+> 
+> snvs.indels = rbind(snvs, indels)
+> dim(snvs.indels)
+[1] 97288    73
+> 
+> snvs.indels = cbind(snvs.indels, anno1[,-(1:5)])
+> 
+> dim(snvs.indels)
+[1] 97288    96
+> snvs.indels[1:2,]
+       id QSS TQSS  NT QSS_NT TQSS_NT    SGT SOMATIC seqnames    start      end
+1 Pt10_on 216    1 ref     95       1 CC->CT    TRUE     chr1 10623191 10623191
+2 Pt10_on  24    1 ref     24       1 TT->CT    TRUE     chr1 16483392 16483392
+  REF ALT nAltTumor nRefTumor nAltNormal nRefNormal rdNormalFiltered
+1   C   T       140        50          0         56               56
+2   T   C        17       177          1         96               97
+  rdTumorFiltered type   vafTumor  vafNormal contig position context ref_allele
+1             191  SNV 0.73684211 0.00000000   chr1 10623191 TCCxCTC          C
+2             194  SNV 0.08762887 0.01030928   chr1 16483392 TGTxCCT          T
+  alt_allele tumor_name normal_name score dbsnp_site covered power tumor_power
+1          T SRR5134751  SRR5134829     0      NOVEL COVERED     1           1
+2          C SRR5134751  SRR5134829     0      NOVEL COVERED     1           1
+  normal_power normal_power_nsp normal_power_wsp total_reads map_Q0_reads
+1            1                1                1         255            0
+2            1                1                1         274            2
+  init_t_lod t_lod_fstar t_lod_fstar_forward t_lod_fstar_reverse  tumor_f
+1 536.130652   545.76747            15.62162           530.17201 0.733333
+2   8.184406    39.93935            24.51675            20.69969 0.083333
+  contaminant_fraction contaminant_lod t_q20_count t_ref_count t_alt_count
+1                 0.02        6.952572         192          52         143
+2                 0.02        6.375821         180         165          15
+  t_ref_sum t_alt_sum t_ref_max_mapq t_alt_max_mapq t_ins_count t_del_count
+1      1895      5266             60             60           0           0
+2      5947       552             60             60           0           1
+  normal_best_gt init_n_lod normal_f n_q20_count n_ref_count n_alt_count
+1             CC   17.72717 0.000000          54          59           0
+2             TT   24.18341 0.010989          86          90           1
+  n_ref_sum n_alt_sum power_to_detect_positive_strand_artifact
+1      1971         0                                 1.000000
+2      3145        27                                 0.996627
+  power_to_detect_negative_strand_artifact strand_bias_counts
+1                                 0.998036       (1,51,4,139)
+2                                 0.997619        (92,87,9,8)
+  tumor_alt_fpir_median tumor_alt_fpir_mad tumor_alt_rpir_median
+1                    50                 15                    25
+2                    35                 22                    40
+  tumor_alt_rpir_mad observed_in_normals_count failure_reasons judgement
+1                 15                         0              NA      KEEP
+2                 22                         0              NA      KEEP
+  Func.ensGene     Gene.ensGene    GeneDetail.ensGene ExonicFunc.ensGene
+1     intronic            PEX14                  <NA>               <NA>
+2   intergenic LINC01772;RNU1-1 dist=14911;dist=30730               <NA>
+  AAChange.ensGene SIFT_score SIFT_converted_rankscore SIFT_pred
+1             <NA>         NA                       NA      <NA>
+2             <NA>         NA                       NA      <NA>
+  MutationTaster_pred MutationAssessor_pred FATHMM_pred PROVEAN_pred
+1                <NA>                  <NA>        <NA>         <NA>
+2                <NA>                  <NA>        <NA>         <NA>
+  MetaSVM_pred MetaLR_pred GTEx_V6_gene GTEx_V6_tissue ExAC_nontcga_ALL
+1         <NA>        <NA>         <NA>           <NA>               NA
+2         <NA>        <NA>         <NA>           <NA>               NA
+  avsnp150 CLINSIG CLNDBN CLNACC CLNDSDB CLNDSDBID
+1     <NA>    <NA>   <NA>   <NA>    <NA>      <NA>
+2     <NA>    <NA>   <NA>   <NA>    <NA>      <NA>
+> 
+> write.table(snvs.indels, 
++             file = "snvs_indels_by_strelka_and_Mutect_with_anno.txt", 
++             append = FALSE, quote = FALSE, sep = "\t", eol = "\n", 
++             row.names = FALSE, col.names = TRUE)
+> 
+> sessionInfo()
+R version 3.5.2 (2018-12-20)
+Platform: x86_64-apple-darwin15.6.0 (64-bit)
+Running under: macOS Mojave 10.14.5
+
+Matrix products: default
+BLAS: /Library/Frameworks/R.framework/Versions/3.5/Resources/lib/libRblas.0.dylib
+LAPACK: /Library/Frameworks/R.framework/Versions/3.5/Resources/lib/libRlapack.dylib
+
+locale:
+[1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+
+attached base packages:
+[1] stats     graphics  grDevices utils     datasets  methods   base     
+
+loaded via a namespace (and not attached):
+[1] compiler_3.5.2
+> q(save="no")
+> proc.time()
+   user  system elapsed 
+  9.737   0.247   9.990 

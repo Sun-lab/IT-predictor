@@ -1,0 +1,3 @@
+load("/Users/wsun/research/Immuno/R_batch5/step13_HLA/hlahd_result.Rdata")
+ls()
+hlahd_out

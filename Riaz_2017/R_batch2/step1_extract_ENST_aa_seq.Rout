@@ -1,0 +1,345 @@
+
+R version 4.0.3 (2020-10-10) -- "Bunny-Wunnies Freak Out"
+Copyright (C) 2020 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin17.0 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> 
+> #--------------------------------------------------------------------
+> # Extract amino acid (aa) sequence using ENST 
+> # Steps: 
+>   #1. Import data
+>   #2. Extract aa reference sequence using biomaRt
+>   #3. Save riaz_mutdata_refaa.RData
+> #--------------------------------------------------------------------
+> 
+> library(biomaRt)
+> library(Biostrings)
+Loading required package: BiocGenerics
+Loading required package: parallel
+
+Attaching package: ‘BiocGenerics’
+
+The following objects are masked from ‘package:parallel’:
+
+    clusterApply, clusterApplyLB, clusterCall, clusterEvalQ,
+    clusterExport, clusterMap, parApply, parCapply, parLapply,
+    parLapplyLB, parRapply, parSapply, parSapplyLB
+
+The following objects are masked from ‘package:stats’:
+
+    IQR, mad, sd, var, xtabs
+
+The following objects are masked from ‘package:base’:
+
+    anyDuplicated, append, as.data.frame, basename, cbind, colnames,
+    dirname, do.call, duplicated, eval, evalq, Filter, Find, get, grep,
+    grepl, intersect, is.unsorted, lapply, Map, mapply, match, mget,
+    order, paste, pmax, pmax.int, pmin, pmin.int, Position, rank,
+    rbind, Reduce, rownames, sapply, setdiff, sort, table, tapply,
+    union, unique, unsplit, which.max, which.min
+
+Loading required package: S4Vectors
+Loading required package: stats4
+
+Attaching package: ‘S4Vectors’
+
+The following object is masked from ‘package:base’:
+
+    expand.grid
+
+Loading required package: IRanges
+Loading required package: XVector
+
+Attaching package: ‘Biostrings’
+
+The following object is masked from ‘package:base’:
+
+    strsplit
+
+> library(GenomicRanges)
+Loading required package: GenomeInfoDb
+> library(stringr)
+> library(plyr)
+
+Attaching package: ‘plyr’
+
+The following object is masked from ‘package:XVector’:
+
+    compact
+
+The following object is masked from ‘package:IRanges’:
+
+    desc
+
+The following object is masked from ‘package:S4Vectors’:
+
+    rename
+
+> 
+> #--------------------------------------------------------------------
+> # Step 1: Import Data and calculate start position of aa
+> #--------------------------------------------------------------------
+> 
+> load("../data/riaz_mutdata.RData")
+> ls()
+[1] "riaz_mutdata"
+> 
+> dim(riaz_mutdata)
+[1] 31303   104
+> riaz_mutdata[1:2,c(1:10,97:104)]
+       id QSS TQSS  NT QSS_NT TQSS_NT    SGT SOMATIC seqnames     start
+1 Pt10_on 729    1 ref    155       2 CC->AC    TRUE     chr1 114716127
+2 Pt10_on  25    1 ref     25       1 GG->AG    TRUE     chr1 155024524
+  nonSynonymous W pos M Wseq seqpos Mseq      EnsembleID
+1          TRUE G  12 C    G     34    T ENST00000369535
+2          TRUE R 564 W    C   1690    T ENST00000368424
+> 
+> #--------------------------------------------------------------------
+> # Step 2. Get aa sequence based on ENST
+> #--------------------------------------------------------------------
+> 
+> # since the mutations were annotated at 2019 using ANNOVA
+> # we should use an archived version of ensembl
+> # here we check trnascript ENST00000405322 to check
+> # its annotated wild type aa is "S"
+> # and also transcript ENST00000304418
+> # its annotated mutation is at position 321
+> 
+> urls  = listEnsemblArchives()$url[7:20]
+> urls
+ [1] "https://sep2019.archive.ensembl.org" "https://jul2019.archive.ensembl.org"
+ [3] "https://apr2019.archive.ensembl.org" "https://jan2019.archive.ensembl.org"
+ [5] "https://oct2018.archive.ensembl.org" "https://jul2018.archive.ensembl.org"
+ [7] "https://apr2018.archive.ensembl.org" "https://dec2017.archive.ensembl.org"
+ [9] "https://aug2017.archive.ensembl.org" "https://may2017.archive.ensembl.org"
+[11] "https://mar2017.archive.ensembl.org" "https://dec2016.archive.ensembl.org"
+[13] "https://oct2016.archive.ensembl.org" "https://jul2016.archive.ensembl.org"
+> wt_aa1 = rep("", length(urls))
+> len_aa = rep(NA, length(urls))
+> 
+> for(i in 1:length(urls)){
++   cat(i, date(), "\n")
++   u1 = urls[i]
++   ensembl = useMart("ensembl", dataset="hsapiens_gene_ensembl", 
++                     host=u1)
++   seq_i = getSequence(id=c("ENST00000405322", "ENST00000304418"), 
++                       type="ensembl_transcript_id",
++                       seqType="peptide", mart=ensembl)
++   len_aa[i] = nchar(seq_i[1,1])
++   wt_aa1[i] = substr(seq_i[2,1], 238, 238)
++ }
+1 Sun Apr 11 15:53:32 2021 
+2 Sun Apr 11 15:53:43 2021 
+3 Sun Apr 11 15:53:53 2021 
+4 Sun Apr 11 15:54:03 2021 
+5 Sun Apr 11 15:54:13 2021 
+6 Sun Apr 11 15:54:22 2021 
+7 Sun Apr 11 15:54:30 2021 
+8 Sun Apr 11 15:54:38 2021 
+9 Sun Apr 11 15:54:47 2021 
+10 Sun Apr 11 15:54:54 2021 
+11 Sun Apr 11 15:55:01 2021 
+12 Sun Apr 11 15:55:09 2021 
+13 Sun Apr 11 15:55:16 2021 
+14 Sun Apr 11 15:55:25 2021 
+> 
+> cbind(wt_aa1, len_aa, urls)
+      wt_aa1 len_aa urls                                 
+ [1,] "L"    "312"  "https://sep2019.archive.ensembl.org"
+ [2,] "L"    "312"  "https://jul2019.archive.ensembl.org"
+ [3,] "L"    "312"  "https://apr2019.archive.ensembl.org"
+ [4,] "L"    "312"  "https://jan2019.archive.ensembl.org"
+ [5,] "L"    "312"  "https://oct2018.archive.ensembl.org"
+ [6,] "L"    "312"  "https://jul2018.archive.ensembl.org"
+ [7,] "L"    "312"  "https://apr2018.archive.ensembl.org"
+ [8,] "S"    "312"  "https://dec2017.archive.ensembl.org"
+ [9,] "S"    "312"  "https://aug2017.archive.ensembl.org"
+[10,] "S"    "363"  "https://may2017.archive.ensembl.org"
+[11,] "S"    "363"  "https://mar2017.archive.ensembl.org"
+[12,] "S"    "363"  "https://dec2016.archive.ensembl.org"
+[13,] "S"    "363"  "https://oct2016.archive.ensembl.org"
+[14,] "S"    "363"  "https://jul2016.archive.ensembl.org"
+> 
+> ensembl = useMart("ensembl", dataset="hsapiens_gene_ensembl", 
++                   host="https://may2017.archive.ensembl.org")
+> 
+> uniq.EnsembleID = unique(riaz_mutdata$EnsembleID)
+> length(riaz_mutdata$EnsembleID)
+[1] 31303
+> length(uniq.EnsembleID)
+[1] 11726
+> 
+> # it seems if we try to get all the sequence at once, 
+> # there may be error for "Operation timed out"
+> 
+> starts = seq(1, length(uniq.EnsembleID), by=1000)
+> ends = c(seq(1000, length(uniq.EnsembleID), by=1000), length(uniq.EnsembleID))
+> 
+> cbind(starts, ends)
+      starts  ends
+ [1,]      1  1000
+ [2,]   1001  2000
+ [3,]   2001  3000
+ [4,]   3001  4000
+ [5,]   4001  5000
+ [6,]   5001  6000
+ [7,]   6001  7000
+ [8,]   7001  8000
+ [9,]   8001  9000
+[10,]   9001 10000
+[11,]  10001 11000
+[12,]  11001 11726
+> 
+> seq.prot0 = NULL
+> 
+> for(i in 1:length(starts)){
++   cat(i, date(), "\n")
++   seq_i = getSequence(id=uniq.EnsembleID[starts[i]:ends[i]], 
++                       type="ensembl_transcript_id", 
++                       seqType="peptide", mart=ensembl)
++   seq.prot0 = rbind(seq.prot0, seq_i)
++ }
+1 Sun Apr 11 15:55:41 2021 
+2 Sun Apr 11 15:55:41 2021 
+3 Sun Apr 11 15:55:42 2021 
+4 Sun Apr 11 15:55:42 2021 
+5 Sun Apr 11 15:55:43 2021 
+6 Sun Apr 11 15:55:44 2021 
+7 Sun Apr 11 15:55:44 2021 
+8 Sun Apr 11 15:55:44 2021 
+9 Sun Apr 11 15:55:45 2021 
+10 Sun Apr 11 15:55:45 2021 
+11 Sun Apr 11 15:55:46 2021 
+12 Sun Apr 11 15:55:46 2021 
+> 
+> dim(seq.prot0)
+[1] 11726     2
+> seq.prot0[1:2,]
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          peptide
+1 MDTGDTALGQKATSRSGETDKASGRWRQEQSAVIKMSTFGSHEGQRQPQIEPEQIGNTASAQLFGSGKLASPSEVVQQVAEKQYPPHRPSPYSCQHSLSFPQHSLPQGVMHSTKPHQSLEGPPWLFPGPLPSVASEDLFPFPIHGHSGGYPRKKISSLNPAYSQYSQKSIEQAEEAHKKEHKPKKPGKYICPYCSRACAKPSVLKKHIRSHTGERPYPCIPCGFSFKTKSNLYKHRKSHAHAIKAGLVPFTESAVSKLDLEAGFIDVEAEIHSDGEQSTDTDEESSLFAEASDKMSPGPPIPLDIASRGGYHGSLEESLGGPMKVPILIIPKSGIPLPNESSQYIGPDMLPNPSLNTKADDSHTVKQKLALRLSEKKGQDSEPSLNLLSPHSKGSTDSGYFSRSESAEQQISPPNTNAKSYEEIIFGKYCRLSPRNALSVTTTSQERAAMGRKGIMEPLPHVNTRLDVKMFEDPVSQLIPSKGDVDPSQTSMLKSTKFNSESRQPQIIPSSIRNEGKLYPANFQGSNPVLLEAPVDSSPLIRSNSVPTSSATNLTIPPSLRGSHSFDERMTGSDDVFYPGTVGIPPQRMLRRQAAFELPSVQEGHVEVEHHGRMLKGISSSSLKEKKLSPGDRVGYDYDVCRKPYKKWEDSETPKQNYRDISCLSSLKHGGEYFMDPVVPLQGVPSMFGTTCENRKRRKEKSVGDEEDTPMICSSIVSTPVGIMASDYDPKLQMQEGVRSGFAMAGHENLSHGHTERFDPCRPQLQPGSPSLVSEESPSAIDSDKMSDLGGRKPPGNVISVIQHTNSLSRPNSFERSESAELVACTQDKAPSPSETCDSEISEAPVSPEWAPPGDGAESGGKPSPSQQVQQQSYHTQPRLVRQHNIQVPEIRVTEEPDKPEKEKEAQSKEPEKPVEEFQWPQRSETLSQLPAEKLPPKKKRLRLADMEHSSGESSFESTGTGLSRSPSQESNLSHSSSFSMSFEREETSKLSALPKQDEFGKHSEFLTVPAGSYSLSVPGHHHQKEMRRCSSEQMPCPHPAEVPEVRSKSFDYGNLSHAPVSGAAASTVSPSRERKKCFLVRQASFSGSPEISQGEVGMDQSVKQEQLEHLHAGLRSGWHHGPPAVLPPLQQEDPGKQVAGPCPPLSSGPLHLAQPQIMHMDSQESLRNPLIQPTSYMTSKHLPEQPHLFPHQETIPFSPIQNALFQFQYPTVCMVHLPAQQPPWWQAHFPHPFAQHPQKSYGKPSFQTEIHSSYPLEHVAEHTGKKPAEYAHTKEQTYPCYSGASGLHPKNLLPKFPSDQSSKSTETPSEQVLQEDFASANAGSLQSLPGTVVPVRIQTHVPSYGSVMYTSISQILGQNSPAIVICKVDENMTQRTLVTNAAMQGIGFNIAQVLGQHAGLEKYPIWKAPQTLPLGLESSIPLCLPSTSDSVATLGGSKRMLSPASSLELFMETKQQKRVKEEKMYGQIVEELSAVELTNSDIKKDLSRPQKPQLVRQGCASEPKDGLQSGSSSFSSLSPSSSQDYPSVSPSSREPFLPSKEMLSGSRAPLPGQKSSGPSESKESSDELDIDETASDMSMSPQSSSLPAGDGQLEEEGKGHKRPVGMLVRMASAPSGNVADSTLLLTDMADFQQILQFPSLRTTTTVSWCFLNYTKPNYVQQATFKSSVYASWCISSCNPNPSGLNTKTTLALLRSKQKITAEIYTLAAMHRPGTGKLTSSSAWKQFTQMKPDASFLFGSKLERKLVGNILKERGKGDIHGDKDIGSKQTEPIRIKIFEGGYKSNEDYVYVRGRGRGKYICEECGIRCKKPSMLKKHIRTHTDVRPYVCKLCNFAFKTKGNLTKHMKSKAHMKKCLELGVSMTSVDDTETEEAENLEDLHKAAEKHSMSSISTDHQFSDAEESDGEDGDDNDDDDEDEDDFDDQGDLTPKTRSRSTSPQPPRFSSLPVNVGAVPHGVPSDSSLGHSSLISYLVTLPSIRVTQLMTPSDSCEDTQMTEYQRLFQSKSTDSEPDKDRLDIPSCMDEECMLPSEPSSSPRDFSPSSHHSSPGYDSSPCRDNSPKRYLIPKGDLSPRRHLSPRRDLSPMRHLSPRKEAALRREMSQRDVSPRRHLSPRRPVSPGKDITARRDLSPRRERRYMTTIRAPSPRRALYHNPPLSMGQYLQAEPIVLGPPNLRRGLPQVPYFSLYGDQEGAYEHPGSSLFPEGPNDYVFSHLPLHSQQQVRAPIPMVPVGGIQMVHSMPPALSSLHPSPTLPLPMEGFEEKKGASGESFSKDPYVLSKQHEKRGPHALQSSGPPSTPSSPRLLMKQSTSEDSLNATEREQEENIQTCTKAIASLRIATEEAALLGPDQPARVQEPHQNPLGSAHVSIRHFSRPEPGQPCTSATHPDLHDGEKDNFGTSQTPLAHSTFYSKSCVDDKQLDFHSSKELSSSTEESKDPSSEKSQLH*
+2                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              MTTKRKIIGRLVPCRCFRGEEEIISVLDYSHCSLQQVPKEVFNFERTLEELYLDANQIEELPKQLFNCQALRKLSIPDNDLSNLPTTIASLVNLKELDISKNGVQEFPENIKCCKCLTIIEASVNPISKLPDGFTQLLNLTQLYLNDAFLEFLPANFGRLVKLRILELRENHLKTLPKSMHKLAQLERLDLGNNEFGELPEVLDQIQNLRELWMDNNALQVLPGSIGKLKMLVYLDMSKNRIETVDMDISGCEALEDLLLSSNMLQQLPDSIGLLKKLTTLKVDDNQLTMLPNTIGNLSLLEEFDCSCNELESLPSTIGYLHSLRTLAVDENFLPELPREIGSCKNVTVMSLRSNKLEFLPEEIGQMQKLRVLNLSDNRLKNLPFSFTKLKELAALWLSDNQSKALIPLQTEAHPETKQRVLTNYMFPQQPRGDEDFQSDSDSFNPTLWEEQRQQRMTVAFEFEDKKEDDENAGKVKDLSCQAPWERGQRGITLQPARLSGDCCTPWARCDQQIQDMPVPQNDPQLAWGCISGLQQERSMCTPLPVAAQSTTLPSLSGRQVEINLKRYPTPYPEDLKNMVKSVQNLVGKPSHGVRVENSNPTANTEQTVKEKYEHKWPVAPKEITVEDSFVHPANEMRIGELHPSLAETPLYPPKLVLLGKDKKESTDESEVDKTHCLNNSVSSGTYSDYSPSQASSGSSNTRVKVGSLQTTAKDAVHNSLWGNRIAPSFPQPLDSKPLLSQREAVPPGNIPQRPDRLPMSDTFTDNWTDGSHYDNTGFVAEETTAENANSNPLLSSKSRSTSSHGRRPLIRQDRIVGVPLELEQSTHRHTPETEVPPSNPWQNWTRTPSPFEDRTAFPSKLETTPTTSPLPERKEHIKESTEIPSPFSPGVPWEYHDSNPNRSLSNVFSQIHCRPESSKGVISISKSTERLSPLMKDIKSNKFKKSQSIDEIDIGTYKVYNIPLENYASGSDHLGSHERPDKMLGPEHGMSSMSRSQSVPMLDDEMLTYGSSKGPQQQKASMTKKVYQFDQSFNPQGSVEVKAEKRIPPPFQHNPEYVQQASKNIAKDLISPRAYRGYPPMEQMFSFSQPSVNEDAVVNAQFASQGARAGFLRRADSLVSATEMAMFRRVNEPHELPPTDRYGRPPYRGGLDRQSSVTVTESQFLKRNGRYEDEHPSYQEVKAQAGSFPVKNLTQRRPLSARSYSTESYGASQTRPVSARPTMAALLEKIPSDYNLGNYGDKPSDNSDLKTRPTPVKGEESCGKMPADWRQQLLRHIEARRLDRNAAYKHNTVNLGMLPYGGISAMHAGRSMTLNLQTKSKFDHQELPLQKTPSQQSNILDNGQEDVSPSGQWNPYPLGRRDVPPDTITKKAGSHIQTLMGSQSLQHRSREQQPYEGNINKVTIQQFQSPLPIQIPSSQATRGPQPGRCLIQTKGQRSMDGYPEQFCVRIEKNPGLGFSISGGISGQGNPFKPSDKGIFVTRVQPDGPASNLLQPGDKILQANGHSFVHMEHEKAVLLLKSFQNTVDLVIQRELTV*
+  ensembl_transcript_id
+1       ENST00000012134
+2       ENST00000035383
+> 
+> tb1 = table(seq.prot0$peptide)
+> table(tb1)
+tb1
+    1     2     4 
+11718     2     1 
+> 
+> tb2 = tb1[tb1 > 1]
+> names(tb2) = substr(names(tb2), 1, 20)
+> tb2
+MARTKQTARKSTGGKAPRKQ MEAARTERPAGRPGAPLVRT MSGRGKGGKGLGKGGAKRHR 
+                   4                    2                    2 
+> 
+> g1 = grep("X", seq.prot0$peptide)
+> seq.prot0$peptide[g1]
+[1] "XQTGANNLFFGTGTRLTVIP" "XITFGQGTRLEIK"       
+> seq.prot0$peptide[g1] = "Sequence unavailable"
+> 
+> table(seq.prot0$peptide=="Sequence unavailable")
+
+FALSE  TRUE 
+11724     2 
+> setequal(uniq.EnsembleID, seq.prot0$ensembl_transcript_id)
+[1] TRUE
+> 
+> #--------------------------------------------------------------------
+> # Step 3. Save dataset
+> #--------------------------------------------------------------------
+> 
+> riaz_mutdata_refaa = riaz_mutdata[,c(1, 9:13, 28:29, 98:104)] 
+> riaz_mutdata_refaa$prot.seq = rep("", nrow(riaz_mutdata_refaa))
+> 
+> mat1 = match(riaz_mutdata_refaa$EnsembleID, seq.prot0$ensembl_transcript_id)
+> table(is.na(mat1))
+
+FALSE 
+31303 
+> 
+> w2update = which(!is.na(mat1))
+> table(riaz_mutdata_refaa$EnsembleID[w2update] == 
++         seq.prot0$ensembl_transcript_id[mat1[w2update]])
+
+ TRUE 
+31303 
+> riaz_mutdata_refaa$prot.seq[w2update] = seq.prot0$peptide[mat1[w2update]]
+> 
+> dim(riaz_mutdata_refaa)
+[1] 31303    16
+> riaz_mutdata_refaa[1:2,]
+       id seqnames     start       end REF ALT tumor_name normal_name W pos M
+1 Pt10_on     chr1 114716127 114716127   C   A SRR5134751  SRR5134829 G  12 C
+2 Pt10_on     chr1 155024524 155024524   G   A SRR5134751  SRR5134829 R 564 W
+  Wseq seqpos Mseq      EnsembleID
+1    G     34    T ENST00000369535
+2    C   1690    T ENST00000368424
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                prot.seq
+1                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         MTEYKLVVVGAGGVGKSALTIQLIQNHFVDEYDPTIEDSYRKQVVIDGETCLLDILDTAGQEEYSAMRDQYMRTGEGFLCVFAINNSKSFADINLYREQIKRVKDSDDVPMVLVGNKCDLPTRTVDTKQAHELAKSYGIPFIETSAKTRQGVEDAFYTLVREIRQYRMKKLNSSDDGTQGCMGLPCVVM*
+2 MPKVMKDVVHPLGGEEPSMARAVVRSVGGFTLGLSLATAYGLLELLVEGHSPWGCLVGTLTLAAFLSLGMGFSRQVRATVLLLLPQAFSRQGRTLLLVAAFGLVLQGPCANTLRNFTRASEAVACGAELALNQTAEVLQRAKQPLVSALNKIKAIARKTKEVADRVRKFFRSIMDGVKHIARALRNVWQWLLHIGDVCNSELGNPYLKCARVFDDAKDSCMMVIPQAYHLCYVLMPFKLALCGLASLVQVFCVIPKYIQPFLRQTIGTPVIQLLNRVRQEFEFNMTATHHFSVDLNASRSLSQVAMDLHEAVSMKLHRVREALALMGFTTPLLLVLLYLQALFYRYCYLNWDHYDNIYITSRFLRMEAVRSTAGLPTVLPLSAHEARRYIPPGSIFLSQWEKFFYILETFNLIRHLLLVLFLVFLDYAVFWVLDLARHQLQGEIVARSPVLVSLTVEGTGYAGNIYRDLVSAFDVLQQGNISILSRRCLLRPSEPDSTGYIVIGVMYGLCFFITLFGSYVSRLRRVICASYYPSREQERISYLYNVLLSRRTNLLAALHRSVRRRAADQGHRSAFLVLASRCPCLGPFVSHFWLHQAYCLGCGQPQDEGDMENTVSCSTPGCQGLYCLTCFRLLDNTCSVCASPLSYQGDLDLELDSSDEEGPQLWLAAAQRKDPEQAWLLQQQLQEVLGRSLSMESTSESSDLDEEKGPQQRKHGQQPLPEAHQPVSILTSPEPHRPPETSSATKGAPTPASEPSVPLSPPSLPDPSHPPPK*
+> table(riaz_mutdata_refaa$prot.seq == "")
+
+FALSE 
+31303 
+> 
+> save(riaz_mutdata_refaa, file = "../data/riaz_mutdata_refaa.RData")
+> 
+> sessionInfo()
+R version 4.0.3 (2020-10-10)
+Platform: x86_64-apple-darwin17.0 (64-bit)
+Running under: macOS Big Sur 10.16
+
+Matrix products: default
+BLAS:   /Library/Frameworks/R.framework/Versions/4.0/Resources/lib/libRblas.dylib
+LAPACK: /Library/Frameworks/R.framework/Versions/4.0/Resources/lib/libRlapack.dylib
+
+locale:
+[1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+
+attached base packages:
+[1] stats4    parallel  stats     graphics  grDevices utils     datasets 
+[8] methods   base     
+
+other attached packages:
+ [1] plyr_1.8.6           stringr_1.4.0        GenomicRanges_1.42.0
+ [4] GenomeInfoDb_1.26.2  Biostrings_2.58.0    XVector_0.30.0      
+ [7] IRanges_2.24.1       S4Vectors_0.28.1     BiocGenerics_0.36.0 
+[10] biomaRt_2.46.0      
+
+loaded via a namespace (and not attached):
+ [1] Rcpp_1.0.5             pillar_1.4.7           compiler_4.0.3        
+ [4] dbplyr_2.0.0           bitops_1.0-6           zlibbioc_1.36.0       
+ [7] prettyunits_1.1.1      tools_4.0.3            progress_1.2.2        
+[10] digest_0.6.27          bit_4.0.4              tibble_3.0.4          
+[13] RSQLite_2.2.1          memoise_1.1.0          BiocFileCache_1.14.0  
+[16] lifecycle_0.2.0        pkgconfig_2.0.3        rlang_0.4.10          
+[19] DBI_1.1.0              curl_4.3               GenomeInfoDbData_1.2.4
+[22] withr_2.3.0            httr_1.4.2             dplyr_1.0.2           
+[25] xml2_1.3.2             rappdirs_0.3.1         generics_0.1.0        
+[28] vctrs_0.3.6            askpass_1.1            hms_0.5.3             
+[31] tidyselect_1.1.0       bit64_4.0.5            glue_1.4.2            
+[34] Biobase_2.50.0         R6_2.5.0               AnnotationDbi_1.52.0  
+[37] XML_3.99-0.5           purrr_0.3.4            blob_1.2.1            
+[40] magrittr_2.0.1         ellipsis_0.3.1         assertthat_0.2.1      
+[43] stringi_1.5.3          RCurl_1.98-1.2         openssl_1.4.3         
+[46] crayon_1.3.4          
+> q(save="no")
+> proc.time()
+   user  system elapsed 
+ 34.648   1.337 144.017 

@@ -1,0 +1,492 @@
+
+R version 3.6.1 (2019-07-05) -- "Action of the Toes"
+Copyright (C) 2019 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin15.6.0 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> 
+> #------------------------------------------------------
+> # Preperation of NetMHC I and II data for prediction and manage 
+> #  predictions for hugo data 
+> # 1. Import data 
+> # 2. Output somatic mutations (sm) for NetMHC prediction
+> # 3. Output sbatch code (emlinating HLA not valid for netmhc)
+> # Note: Using NetMHCI-4.0 and NetMHCIIpan-3.2
+> #------------------------------------------------------
+> 
+> library(magrittr)
+> library(Biostrings)
+Loading required package: BiocGenerics
+Loading required package: parallel
+
+Attaching package: ‘BiocGenerics’
+
+The following objects are masked from ‘package:parallel’:
+
+    clusterApply, clusterApplyLB, clusterCall, clusterEvalQ,
+    clusterExport, clusterMap, parApply, parCapply, parLapply,
+    parLapplyLB, parRapply, parSapply, parSapplyLB
+
+The following objects are masked from ‘package:stats’:
+
+    IQR, mad, sd, var, xtabs
+
+The following objects are masked from ‘package:base’:
+
+    anyDuplicated, append, as.data.frame, basename, cbind, colnames,
+    dirname, do.call, duplicated, eval, evalq, Filter, Find, get, grep,
+    grepl, intersect, is.unsorted, lapply, Map, mapply, match, mget,
+    order, paste, pmax, pmax.int, pmin, pmin.int, Position, rank,
+    rbind, Reduce, rownames, sapply, setdiff, sort, table, tapply,
+    union, unique, unsplit, which, which.max, which.min
+
+Loading required package: S4Vectors
+Loading required package: stats4
+
+Attaching package: ‘S4Vectors’
+
+The following object is masked from ‘package:base’:
+
+    expand.grid
+
+Loading required package: IRanges
+Loading required package: XVector
+
+Attaching package: ‘Biostrings’
+
+The following object is masked from ‘package:base’:
+
+    strsplit
+
+> 
+> #--------------------------------------------------------------------
+> # Step 1: Import Data 
+> #--------------------------------------------------------------------
+> 
+> #----- somatic mutation data 
+> 
+> load("hugo_mutdata3_sm.RData")
+> ls()
+[1] "hugo_mutdata3_sm"
+> 
+> dim(hugo_mutdata3_sm)
+[1] 34475    19
+> hugo_mutdata3_sm[1:2,]
+   id seqnames   start     end REF ALT tumor_name normal_name W pos M Wseq
+1 Pt1     chr1  957229  957229   C   A SRR3083837  SRR3083838 R  75 L    G
+2 Pt1     chr1 2175307 2175307   G   A SRR3083837  SRR3083838 W 340 X    G
+  seqpos Mseq      EnsembleID          som_mut9         som_mut9r
+1    224    T ENST00000327044 SEHKDQLSLLKDRDPEF SEHKDQLSRLKDRDPEF
+2   1020    A ENST00000400921 HAFFRSIDXDLLEKKQA HAFFRSIDWDLLEKKQA
+                      som_mut15                    som_mut15r
+1 RRKGRASEHKDQLSLLKDRDPEFYKFLQE RRKGRASEHKDQLSRLKDRDPEFYKFLQE
+2 FSDIKSHAFFRSIDXDLLEKKQALPPFQP FSDIKSHAFFRSIDWDLLEKKQALPPFQP
+> 
+> #----- patient with HLA prediction
+> 
+> hugo_pt_with_hla = read.delim(file="hugo_patientID_with_HLA.txt", 
++                               sep= "\t", as.is=TRUE)
+> dim(hugo_pt_with_hla)
+[1] 36 42
+> hugo_pt_with_hla[1:2,]
+  matchID SRA.normal.WES Patient.ID         irRECIST Study.site Gender Age
+1     Pt1     SRR3083838        Pt4 Partial Response       UCLA      M  62
+2     Pt2     SRR3083840        Pt2 Partial Response       UCLA      M  55
+  Disease.Status Overall.Survival Vital.Status Previous.MAPKi
+1            M1c              948        Alive              Y
+2            M1c              927        Alive              N
+  Anatomical.Location BRAF.x NRAS.x                              NF1.x
+1             Adrenal  L331F      -                             S2597*
+2                Lung      -      - Frame_Shift_Ins H31fs, Splice_Site
+      Treatment   Biopsy.Time WES RNAseq SRA.tumor.WES AccessionID.WES
+1 Pembrolizumab pre-treatment   1      1    SRR3083837      SRP067938+
+2 Pembrolizumab pre-treatment   1      1    SRR3083839      SRP067938+
+  SRA.tumor.RNA accessionID.RNAseq   mb mb_SNV mb_indel    A1    A2    B1    B2
+1    SRR3184281           GSE78220 3638   3614       24 A0201 A2301 B4002 B4402
+2    SRR3184280           GSE78220 1878   1866       12 A0301 A3101 B0702 B1801
+     C1    C2     DRB11     DRB12    DQA11    DQB11    DQA12    DQB12    DPA11
+1 C0202 C0501 DRB1_1101 DRB1_0401 DQA10303 DQB10301 DQA10505 DQB10301 DPA10103
+2 C0701 C0702 DRB1_1501 DRB1_1302 DQA10102 DQB10602 DQA10201 DQB10604 DPA10103
+     DPB11    DPA12    DPB12
+1 DPB10401 DPA10103 DPB10201
+2 DPB10401 DPA10103 DPB10301
+> 
+> #----- valid hla alleles for netmhci and netmhcii
+> 
+> # HLA-i
+> valid_hlai = read.delim(file= "../../NetMHCI_valid_HLA.txt", 
++                         sep= "\t", header=FALSE, as.is=TRUE, 
++                         col.names =c("terminal", "standard", "hla_type"))
+> dim(valid_hlai)
+[1] 122   3
+> valid_hlai[1:2,]
+   terminal     standard hla_type
+1 HLA-A0101 HLA-A*01:01     HLA-A
+2 HLA-A0201 HLA-A*02:01     HLA-A
+> 
+> # modify format of terminal 
+> valid_hlai$terminal1 = substr(valid_hlai$terminal, 5,9)
+> valid_hlai[1:2,]
+   terminal     standard hla_type terminal1
+1 HLA-A0101 HLA-A*01:01     HLA-A     A0101
+2 HLA-A0201 HLA-A*02:01     HLA-A     A0201
+> 
+> # HLA-ii
+> valid_hlaii = read.delim(file= "../../NetMHCIIpan_valid_HLA.txt", 
++                          sep= "\t", as.is=TRUE, header=FALSE)
+> dim(valid_hlaii)
+[1] 938   1
+> valid_hlaii[1:2,]
+[1] "DRB1*01:01" "DRB1*01:02"
+> 
+> # modify format
+> for(i in 1:nrow(valid_hlaii)){
++   if(substr(valid_hlaii$V1[i],1,3)=="DRB"){
++     valid_hlaii$terminal[i] = gsub("[:]", "", valid_hlaii$V1[i])
++     valid_hlaii$terminal[i] = gsub("[\\*]", "_", valid_hlaii$terminal[i])
++   } else{
++     valid_hlaii$terminal[i] = gsub("[:, \\*]", "", valid_hlaii$V1[i])
++   }
++ }
+> 
+> dim(valid_hlaii)
+[1] 938   2
+> valid_hlaii[1:2,]
+          V1  terminal
+1 DRB1*01:01 DRB1_0101
+2 DRB1*01:02 DRB1_0102
+> 
+> #--------------------------------------------------------------------
+> # Step 2: Output somatic mutations for predictions (in terminal)
+> #--------------------------------------------------------------------
+> 
+> hugo_sm = hugo_mutdata3_sm
+> 
+> sum(hugo_sm$som_mut9 == "ENST not found")
+[1] 353
+> sum(hugo_sm$som_mut9 == "Sequence unavailable")
+[1] 90
+> 
+> head(hugo_sm[hugo_sm$som_mut9 == "ENST not found",])
+     id seqnames     start       end REF ALT tumor_name normal_name W  pos M
+72  Pt1     chr1  69792068  69792068   G   A SRR3083837  SRR3083838 R   72 Q
+119 Pt1     chr1 158612926 158612926   A   T SRR3083837  SRR3083838 F 2342 Y
+120 Pt1     chr1 158620277 158620277   C   T SRR3083837  SRR3083838 E 2104 K
+121 Pt1     chr1 158626178 158626178   G   A SRR3083837  SRR3083838 L 1960 F
+122 Pt1     chr1 158638124 158638124   C   T SRR3083837  SRR3083838 E 1700 K
+221 Pt1     chr1 219609839 219609839   C   T SRR3083837  SRR3083838 E  742 K
+    Wseq seqpos Mseq      EnsembleID       som_mut9      som_mut9r
+72     G    215    A ENST00000035383 ENST not found ENST not found
+119    T   7025    A ENST00000368147 ENST not found ENST not found
+120    G   6310    A ENST00000368147 ENST not found ENST not found
+121    C   5878    T ENST00000368147 ENST not found ENST not found
+122    G   5098    A ENST00000368147 ENST not found ENST not found
+221    G   2224    A ENST00000636126 ENST not found ENST not found
+         som_mut15     som_mut15r
+72  ENST not found ENST not found
+119 ENST not found ENST not found
+120 ENST not found ENST not found
+121 ENST not found ENST not found
+122 ENST not found ENST not found
+221 ENST not found ENST not found
+> head(hugo_sm[hugo_sm$som_mut9 == "Sequence unavailable",])
+      id seqnames     start       end REF ALT tumor_name normal_name W pos M
+620  Pt1     chr3  37434874  37434874   G   A SRR3083837  SRR3083838 G  86 E
+621  Pt1     chr3  37434985  37434985   G   A SRR3083837  SRR3083838 R 123 K
+728  Pt1     chr3 105659023 105659023   T   A SRR3083837  SRR3083838 I 181 F
+1578 Pt1     chr7 155357728 155357728   A   T SRR3083837  SRR3083838 V 151 D
+1603 Pt1     chr8  23103188  23103188   C   T SRR3083837  SRR3083838 P  63 S
+2059 Pt1    chr11   5402919   5402919   C   T SRR3083837  SRR3083838 P 108 L
+     Wseq seqpos Mseq      EnsembleID             som_mut9            som_mut9r
+620     G    257    A ENST00000452017 Sequence unavailable Sequence unavailable
+621     G    368    A ENST00000452017 Sequence unavailable Sequence unavailable
+728     A    541    T ENST00000407712 Sequence unavailable Sequence unavailable
+1578    T    452    A ENST00000616210 Sequence unavailable Sequence unavailable
+1603    C    187    T ENST00000397703 Sequence unavailable Sequence unavailable
+2059    C    323    T ENST00000332043 Sequence unavailable Sequence unavailable
+                som_mut15           som_mut15r
+620  Sequence unavailable Sequence unavailable
+621  Sequence unavailable Sequence unavailable
+728  Sequence unavailable Sequence unavailable
+1578 Sequence unavailable Sequence unavailable
+1603 Sequence unavailable Sequence unavailable
+2059 Sequence unavailable Sequence unavailable
+> 
+> # remove observations with missing sequence 
+> 
+> hugo_sm1 = hugo_sm[which(hugo_sm$som_mut9!="ENST not found" &
++                           hugo_sm$som_mut9!= "Sequence unavailable" ),]
+> dim(hugo_sm1)
+[1] 34032    19
+> hugo_sm1[1:2,]
+   id seqnames   start     end REF ALT tumor_name normal_name W pos M Wseq
+1 Pt1     chr1  957229  957229   C   A SRR3083837  SRR3083838 R  75 L    G
+2 Pt1     chr1 2175307 2175307   G   A SRR3083837  SRR3083838 W 340 X    G
+  seqpos Mseq      EnsembleID          som_mut9         som_mut9r
+1    224    T ENST00000327044 SEHKDQLSLLKDRDPEF SEHKDQLSRLKDRDPEF
+2   1020    A ENST00000400921 HAFFRSIDXDLLEKKQA HAFFRSIDWDLLEKKQA
+                      som_mut15                    som_mut15r
+1 RRKGRASEHKDQLSLLKDRDPEFYKFLQE RRKGRASEHKDQLSRLKDRDPEFYKFLQE
+2 FSDIKSHAFFRSIDXDLLEKKQALPPFQP FSDIKSHAFFRSIDWDLLEKKQALPPFQP
+> 
+> #-------calcualte number of peptides per patient
+> 
+> tb1 = table(hugo_sm1$id)
+> sort(tb1)
+
+       Pt23   Vand_Pt34   Vand_Pt36   Vand_Pt38        Pt22        Pt21 
+         47          66          79          83         105         142 
+  Vand_Pt32        Pt14        Pt12        Pt20   Vand_Pt35   Vand_Pt10 
+        181         194         201         210         211         220 
+       Pt19   Vand_Pt11        Pt11        Pt10         Pt7   Vand_Pt37 
+        222         243         316         413         464         476 
+  Vand_Pt16         Pt8   Vand_Pt30        Pt18   Vand_Pt31         Pt5 
+        482         507         509         531         543         557 
+        Pt6   Vand_Pt33   Vand_Pt17 Vand_Pt27_2   Vand_Pt27         Pt3 
+        565         617         656         738         740         956 
+        Pt4        Pt17        Pt16        Pt15         Pt2         Pt1 
+       1070        1129        1204        1717        1819        3516 
+   Vand_Pt8 
+      12303 
+> 
+> hugo_obs_per_pt1 = data.frame(tb1, stringsAsFactors=FALSE)
+> names(hugo_obs_per_pt1) = c("matchID", "nMuts_with_peptides")
+> dim(hugo_obs_per_pt1)
+[1] 37  2
+> hugo_obs_per_pt1[1:2,]
+  matchID nMuts_with_peptides
+1     Pt1                3516
+2    Pt10                 413
+> 
+> hugo_obs_per_pt1$matchID = as.character(hugo_obs_per_pt1$matchID)
+> 
+> write.table(hugo_obs_per_pt1, file = "hugo_nMut_with_peptides.txt", 
++             quote=FALSE, col.names= TRUE, row.names = FALSE)
+> 
+> #------- function to write sm file for netmhci and netmhcii-pan
+> 
+> # if start is numeric, the past function will add some space
+> hugo_sm1$start = as.character(hugo_sm1$start)
+> key.cols       = c("seqnames", "start", "REF", "ALT")
+> hugo_sm1$key   = apply(hugo_sm1[,key.cols], 1, paste, collapse=":")
+> hugo_sm1$start = as.numeric(hugo_sm1$start)
+> hugo_sm1$key   = gsub("^chr", "", hugo_sm1$key)
+> dim(hugo_sm1)
+[1] 34032    20
+> hugo_sm1[1:2,]
+   id seqnames   start     end REF ALT tumor_name normal_name W pos M Wseq
+1 Pt1     chr1  957229  957229   C   A SRR3083837  SRR3083838 R  75 L    G
+2 Pt1     chr1 2175307 2175307   G   A SRR3083837  SRR3083838 W 340 X    G
+  seqpos Mseq      EnsembleID          som_mut9         som_mut9r
+1    224    T ENST00000327044 SEHKDQLSLLKDRDPEF SEHKDQLSRLKDRDPEF
+2   1020    A ENST00000400921 HAFFRSIDXDLLEKKQA HAFFRSIDWDLLEKKQA
+                      som_mut15                    som_mut15r           key
+1 RRKGRASEHKDQLSLLKDRDPEFYKFLQE RRKGRASEHKDQLSRLKDRDPEFYKFLQE  1:957229:C:A
+2 FSDIKSHAFFRSIDXDLLEKKQALPPFQP FSDIKSHAFFRSIDWDLLEKKQALPPFQP 1:2175307:G:A
+> 
+> # prepare fasta files
+> for( i in 1:nrow(hugo_obs_per_pt1)){
++   
++   matchid_string = toString(hugo_obs_per_pt1$matchID[i])
++   
++   pt = hugo_sm1[which(hugo_sm1$id == matchid_string), ]
++   
++   # for HLA-I need to be at least length 9 
++   pt9 = pt[nchar(pt$som_mut9)>=9,]
++   
++   fnm9 = paste("for_netmhci/", matchid_string, "_sm9.txt", sep="")
++   cat("", file=fnm9)
++   for(j in 1:nrow(pt9)){
++     cat(paste(">", pt9$key[j], "\n", pt9$som_mut9[j],"\n", sep=""), 
++         file=fnm9, append=TRUE)
++   }
++ 
++   fnm9r = paste("for_netmhci/", matchid_string, "_sm9r.txt", sep="")
++   cat("", file=fnm9r)
++   for(j in 1:nrow(pt9)){
++     cat(paste(">", pt9$key[j], "\n", pt9$som_mut9r[j],"\n", sep=""), 
++         file=fnm9r, append=TRUE)
++   }
++ 
++   # for HLA-II need to be at least length 15
++   pt15 = pt[nchar(pt$som_mut15)>=15,]
++   
++   fnm15 = paste("for_netmhciipan/", matchid_string, "_sm15.txt", sep="")
++   cat("", file=fnm15)
++   for(j in 1:nrow(pt15)){
++     cat(paste(">", pt15$key[j], "\n", pt15$som_mut15[j],"\n", sep=""),
++         file=fnm15, append=TRUE)
++   }
++ 
++   fnm15r = paste("for_netmhciipan/", matchid_string, "_sm15r.txt", sep="")
++   cat("", file=fnm15r)
++   for(j in 1:nrow(pt15)){
++     cat(paste(">", pt15$key[j], "\n", pt15$som_mut15r[j],"\n", sep=""), 
++         file=fnm15r, append=TRUE)
++   }
++ }
+> 
+> #--------------------------------------------------------------------
+> # Step 3: Output sbatch code for terminal
+> #--------------------------------------------------------------------
+> 
+> #------------HLA-I
+> # check how many HLA alleles can be predicted 
+> 
+> HLA1  = as.matrix(hugo_pt_with_hla[,c("A1", "A2", "B1", "B2", "C1", "C2")])
+> dim(HLA1)
+[1] 36  6
+> HLA1[1:2,]
+     A1      A2      B1      B2      C1      C2     
+[1,] "A0201" "A2301" "B4002" "B4402" "C0202" "C0501"
+[2,] "A0301" "A3101" "B0702" "B1801" "C0701" "C0702"
+> 
+> avail = t(apply(HLA1, 1, function(v){ v %in% valid_hlai$terminal1 }))
+> dim(avail)
+[1] 36  6
+> avail[1:2,]
+     [,1] [,2] [,3] [,4]  [,5] [,6]
+[1,] TRUE TRUE TRUE TRUE FALSE TRUE
+[2,] TRUE TRUE TRUE TRUE  TRUE TRUE
+> 
+> sum(c(avail))/(6*nrow(avail))
+[1] 0.837963
+> table(rowSums(avail))
+
+ 2  3  4  5  6 
+ 1  2  8  9 16 
+> 
+> # create shell script to submit jobs 
+> 
+> fnm = "for_netmhci/_NetMHCI_pred_validHLA.sh"
+> cat("", file=fnm)
+> 
+> for(i in 1:nrow(hugo_obs_per_pt1)){
++   id = hugo_obs_per_pt1[i,1]
++   t  = hugo_pt_with_hla[which(hugo_pt_with_hla$matchID == id),
++                         c("A1", "A2", "B1", "B2", "C1", "C2")] 
++   t1 = t[, t %in% valid_hlai$terminal1]
++   t2 = paste("HLA-", t1, sep="")
++   t3 = paste(t2, collapse=",")
++   
++   cat(paste("../runNetMHC_hugo.sh", id, t3, "\n", sep=" "), 
++       file=fnm, append=TRUE)
++   
++   # cat(paste("sbatch ../runNetMHC_hugo_sbatch.sh", id, t3, "\n", sep=" "), 
++   #     file=fnm, append=TRUE)
++ }
+> 
+> #------------HLA-II
+> # check how many HLA alleles can be predicted 
+> 
+> HLA2  = as.matrix(hugo_pt_with_hla[,c("DRB11", "DRB12", "DQA11", "DQB11", 
++                                       "DQA12", "DQB12", "DPA11", "DPB11", 
++                                       "DPA12", "DPB12")])
+> dim(HLA2)
+[1] 36 10
+> HLA2[1:2,]
+     DRB11       DRB12       DQA11      DQB11      DQA12      DQB12     
+[1,] "DRB1_1101" "DRB1_0401" "DQA10303" "DQB10301" "DQA10505" "DQB10301"
+[2,] "DRB1_1501" "DRB1_1302" "DQA10102" "DQB10602" "DQA10201" "DQB10604"
+     DPA11      DPB11      DPA12      DPB12     
+[1,] "DPA10103" "DPB10401" "DPA10103" "DPB10201"
+[2,] "DPA10103" "DPB10401" "DPA10103" "DPB10301"
+> 
+> avail = t(apply(HLA2, 1, function(v){ v %in% valid_hlaii$terminal }))
+> dim(avail)
+[1] 36 10
+> avail[1:2,]
+     [,1] [,2] [,3] [,4] [,5] [,6] [,7] [,8] [,9] [,10]
+[1,] TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE  TRUE
+[2,] TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE  TRUE
+> 
+> sum(c(avail))/(10*nrow(avail))
+[1] 1
+> table(rowSums(avail))
+
+10 
+36 
+> 
+> #../netMHCIIpan -f example.fsa -a DRB1_0101 > example.fsa.myout
+> 
+> # create shell script to submit jobs 
+> # one job per 20 samples
+> 
+> jobid = 1
+> 
+> for(i in 1:nrow(hugo_obs_per_pt1)){
++   
++   if(i %% 20 == 1){
++     fnm = sprintf("for_netmhciipan/_netMHCIIpan_pred_validHLA_%d.sh", jobid)
++     cat("", file=fnm)
++     jobid = jobid + 1
++   }
++   
++   id = hugo_obs_per_pt1[i,1]
++   wi = which(hugo_pt_with_hla$matchID == id)
++   t  = hugo_pt_with_hla[wi,c("DRB11", "DRB12", "DQA11", "DQB11", 
++                              "DQA12", "DQB12", "DPA11", "DPB11", 
++                              "DPA12", "DPB12")]
++   t1 = t[, t %in% valid_hlaii$terminal]
++   
++   t2 = paste(t1$DRB11, t1$DRB12, sep=",")
++   t3 = paste("HLA", t1$DQA11, t1$DQB11, sep="-")
++   t4 = paste("HLA", t1$DQA12, t1$DQB12, sep="-")
++   t5 = paste("HLA", t1$DQA11, t1$DQB12, sep="-")
++   t6 = paste("HLA", t1$DQA12, t1$DQB11, sep="-")
++   t7 = paste("HLA", t1$DPA11, t1$DPB11, sep="-")
++   t8 = paste("HLA", t1$DPA12, t1$DPB12, sep="-") 
++   t9 = paste("HLA", t1$DPA11, t1$DPB12, sep="-")
++   t10 = paste("HLA", t1$DPA12, t1$DPB11, sep="-")
++   t11 = c(t2, t3, t4, t5, t6, t7, t8, t9, t10)
++   w2rm = union(grep("--", t11, fixed=TRUE), grep("-$", t11))
++   if(length(w2rm) > 0){ t11 = t11[-w2rm] }
++   t11 = paste(t11, collapse=",")
++  
++   cat(paste("../runNetMHCIIpan_hugo.sh", id , t11, "\n", sep=" "),
++       file=fnm, append=TRUE)
++   
++   # cat(paste("sbatch ../runNetMHCIIpan_hugo_sbatch.sh", id , t11, "\n", sep=" "),
++   #     file=fnm, append=TRUE)
++   
++ }
+> 
+> sessionInfo()
+R version 3.6.1 (2019-07-05)
+Platform: x86_64-apple-darwin15.6.0 (64-bit)
+Running under: macOS High Sierra 10.13.6
+
+Matrix products: default
+BLAS:   /Library/Frameworks/R.framework/Versions/3.6/Resources/lib/libRblas.0.dylib
+LAPACK: /Library/Frameworks/R.framework/Versions/3.6/Resources/lib/libRlapack.dylib
+
+locale:
+[1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+
+attached base packages:
+[1] stats4    parallel  stats     graphics  grDevices utils     datasets 
+[8] methods   base     
+
+other attached packages:
+[1] Biostrings_2.52.0   XVector_0.24.0      IRanges_2.18.1     
+[4] S4Vectors_0.22.0    BiocGenerics_0.30.0 magrittr_1.5       
+
+loaded via a namespace (and not attached):
+[1] zlibbioc_1.30.0 compiler_3.6.1 
+> q(save="no")
+> proc.time()
+   user  system elapsed 
+ 27.903  12.007  41.778 

@@ -1,0 +1,126 @@
+
+R version 4.0.3 (2020-10-10) -- "Bunny-Wunnies Freak Out"
+Copyright (C) 2020 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin17.0 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> 
+> #--------------------------------------------------------------------
+> # Create somatic mutation chains 
+> # 1. Import data
+> # 2. Replace mutated AA and Extract somatic mutations for 9 and 15   
+> #    amino-acid length, includes replacing * with X in stop codon
+> # 3. save riaz_mutdata_sm.RData
+> #--------------------------------------------------------------------
+> 
+> #--------------------------------------------------------------------
+> # Step 1: Import Data 
+> #--------------------------------------------------------------------
+> #input dataset with the reference seq
+> 
+> load("../data/riaz_mutdata_refaa.RData")
+> dim(riaz_mutdata_refaa)
+[1] 31303    16
+> riaz_mutdata_refaa[1,]
+       id seqnames     start       end REF ALT tumor_name normal_name W pos M
+1 Pt10_on     chr1 114716127 114716127   C   A SRR5134751  SRR5134829 G  12 C
+  Wseq seqpos Mseq      EnsembleID
+1    G     34    T ENST00000369535
+                                                                                                                                                                                        prot.seq
+1 MTEYKLVVVGAGGVGKSALTIQLIQNHFVDEYDPTIEDSYRKQVVIDGETCLLDILDTAGQEEYSAMRDQYMRTGEGFLCVFAINNSKSFADINLYREQIKRVKDSDDVPMVLVGNKCDLPTRTVDTKQAHELAKSYGIPFIETSAKTRQGVEDAFYTLVREIRQYRMKKLNSSDDGTQGCMGLPCVVM*
+> 
+> #--------------------------------------------------------------------
+> # Step 2: Replace mutated AA and extract sm chain for prediction
+> # includes replacing * with X for stop codon
+> #--------------------------------------------------------------------
+> 
+> som_mut9  = som_mut9r  = rep("", nrow(riaz_mutdata_refaa))
+> som_mut15 = som_mut15r = rep("", nrow(riaz_mutdata_refaa))
+> 
+> for(i in 1:nrow(riaz_mutdata_refaa)){
++   b = riaz_mutdata_refaa[i,]
++   
++   if(b$prot.seq == ""){ 
++     som_mut9[i]  = som_mut9r[i]  = "ENST not found"
++     som_mut15[i] = som_mut15r[i] = "ENST not found"
++   } else if (b$prot.seq=="Sequence unavailable"){
++     som_mut9[i]  = som_mut9r[i]  = "Sequence unavailable"
++     som_mut15[i] = som_mut15r[i] = "Sequence unavailable"
++   } else{
++ 
++     # replace aa at position 'pos' with mutated aa
++     b$prot.seq.ref = b$prot.seq
++     if(substr(b$prot.seq, b$pos, b$pos) != b$W){
++       stop("mismatch of amino acid for wild type allelel")
++     }
++     
++     substr(b$prot.seq, b$pos, b$pos) = b$M
++     
++     # extract aa of interest per somatic mutation
++     # for 9 sliding window 
++     som_mut9[i]  = substr(b$prot.seq, max(as.numeric(b$pos)-8, 1), 
++                       min(as.numeric(b$pos)+8, nchar(b$prot.seq)))
++     
++     som_mut9r[i] = substr(b$prot.seq.ref, max(as.numeric(b$pos)-8, 1), 
++                       min(as.numeric(b$pos)+8, nchar(b$prot.seq.ref)))
++     
++     # for 15 sliding window - want 14 aa upstream/downstream
++     som_mut15[i]  = substr(b$prot.seq, max(as.numeric(b$pos)-14, 1), 
++                        min(as.numeric(b$pos)+14, nchar(b$prot.seq)))
++     
++     som_mut15r[i] = substr(b$prot.seq.ref, max(as.numeric(b$pos)-14, 1), 
++                        min(as.numeric(b$pos)+14, nchar(b$prot.seq.ref)))
++   }
++ }
+> 
+> riaz_mutdata_sm = data.frame(riaz_mutdata_refaa[,1:15], som_mut9, som_mut9r, 
++                          som_mut15, som_mut15r, stringsAsFactors=FALSE)
+> dim(riaz_mutdata_sm)
+[1] 31303    19
+> riaz_mutdata_sm[1:2,]
+       id seqnames     start       end REF ALT tumor_name normal_name W pos M
+1 Pt10_on     chr1 114716127 114716127   C   A SRR5134751  SRR5134829 G  12 C
+2 Pt10_on     chr1 155024524 155024524   G   A SRR5134751  SRR5134829 R 564 W
+  Wseq seqpos Mseq      EnsembleID          som_mut9         som_mut9r
+1    G     34    T ENST00000369535 YKLVVVGACGVGKSALT YKLVVVGAGGVGKSALT
+2    C   1690    T ENST00000368424 AALHRSVRWRAADQGHR AALHRSVRRRAADQGHR
+                      som_mut15                    som_mut15r
+1    MTEYKLVVVGACGVGKSALTIQLIQN    MTEYKLVVVGAGGVGKSALTIQLIQN
+2 RRTNLLAALHRSVRWRAADQGHRSAFLVL RRTNLLAALHRSVRRRAADQGHRSAFLVL
+> 
+> save(riaz_mutdata_sm, file = "riaz_mutdata_sm.RData")
+> 
+> sessionInfo()
+R version 4.0.3 (2020-10-10)
+Platform: x86_64-apple-darwin17.0 (64-bit)
+Running under: macOS Big Sur 10.16
+
+Matrix products: default
+BLAS:   /Library/Frameworks/R.framework/Versions/4.0/Resources/lib/libRblas.dylib
+LAPACK: /Library/Frameworks/R.framework/Versions/4.0/Resources/lib/libRlapack.dylib
+
+locale:
+[1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+
+attached base packages:
+[1] stats     graphics  grDevices utils     datasets  methods   base     
+
+loaded via a namespace (and not attached):
+[1] compiler_4.0.3
+> q(save="no")
+> proc.time()
+   user  system elapsed 
+  6.917   0.099   7.046 

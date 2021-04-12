@@ -1,0 +1,480 @@
+
+R version 3.6.1 (2019-07-05) -- "Action of the Toes"
+Copyright (C) 2019 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin15.6.0 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> 
+> #--------------------------------------------------------------------
+> # Process annotated Hugo data to extract sequences for making peptides 
+> # for somatic mutatins, same for Hugo et al data in 'mhcpeptide_hugo_mutdata3.R'
+> #
+> # Data: snvs_indels_by_strelka_and_Mutect_with_anno_filtered.txt
+> # Steps: 
+>   #1. Import data
+>   #2. Filter dataset
+>   #3. Extract the mutation  data on the amino acid level and sequence level
+>   #4. Extract ensembletrans id
+>   #5. save dataset as riaz_hugo_mutdata3.RData
+> #--------------------------------------------------------------------
+> 
+> #--------------------------------------------------------------------
+> # Step 1: Import Data
+> #--------------------------------------------------------------------
+> 
+> library(readr)
+> library(stringr)
+> 
+> input = "snvs_indels_by_strelka_and_Mutect_with_anno_filtered_corrected.txt"
+> #164831
+> hugo_mutdata = read_delim(input, delim="\t", col_names=TRUE)
+Parsed with column specification:
+cols(
+  .default = col_double(),
+  id = col_character(),
+  NT = col_character(),
+  SGT = col_character(),
+  SOMATIC = col_logical(),
+  seqnames = col_character(),
+  REF = col_character(),
+  ALT = col_character(),
+  type = col_character(),
+  contig = col_character(),
+  context = col_character(),
+  ref_allele = col_character(),
+  alt_allele = col_character(),
+  tumor_name = col_character(),
+  normal_name = col_character(),
+  dbsnp_site = col_character(),
+  covered = col_character(),
+  normal_best_gt = col_character(),
+  strand_bias_counts = col_character(),
+  failure_reasons = col_logical(),
+  judgement = col_character()
+  # ... with 21 more columns
+)
+See spec(...) for full column specifications.
+Warning: 2 parsing failures.
+   row            col           expected                                                                                                                                                                                                                                                                                                                                                                                                                                                   actual                                                                 file
+161072 GTEx_V6_gene   1/0/T/F/TRUE/FALSE ENSG00000117481.6|ENSG00000117481.6|ENSG00000117480.11|ENSG00000117481.6|ENSG00000117481.6|ENSG00000117481.6|ENSG00000117480.11|ENSG00000117481.6|ENSG00000117480.11|ENSG00000117481.6|ENSG00000117480.11|ENSG00000117480.11|ENSG00000117481.6|ENSG00000117481.6|ENSG00000085999.7|ENSG00000117481.6|ENSG00000117480.11|ENSG00000117480.11|ENSG00000117480.11|ENSG00000117481.6|ENSG00000232022.2|EN [... truncated]
+> # 4 parsing errors: for Pt17 observation, variable GTEx_V6_gene is not NA
+> hugo_mutdata[which(hugo_mutdata$id=="Pt17" & hugo_mutdata$QSS==20 & !is.na(hugo_mutdata$GTEx_V6_gene)), "GTEx_V6_gene"]
+# A tibble: 0 x 1
+# … with 1 variable: GTEx_V6_gene <lgl>
+> # I think the program just replaces it with NA .i.e. if even if I manually replace with NA it is still 164831
+> # only two subjects anyway
+> 
+> 
+> dim(hugo_mutdata)
+[1] 164831     97
+> hugo_mutdata[1:10, 1:5]
+# A tibble: 10 x 5
+   id      QSS  TQSS NT    QSS_NT
+   <chr> <dbl> <dbl> <chr>  <dbl>
+ 1 Pt1      56     1 ref       56
+ 2 Pt1      36     1 ref       36
+ 3 Pt1      23     1 ref       23
+ 4 Pt1      72     1 ref       72
+ 5 Pt1      75     1 ref       75
+ 6 Pt1     154     1 ref       96
+ 7 Pt1     126     1 ref      120
+ 8 Pt1      47     2 ref       47
+ 9 Pt1     151     1 ref       95
+10 Pt1      83     1 ref       83
+> hugo_mutdata[1:10, c(1,2,78,97)]
+# A tibble: 10 x 4
+   id      QSS AAChange.ensGene                                 nonSynonymous
+   <chr> <dbl> <chr>                                            <lgl>        
+ 1 Pt1      56 <NA>                                             FALSE        
+ 2 Pt1      36 <NA>                                             FALSE        
+ 3 Pt1      23 <NA>                                             FALSE        
+ 4 Pt1      72 NOC2L:ENST00000327044.6:exon3:c.G224T:p.R75L     TRUE         
+ 5 Pt1      75 <NA>                                             FALSE        
+ 6 Pt1     154 <NA>                                             FALSE        
+ 7 Pt1     126 <NA>                                             FALSE        
+ 8 Pt1      47 <NA>                                             FALSE        
+ 9 Pt1     151 ATAD3B:ENST00000308647.7:exon16:c.G1716A:p.L572L FALSE        
+10 Pt1      83 <NA>                                             FALSE        
+> 
+> # there maybe some duplicated rows due to file processing in prevoius steps
+> du = duplicated(hugo_mutdata)
+> which(du)
+integer(0)
+> names(hugo_mutdata)
+ [1] "id"                                      
+ [2] "QSS"                                     
+ [3] "TQSS"                                    
+ [4] "NT"                                      
+ [5] "QSS_NT"                                  
+ [6] "TQSS_NT"                                 
+ [7] "SGT"                                     
+ [8] "SOMATIC"                                 
+ [9] "seqnames"                                
+[10] "start"                                   
+[11] "end"                                     
+[12] "REF"                                     
+[13] "ALT"                                     
+[14] "nAltTumor"                               
+[15] "nRefTumor"                               
+[16] "nAltNormal"                              
+[17] "nRefNormal"                              
+[18] "rdNormalFiltered"                        
+[19] "rdTumorFiltered"                         
+[20] "type"                                    
+[21] "vafTumor"                                
+[22] "vafNormal"                               
+[23] "contig"                                  
+[24] "position"                                
+[25] "context"                                 
+[26] "ref_allele"                              
+[27] "alt_allele"                              
+[28] "tumor_name"                              
+[29] "normal_name"                             
+[30] "score"                                   
+[31] "dbsnp_site"                              
+[32] "covered"                                 
+[33] "power"                                   
+[34] "tumor_power"                             
+[35] "normal_power"                            
+[36] "normal_power_nsp"                        
+[37] "normal_power_wsp"                        
+[38] "total_reads"                             
+[39] "map_Q0_reads"                            
+[40] "init_t_lod"                              
+[41] "t_lod_fstar"                             
+[42] "t_lod_fstar_forward"                     
+[43] "t_lod_fstar_reverse"                     
+[44] "tumor_f"                                 
+[45] "contaminant_fraction"                    
+[46] "contaminant_lod"                         
+[47] "t_q20_count"                             
+[48] "t_ref_count"                             
+[49] "t_alt_count"                             
+[50] "t_ref_sum"                               
+[51] "t_alt_sum"                               
+[52] "t_ref_max_mapq"                          
+[53] "t_alt_max_mapq"                          
+[54] "t_ins_count"                             
+[55] "t_del_count"                             
+[56] "normal_best_gt"                          
+[57] "init_n_lod"                              
+[58] "normal_f"                                
+[59] "n_q20_count"                             
+[60] "n_ref_count"                             
+[61] "n_alt_count"                             
+[62] "n_ref_sum"                               
+[63] "n_alt_sum"                               
+[64] "power_to_detect_positive_strand_artifact"
+[65] "power_to_detect_negative_strand_artifact"
+[66] "strand_bias_counts"                      
+[67] "tumor_alt_fpir_median"                   
+[68] "tumor_alt_fpir_mad"                      
+[69] "tumor_alt_rpir_median"                   
+[70] "tumor_alt_rpir_mad"                      
+[71] "observed_in_normals_count"               
+[72] "failure_reasons"                         
+[73] "judgement"                               
+[74] "Func.ensGene"                            
+[75] "Gene.ensGene"                            
+[76] "GeneDetail.ensGene"                      
+[77] "ExonicFunc.ensGene"                      
+[78] "AAChange.ensGene"                        
+[79] "SIFT_score"                              
+[80] "SIFT_converted_rankscore"                
+[81] "SIFT_pred"                               
+[82] "MutationTaster_pred"                     
+[83] "MutationAssessor_pred"                   
+[84] "FATHMM_pred"                             
+[85] "PROVEAN_pred"                            
+[86] "MetaSVM_pred"                            
+[87] "MetaLR_pred"                             
+[88] "GTEx_V6_gene"                            
+[89] "GTEx_V6_tissue"                          
+[90] "ExAC_nontcga_ALL"                        
+[91] "avsnp150"                                
+[92] "CLINSIG"                                 
+[93] "CLNDBN"                                  
+[94] "CLNACC"                                  
+[95] "CLNDSDB"                                 
+[96] "CLNDSDBID"                               
+[97] "nonSynonymous"                           
+> 
+> length(unique(hugo_mutdata$id))
+[1] 37
+> tb1 = table(hugo_mutdata$id)
+> length(tb1)
+[1] 37
+> sort(tb1)
+
+  Vand_Pt34        Pt23   Vand_Pt38   Vand_Pt36        Pt22        Pt21 
+        300         313         355         479         594         685 
+       Pt20   Vand_Pt32        Pt14   Vand_Pt10        Pt19        Pt12 
+        812         984        1061        1167        1192        1208 
+  Vand_Pt11   Vand_Pt35        Pt11         Pt8        Pt10         Pt7 
+       1323        1396        1748        1784        2001        2105 
+  Vand_Pt30   Vand_Pt16        Pt18   Vand_Pt37   Vand_Pt31   Vand_Pt33 
+       2141        2204        2277        2506        2721        2868 
+  Vand_Pt17         Pt5         Pt6         Pt3         Pt4        Pt17 
+       3119        3177        3200        4147        4959        5668 
+       Pt16   Vand_Pt27 Vand_Pt27_2        Pt15         Pt2         Pt1 
+       5999        7193        7266        9309        9745       18489 
+   Vand_Pt8 
+      48336 
+> 
+> patient_info = data.frame(tb1)
+> names(patient_info) = c("sample", "total_mutations")
+> dim(patient_info)
+[1] 37  2
+> patient_info[1:2,]
+  sample total_mutations
+1    Pt1           18489
+2   Pt10            2001
+> 
+> #--------------------------------------------------------------------
+> # Step 2: Filter dataset 
+> #--------------------------------------------------------------------
+> #--------subset to where nonsynomous== TRUE
+> 
+> hugo_mutdata0 = hugo_mutdata[which(hugo_mutdata$nonSynonymous==TRUE), ]
+> dim(hugo_mutdata0)
+[1] 35590    97
+> 
+> hugo_mutdata0[1:10, c(1,2,78,97)]
+# A tibble: 10 x 4
+   id      QSS AAChange.ensGene                                    nonSynonymous
+   <chr> <dbl> <chr>                                               <lgl>        
+ 1 Pt1      72 NOC2L:ENST00000327044.6:exon3:c.G224T:p.R75L        TRUE         
+ 2 Pt1      90 PRKCZ:ENST00000400921.6:exon13:c.G1020A:p.W340X     TRUE         
+ 3 Pt1     148 ACTRT2:ENST00000378404.3:exon1:c.C695T:p.S232F      TRUE         
+ 4 Pt1      66 ARHGEF16:ENST00000378371.6:exon7:c.G535A:p.E179K,A… TRUE         
+ 5 Pt1     116 PLEKHG5:ENST00000340850.9:exon5:c.G285A:p.M95I,PLE… TRUE         
+ 6 Pt1      53 TAS1R1:ENST00000333172.10:exon1:c.G172A:p.E58K,TAS… TRUE         
+ 7 Pt1     108 PER3:ENST00000361923.2:exon17:c.C2524T:p.P842S,PER… TRUE         
+ 8 Pt1      69 KIF1B:ENST00000377083.5:exon21:c.C2881T:p.P961S,KI… TRUE         
+ 9 Pt1     119 PLOD1:ENST00000196061.4:exon19:c.C2179T:p.P727S     TRUE         
+10 Pt1     145 AADACL3:ENST00000359318.7:exon2:c.G250A:p.D84N      TRUE         
+> 
+> # check NA in AAChange.ensGene
+> table(is.na(hugo_mutdata0$AAChange.ensGene))
+
+FALSE  TRUE 
+34689   901 
+> 
+> # observe that these all are  where Func.ensGene == "splicing"
+> table(hugo_mutdata0$Func.ensGene[is.na(hugo_mutdata0$AAChange.ensGene)])
+
+ncRNA_exonic;splicing              splicing 
+                    8                   893 
+> 
+> hugo_mutdata1 = hugo_mutdata0[!is.na(hugo_mutdata0$AAChange.ensGene),]
+> dim(hugo_mutdata1)
+[1] 34689    97
+> 
+> hugo_mutdata1[1:10, c(1,2,78,97)]
+# A tibble: 10 x 4
+   id      QSS AAChange.ensGene                                    nonSynonymous
+   <chr> <dbl> <chr>                                               <lgl>        
+ 1 Pt1      72 NOC2L:ENST00000327044.6:exon3:c.G224T:p.R75L        TRUE         
+ 2 Pt1      90 PRKCZ:ENST00000400921.6:exon13:c.G1020A:p.W340X     TRUE         
+ 3 Pt1     148 ACTRT2:ENST00000378404.3:exon1:c.C695T:p.S232F      TRUE         
+ 4 Pt1      66 ARHGEF16:ENST00000378371.6:exon7:c.G535A:p.E179K,A… TRUE         
+ 5 Pt1     116 PLEKHG5:ENST00000340850.9:exon5:c.G285A:p.M95I,PLE… TRUE         
+ 6 Pt1      53 TAS1R1:ENST00000333172.10:exon1:c.G172A:p.E58K,TAS… TRUE         
+ 7 Pt1     108 PER3:ENST00000361923.2:exon17:c.C2524T:p.P842S,PER… TRUE         
+ 8 Pt1      69 KIF1B:ENST00000377083.5:exon21:c.C2881T:p.P961S,KI… TRUE         
+ 9 Pt1     119 PLOD1:ENST00000196061.4:exon19:c.C2179T:p.P727S     TRUE         
+10 Pt1     145 AADACL3:ENST00000359318.7:exon2:c.G250A:p.D84N      TRUE         
+> hugo_mutdata1 = as.data.frame(hugo_mutdata1)
+> 
+> #--------------------------------------------------------------------
+> # Step 3: Extract mutation data 
+> #--------------------------------------------------------------------
+> 
+> # get the wildtype amino acid, mutation position, variant amino acid
+> # by default of str_match, get the first match only
+> mutamino = str_match(hugo_mutdata1$AAChange.ensGene, "(p.)([A-Z])(\\d+)([A-Z])")
+> mutseq   = str_match(hugo_mutdata1$AAChange.ensGene, "(c.)([A-Z])(\\d+)([A-Z])")
+> mut = cbind(mutamino, mutseq)
+> mut = as.data.frame(mut)
+> dim(mut)
+[1] 34689    10
+> mut[1:5,]
+       V1 V2 V3  V4 V5       V6 V7 V8   V9 V10
+1  p.R75L p.  R  75  L  c.G224T c.  G  224   T
+2 p.W340X p.  W 340  X c.G1020A c.  G 1020   A
+3 p.S232F p.  S 232  F  c.C695T c.  C  695   T
+4 p.E179K p.  E 179  K  c.G535A c.  G  535   A
+5  p.M95I p.  M  95  I  c.G285A c.  G  285   A
+> 
+> table(is.na(mut$V1))
+
+FALSE  TRUE 
+34475   214 
+> table(is.na(mut$V6))
+
+FALSE  TRUE 
+34475   214 
+> 
+> # the amino acid changes were not annotated for indels
+> # this is default of ANNOVA, thoug there is a way around it. check 
+> # http://annovar.openbioinformatics.org/en/latest/user-guide/gene/
+> table(is.na(mut$V1), hugo_mutdata1$type, useNA="ifany")
+       
+        indel   SNV
+  FALSE     0 34475
+  TRUE    214     0
+> 
+> mut           = mut[,c(3,4,5,8,9,10)]
+> colnames(mut) = c("W", "pos", "M", "Wseq", "seqpos", "Mseq")
+> mut$pos       = as.numeric(as.character(mut$pos))
+> mut$seqpos    = as.numeric(as.character(mut$seqpos))
+> hugo_mutdata2 = cbind(hugo_mutdata1, mut)
+> hugo_mutdata2 = hugo_mutdata2[which(hugo_mutdata1$type == "SNV"),]
+> dim(hugo_mutdata2)
+[1] 34475   103
+> hugo_mutdata2[1:10, c(1,2,97:103)]
+    id QSS nonSynonymous W pos M Wseq seqpos Mseq
+1  Pt1  72          TRUE R  75 L    G    224    T
+2  Pt1  90          TRUE W 340 X    G   1020    A
+3  Pt1 148          TRUE S 232 F    C    695    T
+4  Pt1  66          TRUE E 179 K    G    535    A
+5  Pt1 116          TRUE M  95 I    G    285    A
+6  Pt1  53          TRUE E  58 K    G    172    A
+7  Pt1 108          TRUE P 842 S    C   2524    T
+8  Pt1  69          TRUE P 961 S    C   2881    T
+9  Pt1 119          TRUE P 727 S    C   2179    T
+10 Pt1 145          TRUE D  84 N    G    250    A
+> 
+> #--------------------------------------------------------------------
+> # Step 4: Extract ENST
+> #--------------------------------------------------------------------
+> 
+> mutensembl = str_match(hugo_mutdata2$AAChange.ensGene, "(ENST)(\\d+)")
+> mutensembl = mutensembl[,1]
+> mutensembl = data.frame(EnsembleID=mutensembl, stringsAsFactors=FALSE)
+> hugo_mutdata3 = cbind(hugo_mutdata2, mutensembl)
+> 
+> dim(hugo_mutdata3)
+[1] 34475   104
+> hugo_mutdata3[1:10, c(1,2,78,97:104)]
+    id QSS
+1  Pt1  72
+2  Pt1  90
+3  Pt1 148
+4  Pt1  66
+5  Pt1 116
+6  Pt1  53
+7  Pt1 108
+8  Pt1  69
+9  Pt1 119
+10 Pt1 145
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                              AAChange.ensGene
+1                                                                                                                                                                                                                                                                                                                                                                                                                                                 NOC2L:ENST00000327044.6:exon3:c.G224T:p.R75L
+2                                                                                                                                                                                                                                                                                                                                                                                                                                              PRKCZ:ENST00000400921.6:exon13:c.G1020A:p.W340X
+3                                                                                                                                                                                                                                                                                                                                                                                                                                               ACTRT2:ENST00000378404.3:exon1:c.C695T:p.S232F
+4                                                                                                                                                                                                                                                                                                                                         ARHGEF16:ENST00000378371.6:exon7:c.G535A:p.E179K,ARHGEF16:ENST00000378373.5:exon8:c.G535A:p.E179K,ARHGEF16:ENST00000378378.8:exon10:c.G1399A:p.E467K
+5  PLEKHG5:ENST00000340850.9:exon5:c.G285A:p.M95I,PLEKHG5:ENST00000377725.5:exon5:c.G285A:p.M95I,PLEKHG5:ENST00000377728.7:exon5:c.G285A:p.M95I,PLEKHG5:ENST00000377732.5:exon5:c.G396A:p.M132I,PLEKHG5:ENST00000400913.5:exon5:c.G285A:p.M95I,PLEKHG5:ENST00000535355.5:exon5:c.G492A:p.M164I,PLEKHG5:ENST00000377740.4:exon6:c.G516A:p.M172I,PLEKHG5:ENST00000377748.5:exon6:c.G516A:p.M172I,PLEKHG5:ENST00000400915.7:exon6:c.G453A:p.M151I,PLEKHG5:ENST00000537245.5:exon6:c.G522A:p.M174I
+6                                                                                                                                                                                                                                                                                                                                                                                                 TAS1R1:ENST00000333172.10:exon1:c.G172A:p.E58K,TAS1R1:ENST00000351136.7:exon1:c.G172A:p.E58K
+7                                                                                                                                                                                                                                                                                                  PER3:ENST00000361923.2:exon17:c.C2524T:p.P842S,PER3:ENST00000377532.7:exon17:c.C2548T:p.P850S,PER3:ENST00000613533.4:exon18:c.C2548T:p.P850S,PER3:ENST00000614998.4:exon18:c.C2548T:p.P850S
+8                                                                                                                                                                                                                                                                                                                                                                                              KIF1B:ENST00000377083.5:exon21:c.C2881T:p.P961S,KIF1B:ENST00000377093.8:exon21:c.C2881T:p.P961S
+9                                                                                                                                                                                                                                                                                                                                                                                                                                              PLOD1:ENST00000196061.4:exon19:c.C2179T:p.P727S
+10                                                                                                                                                                                                                                                                                                                                                                                                                                              AADACL3:ENST00000359318.7:exon2:c.G250A:p.D84N
+   nonSynonymous W pos M Wseq seqpos Mseq      EnsembleID
+1           TRUE R  75 L    G    224    T ENST00000327044
+2           TRUE W 340 X    G   1020    A ENST00000400921
+3           TRUE S 232 F    C    695    T ENST00000378404
+4           TRUE E 179 K    G    535    A ENST00000378371
+5           TRUE M  95 I    G    285    A ENST00000340850
+6           TRUE E  58 K    G    172    A ENST00000333172
+7           TRUE P 842 S    C   2524    T ENST00000361923
+8           TRUE P 961 S    C   2881    T ENST00000377083
+9           TRUE P 727 S    C   2179    T ENST00000196061
+10          TRUE D  84 N    G    250    A ENST00000359318
+> 
+> #--------------------------------------------------------------------
+> # Step 5. Save RData 
+> #--------------------------------------------------------------------
+> 
+> length(unique(hugo_mutdata3$id))
+[1] 37
+> tb2 = table(hugo_mutdata3$id)
+> length(tb2)
+[1] 37
+> sort(tb2)
+
+       Pt23   Vand_Pt34   Vand_Pt36   Vand_Pt38        Pt22        Pt21 
+         47          66          80          83         108         146 
+  Vand_Pt32        Pt14        Pt12   Vand_Pt35        Pt20   Vand_Pt10 
+        182         196         208         212         213         225 
+       Pt19   Vand_Pt11        Pt11        Pt10         Pt7   Vand_Pt37 
+        226         247         320         417         470         479 
+  Vand_Pt16         Pt8   Vand_Pt30        Pt18   Vand_Pt31         Pt5 
+        489         513         517         539         546         562 
+        Pt6   Vand_Pt33   Vand_Pt17 Vand_Pt27_2   Vand_Pt27         Pt3 
+        577         626         664         747         749         970 
+        Pt4        Pt17        Pt16        Pt15         Pt2         Pt1 
+       1081        1145        1224        1743        1839        3565 
+   Vand_Pt8 
+      12454 
+> 
+> patient_info$n_mutations_neoAg = rep(0, nrow(patient_info))
+> match1 = match(names(tb2), patient_info$sample)
+> table(is.na(match1))
+
+FALSE 
+   37 
+> 
+> patient_info$n_mutations_neoAg[match1] = tb2
+> dim(patient_info)
+[1] 37  3
+> patient_info[1:2,]
+  sample total_mutations n_mutations_neoAg
+1    Pt1           18489              3565
+2   Pt10            2001               417
+> 
+> write.table(patient_info, file = "hugo_patient_mb_info.txt", 
++             quote=FALSE, col.names= TRUE, row.names = FALSE)
+> 
+> save(hugo_mutdata3, file="hugo_mutdata3.RData")
+> 
+> sessionInfo()
+R version 3.6.1 (2019-07-05)
+Platform: x86_64-apple-darwin15.6.0 (64-bit)
+Running under: macOS High Sierra 10.13.6
+
+Matrix products: default
+BLAS:   /Library/Frameworks/R.framework/Versions/3.6/Resources/lib/libRblas.0.dylib
+LAPACK: /Library/Frameworks/R.framework/Versions/3.6/Resources/lib/libRlapack.dylib
+
+locale:
+[1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+
+attached base packages:
+[1] stats     graphics  grDevices utils     datasets  methods   base     
+
+other attached packages:
+[1] stringr_1.4.0 readr_1.3.1  
+
+loaded via a namespace (and not attached):
+ [1] Rcpp_1.0.2       fansi_0.4.0      assertthat_0.2.1 utf8_1.1.4      
+ [5] zeallot_0.1.0    crayon_1.3.4     R6_2.4.0         backports_1.1.4 
+ [9] magrittr_1.5     pillar_1.4.2     cli_1.1.0        rlang_0.4.0     
+[13] stringi_1.4.3    vctrs_0.2.0      tools_3.6.1      hms_0.5.0       
+[17] compiler_3.6.1   pkgconfig_2.0.2  tibble_2.1.3    
+> q(save="no")
+> proc.time()
+   user  system elapsed 
+ 11.913   0.820  13.015 

@@ -1,0 +1,550 @@
+
+R version 4.0.3 (2020-10-10) -- "Bunny-Wunnies Freak Out"
+Copyright (C) 2020 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin17.0 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> 
+> # ----------------------------------------------------------------------
+> # read in mutation calls
+> # ----------------------------------------------------------------------
+> 
+> setwd("~/research/Immuno/R_batch5/step11")
+> 
+> muts = read.table("snvs_indels_by_strelka_and_Mutect_with_anno.txt", 
++                   header=TRUE, sep="\t", quote="", as.is=TRUE)
+> dim(muts)
+[1] 97288    96
+> muts[1:2,]
+       id QSS TQSS  NT QSS_NT TQSS_NT    SGT SOMATIC seqnames    start      end
+1 Pt10_on 216    1 ref     95       1 CC->CT    TRUE     chr1 10623191 10623191
+2 Pt10_on  24    1 ref     24       1 TT->CT    TRUE     chr1 16483392 16483392
+  REF ALT nAltTumor nRefTumor nAltNormal nRefNormal rdNormalFiltered
+1   C   T       140        50          0         56               56
+2   T   C        17       177          1         96               97
+  rdTumorFiltered type   vafTumor  vafNormal contig position context ref_allele
+1             191  SNV 0.73684211 0.00000000   chr1 10623191 TCCxCTC          C
+2             194  SNV 0.08762887 0.01030928   chr1 16483392 TGTxCCT          T
+  alt_allele tumor_name normal_name score dbsnp_site covered power tumor_power
+1          T SRR5134751  SRR5134829     0      NOVEL COVERED     1           1
+2          C SRR5134751  SRR5134829     0      NOVEL COVERED     1           1
+  normal_power normal_power_nsp normal_power_wsp total_reads map_Q0_reads
+1            1                1                1         255            0
+2            1                1                1         274            2
+  init_t_lod t_lod_fstar t_lod_fstar_forward t_lod_fstar_reverse  tumor_f
+1 536.130652   545.76747            15.62162           530.17201 0.733333
+2   8.184406    39.93935            24.51675            20.69969 0.083333
+  contaminant_fraction contaminant_lod t_q20_count t_ref_count t_alt_count
+1                 0.02        6.952572         192          52         143
+2                 0.02        6.375821         180         165          15
+  t_ref_sum t_alt_sum t_ref_max_mapq t_alt_max_mapq t_ins_count t_del_count
+1      1895      5266             60             60           0           0
+2      5947       552             60             60           0           1
+  normal_best_gt init_n_lod normal_f n_q20_count n_ref_count n_alt_count
+1             CC   17.72717 0.000000          54          59           0
+2             TT   24.18341 0.010989          86          90           1
+  n_ref_sum n_alt_sum power_to_detect_positive_strand_artifact
+1      1971         0                                 1.000000
+2      3145        27                                 0.996627
+  power_to_detect_negative_strand_artifact strand_bias_counts
+1                                 0.998036       (1,51,4,139)
+2                                 0.997619        (92,87,9,8)
+  tumor_alt_fpir_median tumor_alt_fpir_mad tumor_alt_rpir_median
+1                    50                 15                    25
+2                    35                 22                    40
+  tumor_alt_rpir_mad observed_in_normals_count failure_reasons judgement
+1                 15                         0              NA      KEEP
+2                 22                         0              NA      KEEP
+  Func.ensGene     Gene.ensGene    GeneDetail.ensGene ExonicFunc.ensGene
+1     intronic            PEX14                  <NA>               <NA>
+2   intergenic LINC01772;RNU1-1 dist=14911;dist=30730               <NA>
+  AAChange.ensGene SIFT_score SIFT_converted_rankscore SIFT_pred
+1             <NA>         NA                       NA      <NA>
+2             <NA>         NA                       NA      <NA>
+  MutationTaster_pred MutationAssessor_pred FATHMM_pred PROVEAN_pred
+1                <NA>                  <NA>        <NA>         <NA>
+2                <NA>                  <NA>        <NA>         <NA>
+  MetaSVM_pred MetaLR_pred GTEx_V6_gene GTEx_V6_tissue ExAC_nontcga_ALL
+1         <NA>        <NA>         <NA>           <NA>               NA
+2         <NA>        <NA>         <NA>           <NA>               NA
+  avsnp150 CLINSIG CLNDBN CLNACC CLNDSDB CLNDSDBID
+1     <NA>    <NA>   <NA>   <NA>    <NA>      <NA>
+2     <NA>    <NA>   <NA>   <NA>    <NA>      <NA>
+> 
+> # there maybe some duplicated rows due to file processing in prevoius steps
+> du = duplicated(muts)
+> which(du)
+  [1]   127   128   129   130   131   132   133   134   135   136   137   138
+ [13]   139   140   141   142   143   144   145   146   147   148   149   150
+ [25]   151   152   153   154   155   156   157   158   159   160   161   162
+ [37]   163   164   165   166   167   168   169   170   171   172   173   174
+ [49]   175   176   177   178   179   180   181   182   183   184   185   186
+ [61]   187   188   189   190   191   192   193   194   195   196   197   198
+ [73]   199   200   201   202   203   204   205   206   207   208   209   210
+ [85]   211   212   213   214   215   216   217   218   219   220   221   222
+ [97]   223   224   225   226   227   228   229   230   231   232   233   234
+[109]   235   236   237   238   239   240   241   242   243   244   245   246
+[121]   247   248   249   250   251   252 96716 96717
+> 
+> mut_id = apply(muts[,c("seqnames","start", "end", "REF", "ALT")], 
++                1, paste, collapse=":")
+> mut_id[1:5]
+[1] "chr1: 10623191: 10623191:C:T" "chr1: 16483392: 16483392:T:C"
+[3] "chr1: 16619966: 16619966:C:A" "chr1: 62479810: 62479810:A:T"
+[5] "chr1:114716127:114716127:C:A"
+> ww1 = which(mut_id == mut_id[which(du)[1]])
+> ww1
+[1]   1 127 253
+> muts[ww1,]
+          id QSS TQSS  NT QSS_NT TQSS_NT    SGT SOMATIC seqnames    start
+1    Pt10_on 216    1 ref     95       1 CC->CT    TRUE     chr1 10623191
+127  Pt10_on 216    1 ref     95       1 CC->CT    TRUE     chr1 10623191
+253 Pt10_pre 374    1 ref     95       1 CC->CT    TRUE     chr1 10623191
+         end REF ALT nAltTumor nRefTumor nAltNormal nRefNormal rdNormalFiltered
+1   10623191   C   T       140        50          0         56               56
+127 10623191   C   T       140        50          0         56               56
+253 10623191   C   T       149        19          0         56               56
+    rdTumorFiltered type  vafTumor vafNormal contig position context ref_allele
+1               191  SNV 0.7368421         0   chr1 10623191 TCCxCTC          C
+127             191  SNV 0.7368421         0   chr1 10623191 TCCxCTC          C
+253             168  SNV 0.8869048         0   chr1 10623191 TCCxCTC          C
+    alt_allele tumor_name normal_name score dbsnp_site covered power
+1            T SRR5134751  SRR5134829     0      NOVEL COVERED     1
+127          T SRR5134751  SRR5134829     0      NOVEL COVERED     1
+253          T SRR5134764  SRR5134829     0      NOVEL COVERED     1
+    tumor_power normal_power normal_power_nsp normal_power_wsp total_reads
+1             1            1                1                1         255
+127           1            1                1                1         255
+253           1            1                1                1         230
+    map_Q0_reads init_t_lod t_lod_fstar t_lod_fstar_forward t_lod_fstar_reverse
+1              0   536.1307    545.7675            15.62162            530.1720
+127            0   536.1307    545.7675            15.62162            530.1720
+253            0   603.8634    630.3251            30.03936            604.7581
+     tumor_f contaminant_fraction contaminant_lod t_q20_count t_ref_count
+1   0.733333                 0.02        6.952572         192          52
+127 0.733333                 0.02        6.952572         192          52
+253 0.894737                 0.02        7.162710         169          18
+    t_alt_count t_ref_sum t_alt_sum t_ref_max_mapq t_alt_max_mapq t_ins_count
+1           143      1895      5266             60             60           0
+127         143      1895      5266             60             60           0
+253         153       683      5824             60             60           0
+    t_del_count normal_best_gt init_n_lod normal_f n_q20_count n_ref_count
+1             0             CC   17.72717        0          54          59
+127           0             CC   17.72717        0          54          59
+253           1             CC   17.72717        0          54          59
+    n_alt_count n_ref_sum n_alt_sum power_to_detect_positive_strand_artifact
+1             0      1971         0                                        1
+127           0      1971         0                                        1
+253           0      1971         0                                        1
+    power_to_detect_negative_strand_artifact strand_bias_counts
+1                                   0.998036       (1,51,4,139)
+127                                 0.998036       (1,51,4,139)
+253                                 0.999999       (0,18,7,147)
+    tumor_alt_fpir_median tumor_alt_fpir_mad tumor_alt_rpir_median
+1                      50                 15                    25
+127                    50                 15                    25
+253                    49                 17                    26
+    tumor_alt_rpir_mad observed_in_normals_count failure_reasons judgement
+1                   15                         0              NA      KEEP
+127                 15                         0              NA      KEEP
+253                 17                         0              NA      KEEP
+    Func.ensGene Gene.ensGene GeneDetail.ensGene ExonicFunc.ensGene
+1       intronic        PEX14               <NA>               <NA>
+127     intronic        PEX14               <NA>               <NA>
+253     intronic        PEX14               <NA>               <NA>
+    AAChange.ensGene SIFT_score SIFT_converted_rankscore SIFT_pred
+1               <NA>         NA                       NA      <NA>
+127             <NA>         NA                       NA      <NA>
+253             <NA>         NA                       NA      <NA>
+    MutationTaster_pred MutationAssessor_pred FATHMM_pred PROVEAN_pred
+1                  <NA>                  <NA>        <NA>         <NA>
+127                <NA>                  <NA>        <NA>         <NA>
+253                <NA>                  <NA>        <NA>         <NA>
+    MetaSVM_pred MetaLR_pred GTEx_V6_gene GTEx_V6_tissue ExAC_nontcga_ALL
+1           <NA>        <NA>         <NA>           <NA>               NA
+127         <NA>        <NA>         <NA>           <NA>               NA
+253         <NA>        <NA>         <NA>           <NA>               NA
+    avsnp150 CLINSIG CLNDBN CLNACC CLNDSDB CLNDSDBID
+1       <NA>    <NA>   <NA>   <NA>    <NA>      <NA>
+127     <NA>    <NA>   <NA>   <NA>    <NA>      <NA>
+253     <NA>    <NA>   <NA>   <NA>    <NA>      <NA>
+> 
+> muts = unique(muts)
+> dim(muts)
+[1] 97160    96
+> 
+> tb.id = table(muts$id)
+> tb.id.snv   = table(muts$id[which(muts$type=="SNV")])
+> tb.id.indel = table(muts$id[which(muts$type=="indel")])
+> 
+> sort(tb.id, decreasing=TRUE)[1:10]
+
+Pt54_pre Pt65_pre  Pt7_pre  Pt58_on  Pt47_on Pt68_pre Pt47_pre Pt58_pre 
+   20442     5816     4404     2768     2615     2566     2518     2182 
+ Pt60_on Pt49_pre 
+    2172     2062 
+> sort(tb.id.snv, decreasing=TRUE)[1:10]
+
+Pt54_pre Pt65_pre  Pt7_pre  Pt58_on  Pt47_on Pt68_pre Pt47_pre Pt58_pre 
+   20411     5810     4377     2756     2605     2560     2511     2171 
+ Pt60_on Pt49_pre 
+    2159     2058 
+> sort(tb.id.indel, decreasing=TRUE)[1:10]
+
+ Pt54_pre   Pt7_pre  Pt79_pre Pt106_pre   Pt93_on  Pt92_pre  Pt44_pre   Pt60_on 
+       31        27        21        19        17        14        13        13 
+ Pt87_pre Pt102_pre 
+       13        12 
+> 
+> # ----------------------------------------------------------------------
+> # filter by depth
+> # ----------------------------------------------------------------------
+> 
+> table(muts$nAltTumor + muts$nRefTumor >= 20)
+
+FALSE  TRUE 
+  474 96686 
+> table(muts$nAltNormal + muts$nRefNormal >= 20)
+
+FALSE  TRUE 
+ 3756 93404 
+> table(muts$vafTumor >= 0.05, muts$nAltTumor >= 5)
+       
+        FALSE  TRUE
+  FALSE    58  3722
+  TRUE    405 92975
+> 
+> ## note that indels do not have muTect information
+> table(muts$t_ref_count + muts$t_alt_count >= 20)
+
+FALSE  TRUE 
+  520 96067 
+> table(muts$n_ref_count + muts$n_alt_count >= 20)
+
+FALSE  TRUE 
+ 3744 92843 
+> table(muts$tumor_f >= 0.05, muts$t_alt_count >= 5)
+       
+        FALSE  TRUE
+  FALSE   123  3656
+  TRUE    724 92084
+> 
+> w2kp = which(muts$nAltTumor + muts$nRefTumor >= 20)
+> length(w2kp)
+[1] 96686
+> 
+> w2kp = setdiff(w2kp, which(muts$nAltNormal + muts$nRefNormal < 20))
+> length(w2kp)
+[1] 93190
+> 
+> w2kp = setdiff(w2kp, which(muts$t_ref_count + muts$t_alt_count < 20))
+> length(w2kp)
+[1] 93130
+> 
+> w2kp = setdiff(w2kp, which(muts$n_ref_count + muts$n_alt_count < 20))
+> length(w2kp)
+[1] 92565
+> 
+> w2kp = setdiff(w2kp, which(muts$nAltTumor < 5))
+> length(w2kp)
+[1] 92221
+> 
+> w2kp = setdiff(w2kp, which(muts$t_alt_count < 5))
+> length(w2kp)
+[1] 91841
+> 
+> muts = muts[w2kp,]
+> dim(muts)
+[1] 91841    96
+> 
+> # ----------------------------------------------------------------------
+> # filter by VAF
+> # ----------------------------------------------------------------------
+> 
+> summary(muts$vafTumor)
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+0.02053 0.15721 0.28571 0.29704 0.39535 1.00000 
+> summary(muts$tumor_f)
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max.    NA's 
+ 0.0229  0.1569  0.2857  0.2968  0.3947  1.0000     521 
+> 
+> table(muts$vafTumor >= 0.05, muts$tumor_f >= 0.05, useNA = "ifany")
+       
+        FALSE  TRUE  <NA>
+  FALSE  3227   427    28
+  TRUE    428 87238   493
+> 
+> muts = muts[-which(muts$vafTumor < 0.05 | muts$tumor_f < 0.05),]
+> dim(muts)
+[1] 87731    96
+> 
+> # ----------------------------------------------------------------------
+> # filter by ExAC VAF
+> # ----------------------------------------------------------------------
+> 
+> table(muts$ExAC_nontcga_ALL > 1e-4, useNA="ifany")
+
+FALSE  TRUE  <NA> 
+ 9607  1814 76310 
+> table(muts$ExAC_nontcga_ALL > 1e-3, useNA="ifany")
+
+FALSE  TRUE  <NA> 
+10617   804 76310 
+> 
+> muts = muts[-which(muts$ExAC_nontcga_ALL > 1e-4),]
+> dim(muts)
+[1] 85917    96
+> 
+> table(muts$Func.ensGene, useNA="ifany")
+
+           downstream                exonic       exonic;splicing 
+                  201                 48427                    16 
+           intergenic              intronic          ncRNA_exonic 
+                 8890                 21011                  1291 
+ncRNA_exonic;splicing        ncRNA_intronic        ncRNA_splicing 
+                    1                  2634                     9 
+             splicing              upstream   upstream;downstream 
+                  436                   531                    64 
+                 UTR3                  UTR5             UTR5;UTR3 
+                 1314                  1086                     6 
+> table(muts$ExonicFunc.ensGene, useNA="ifany")
+
+   frameshift substitution nonframeshift substitution 
+                       196                         50 
+         nonsynonymous SNV                   stopgain 
+                     29408                       1889 
+                  stoploss             synonymous SNV 
+                         2                      16802 
+                   unknown                       <NA> 
+                        96                      37474 
+> 
+> nonSynonymous = rep(FALSE, nrow(muts))
+> efuns = c("nonsynonymous SNV", "stopgain", "stoploss")
+> efuns = c(efuns, "frameshift substitution")
+> efuns = c(efuns, "nonframeshift substitution")
+> funs = c("exonic;splicing", "ncRNA_exonic;splicing", "splicing")
+> nonSynonymous[which(muts$ExonicFunc.ensGene %in% efuns)] = TRUE
+> nonSynonymous[which(muts$Func.ensGene %in% funs)] = TRUE
+> 
+> table(nonSynonymous)
+nonSynonymous
+FALSE  TRUE 
+53929 31988 
+> table(nonSynonymous, muts$Func.ensGene)
+             
+nonSynonymous downstream exonic exonic;splicing intergenic intronic
+        FALSE        201  16892               0       8890    21011
+        TRUE           0  31535              16          0        0
+             
+nonSynonymous ncRNA_exonic ncRNA_exonic;splicing ncRNA_intronic ncRNA_splicing
+        FALSE         1291                     0           2634              9
+        TRUE             0                     1              0              0
+             
+nonSynonymous splicing upstream upstream;downstream  UTR3  UTR5 UTR5;UTR3
+        FALSE        0      531                  64  1314  1086         6
+        TRUE       436        0                   0     0     0         0
+> table(nonSynonymous, muts$ExonicFunc.ensGene)
+             
+nonSynonymous frameshift substitution nonframeshift substitution
+        FALSE                       0                          0
+        TRUE                      196                         50
+             
+nonSynonymous nonsynonymous SNV stopgain stoploss synonymous SNV unknown
+        FALSE                 0        0        0          16796      96
+        TRUE              29408     1889        2              6       0
+> 
+> muts$nonSynonymous = nonSynonymous
+> 
+> # ----------------------------------------------------------------------
+> # write out filtered mutation data
+> # ----------------------------------------------------------------------
+> 
+> setwd("~/research/Immuno/R_batch5/step12")
+> 
+> write.table(muts, file = "snvs_indels_by_strelka_and_Mutect_with_anno_filtered.txt", 
++             append = FALSE, quote = FALSE, sep = "\t", eol = "\n", 
++             row.names = FALSE, col.names = TRUE)
+> 
+> # ----------------------------------------------------------------------
+> # summarize mutation by sample
+> # ----------------------------------------------------------------------
+> 
+> mut1 = muts[which(muts$nonSynonymous),]
+> dim(mut1)
+[1] 31988    97
+> 
+> tb.id       = sort(table(mut1$id), decreasing=TRUE)
+> tb.id.snv   = table(mut1$id[which(mut1$type=="SNV")])
+> tb.id.indel = table(mut1$id[which(mut1$type=="indel")])
+> 
+> tb.id[1:10]
+
+Pt54_pre Pt65_pre  Pt7_pre  Pt58_on  Pt47_on Pt47_pre Pt68_pre Pt58_pre 
+    6788     1953     1381      978      912      898      855      781 
+ Pt60_on Pt60_pre 
+     753      699 
+> sort(tb.id.snv, decreasing=TRUE)[1:10]
+
+Pt54_pre Pt65_pre  Pt7_pre  Pt58_on  Pt47_on Pt47_pre Pt68_pre Pt58_pre 
+    6772     1951     1370      974      908      895      852      775 
+ Pt60_on Pt60_pre 
+     745      696 
+> sort(tb.id.indel, decreasing=TRUE)[1:10]
+
+ Pt54_pre   Pt7_pre Pt106_pre   Pt93_on   Pt60_on  Pt76_pre  Pt87_pre  Pt51_pre 
+       16        11         9         9         8         8         8         7 
+  Pt51_on  Pt58_pre 
+        6         6 
+> 
+> tb.id.snv   = tb.id.snv[match(names(tb.id), names(tb.id.snv))]
+> tb.id.indel = tb.id.indel[match(names(tb.id), names(tb.id.indel))]
+> tb.id.indel[which(is.na(tb.id.indel))] = 0
+> 
+> pdf("figures/n_non_synonymous_muts.pdf", width=3, height=3)
+> par(mar=c(5,4,1,1), bty="n")
+> plot(log10(as.numeric(tb.id.snv)), as.numeric(tb.id.indel), 
++      xlab="log10(# of SNVs)", ylab="# of indels", 
++      pch=20, col=rgb(0.8, 0.2, 0.2, 0.7))
+> dev.off()
+null device 
+          1 
+> 
+> # ----------------------------------------------------------------------
+> # summarize mutation by gene
+> # ----------------------------------------------------------------------
+> 
+> gene.id = unlist(tapply(mut1$Gene.ensGene, mut1$id, unique))
+> length(gene.id)
+[1] 27690
+> gene.id[1:5]
+Pt10_on1 Pt10_on2 Pt10_on3 Pt10_on4 Pt10_on5 
+  "NRAS"  "DCST2" "CEP350"   "RIF1"  "NYAP2" 
+> 
+> tgene = sort(table(gene.id), decreasing=TRUE)
+> tgene[1:50]
+gene.id
+     TTN    MUC16     BRAF     PCLO    CSMD1    DNAH5    OBSCN    LRP1B 
+      49       48       34       33       29       29       29       28 
+    MGAM  PKHD1L1    DNAH9     FAT3    CSMD2    MGAM2     NRAS    ZFHX4 
+      28       27       26       26       25       25       25       25 
+  ADGRG4    MUC17      RP1   ADGRV1     MUC4   PCDH15    WDFY4    DNAH8 
+      24       24       24       22       22       22       22       21 
+  MROH2B ADAMTS20     ANK3     APOB  CCDC168      NEB   COL4A5   DNAH17 
+      21       20       20       20       20       20       19       19 
+    SPEG    USH2A   CFAP54    DNAH6    DNAH7    DSCAM      FLG     MYH2 
+      19       19       18       18       18       18       18       18 
+  ZNF208    ASXL3   COL4A4   COL6A3    CORIN      DCC     ERC2  FAM135B 
+      18       17       17       17       17       17       17       17 
+   FSIP2   THSD7B 
+      17       17 
+> table(tgene > 2)
+
+FALSE  TRUE 
+ 6701  3686 
+> table(tgene > 3)
+
+FALSE  TRUE 
+ 8172  2215 
+> table(tgene > 4)
+
+FALSE  TRUE 
+ 8942  1445 
+> 
+> gene2kp = names(tgene)[which(tgene > 2)]
+> length(gene2kp)
+[1] 3686
+> gene2kp[1:2]
+[1] "TTN"   "MUC16"
+> 
+> dat1 = matrix(NA, nrow=length(tb.id), ncol=length(gene2kp))
+> rownames(dat1) = names(tb.id)
+> colnames(dat1) = gene2kp
+> dim(dat1)
+[1]   90 3686
+> dat1[1:3,1:3]
+         TTN MUC16 BRAF
+Pt54_pre  NA    NA   NA
+Pt65_pre  NA    NA   NA
+Pt7_pre   NA    NA   NA
+> 
+> for(i in 1:nrow(dat1)){
++   id.i = rownames(dat1)[i]
++   for(j in 1:ncol(dat1)){
++     gene.j = colnames(dat1)[j]
++     dat1[i,j] = length(which(mut1$id==id.i & mut1$Gene.ensGene==gene.j))
++   }
++ }
+> sum(dat1)
+[1] 21988
+> table(mut1$Gene.ensGene %in% gene2kp)
+
+FALSE  TRUE 
+10000 21988 
+> 
+> dat1 = as.data.frame(dat1)
+> dat0 = data.frame(rownames(dat1), cbind(tb.id, tb.id.snv, tb.id.indel), 
++                   stringsAsFactors=FALSE)
+> dim(dat0)
+[1] 90  4
+> dat0[1:5,]
+         rownames.dat1. tb.id tb.id.snv tb.id.indel
+Pt54_pre       Pt54_pre  6788      6772          16
+Pt65_pre       Pt65_pre  1953      1951           2
+Pt7_pre         Pt7_pre  1381      1370          11
+Pt58_on         Pt58_on   978       974           4
+Pt47_on         Pt47_on   912       908           4
+> 
+> dat1 = cbind(dat0, dat1)
+> names(dat1)[1:4] = c("id", "mb", "mb_SNV", "mb_indel")
+> dim(dat1)
+[1]   90 3690
+> dat1[1:5,1:6]
+               id   mb mb_SNV mb_indel TTN MUC16
+Pt54_pre Pt54_pre 6788   6772       16  44    53
+Pt65_pre Pt65_pre 1953   1951        2   5    11
+Pt7_pre   Pt7_pre 1381   1370       11  10     9
+Pt58_on   Pt58_on  978    974        4   5     3
+Pt47_on   Pt47_on  912    908        4  11     6
+> 
+> # ----------------------------------------------------------------------
+> # write out summary
+> # ----------------------------------------------------------------------
+> 
+> write.table(dat1, file = "nonsyn_mutation_sample_level.txt", 
++             append = FALSE, quote = FALSE, sep = "\t",eol = "\n", 
++             row.names = FALSE, col.names = TRUE)
+> 
+> sessionInfo()
+R version 4.0.3 (2020-10-10)
+Platform: x86_64-apple-darwin17.0 (64-bit)
+Running under: macOS Big Sur 10.16
+
+Matrix products: default
+BLAS:   /Library/Frameworks/R.framework/Versions/4.0/Resources/lib/libRblas.dylib
+LAPACK: /Library/Frameworks/R.framework/Versions/4.0/Resources/lib/libRlapack.dylib
+
+locale:
+[1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+
+attached base packages:
+[1] stats     graphics  grDevices utils     datasets  methods   base     
+
+loaded via a namespace (and not attached):
+[1] compiler_4.0.3
+> q(save="no")
+> proc.time()
+   user  system elapsed 
+156.847  40.950 198.186 

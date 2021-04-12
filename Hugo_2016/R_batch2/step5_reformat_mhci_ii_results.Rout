@@ -1,0 +1,372 @@
+
+R version 3.6.1 (2019-07-05) -- "Action of the Toes"
+Copyright (C) 2019 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin15.6.0 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> 
+> #--------------------------------------------------------------------
+> # Step 5: reformat the ouptut of MHC-I or MHC-II predictions
+> #--------------------------------------------------------------------
+> 
+> #--------------------------------------------------------------------
+> # MHC-I
+> #--------------------------------------------------------------------
+> 
+> outs = list.files("for_netmhci/_output", pattern="txt", 
++                   full.names="TRUE")
+> 
+> length(outs)
+[1] 70
+> outs[1:3]
+[1] "for_netmhci/_output/Pt1_sm9.txt"  "for_netmhci/_output/Pt1_sm9r.txt"
+[3] "for_netmhci/_output/Pt10_sm9.txt"
+> 
+> for(i in 1:length(outs)){
++   print(i)
++   input.i  = outs[i]
++   output.i = gsub("txt$", "tsv", input.i)
++   print(output.i)
++   output.i = gsub("_output", "_output_tsv", output.i)
++   cmd = sprintf("perl _summarize_mhci_results.pl %s %s", input.i, output.i)
++   system(cmd)
++ }
+[1] 1
+[1] "for_netmhci/_output/Pt1_sm9.tsv"
+[1] 2
+[1] "for_netmhci/_output/Pt1_sm9r.tsv"
+[1] 3
+[1] "for_netmhci/_output/Pt10_sm9.tsv"
+[1] 4
+[1] "for_netmhci/_output/Pt10_sm9r.tsv"
+[1] 5
+[1] "for_netmhci/_output/Pt11_sm9.tsv"
+[1] 6
+[1] "for_netmhci/_output/Pt11_sm9r.tsv"
+[1] 7
+[1] "for_netmhci/_output/Pt12_sm9.tsv"
+[1] 8
+[1] "for_netmhci/_output/Pt12_sm9r.tsv"
+[1] 9
+[1] "for_netmhci/_output/Pt14_sm9.tsv"
+[1] 10
+[1] "for_netmhci/_output/Pt14_sm9r.tsv"
+[1] 11
+[1] "for_netmhci/_output/Pt16_sm9.tsv"
+[1] 12
+[1] "for_netmhci/_output/Pt16_sm9r.tsv"
+[1] 13
+[1] "for_netmhci/_output/Pt17_sm9.tsv"
+[1] 14
+[1] "for_netmhci/_output/Pt17_sm9r.tsv"
+[1] 15
+[1] "for_netmhci/_output/Pt18_sm9.tsv"
+[1] 16
+[1] "for_netmhci/_output/Pt18_sm9r.tsv"
+[1] 17
+[1] "for_netmhci/_output/Pt19_sm9.tsv"
+[1] 18
+[1] "for_netmhci/_output/Pt19_sm9r.tsv"
+[1] 19
+[1] "for_netmhci/_output/Pt2_sm9.tsv"
+[1] 20
+[1] "for_netmhci/_output/Pt2_sm9r.tsv"
+[1] 21
+[1] "for_netmhci/_output/Pt20_sm9.tsv"
+[1] 22
+[1] "for_netmhci/_output/Pt20_sm9r.tsv"
+[1] 23
+[1] "for_netmhci/_output/Pt21_sm9.tsv"
+[1] 24
+[1] "for_netmhci/_output/Pt21_sm9r.tsv"
+[1] 25
+[1] "for_netmhci/_output/Pt22_sm9.tsv"
+[1] 26
+[1] "for_netmhci/_output/Pt22_sm9r.tsv"
+[1] 27
+[1] "for_netmhci/_output/Pt23_sm9.tsv"
+[1] 28
+[1] "for_netmhci/_output/Pt23_sm9r.tsv"
+[1] 29
+[1] "for_netmhci/_output/Pt3_sm9.tsv"
+[1] 30
+[1] "for_netmhci/_output/Pt3_sm9r.tsv"
+[1] 31
+[1] "for_netmhci/_output/Pt4_sm9.tsv"
+[1] 32
+[1] "for_netmhci/_output/Pt4_sm9r.tsv"
+[1] 33
+[1] "for_netmhci/_output/Pt5_sm9.tsv"
+[1] 34
+[1] "for_netmhci/_output/Pt5_sm9r.tsv"
+[1] 35
+[1] "for_netmhci/_output/Pt6_sm9.tsv"
+[1] 36
+[1] "for_netmhci/_output/Pt6_sm9r.tsv"
+[1] 37
+[1] "for_netmhci/_output/Pt7_sm9.tsv"
+[1] 38
+[1] "for_netmhci/_output/Pt7_sm9r.tsv"
+[1] 39
+[1] "for_netmhci/_output/Pt8_sm9.tsv"
+[1] 40
+[1] "for_netmhci/_output/Pt8_sm9r.tsv"
+[1] 41
+[1] "for_netmhci/_output/Vand_Pt10_sm9.tsv"
+[1] 42
+[1] "for_netmhci/_output/Vand_Pt10_sm9r.tsv"
+[1] 43
+[1] "for_netmhci/_output/Vand_Pt11_sm9.tsv"
+[1] 44
+[1] "for_netmhci/_output/Vand_Pt11_sm9r.tsv"
+[1] 45
+[1] "for_netmhci/_output/Vand_Pt16_sm9.tsv"
+[1] 46
+[1] "for_netmhci/_output/Vand_Pt16_sm9r.tsv"
+[1] 47
+[1] "for_netmhci/_output/Vand_Pt17_sm9.tsv"
+[1] 48
+[1] "for_netmhci/_output/Vand_Pt17_sm9r.tsv"
+[1] 49
+[1] "for_netmhci/_output/Vand_Pt27_sm9.tsv"
+[1] 50
+[1] "for_netmhci/_output/Vand_Pt27_sm9r.tsv"
+[1] 51
+[1] "for_netmhci/_output/Vand_Pt30_sm9.tsv"
+[1] 52
+[1] "for_netmhci/_output/Vand_Pt30_sm9r.tsv"
+[1] 53
+[1] "for_netmhci/_output/Vand_Pt31_sm9.tsv"
+[1] 54
+[1] "for_netmhci/_output/Vand_Pt31_sm9r.tsv"
+[1] 55
+[1] "for_netmhci/_output/Vand_Pt32_sm9.tsv"
+[1] 56
+[1] "for_netmhci/_output/Vand_Pt32_sm9r.tsv"
+[1] 57
+[1] "for_netmhci/_output/Vand_Pt33_sm9.tsv"
+[1] 58
+[1] "for_netmhci/_output/Vand_Pt33_sm9r.tsv"
+[1] 59
+[1] "for_netmhci/_output/Vand_Pt34_sm9.tsv"
+[1] 60
+[1] "for_netmhci/_output/Vand_Pt34_sm9r.tsv"
+[1] 61
+[1] "for_netmhci/_output/Vand_Pt35_sm9.tsv"
+[1] 62
+[1] "for_netmhci/_output/Vand_Pt35_sm9r.tsv"
+[1] 63
+[1] "for_netmhci/_output/Vand_Pt36_sm9.tsv"
+[1] 64
+[1] "for_netmhci/_output/Vand_Pt36_sm9r.tsv"
+[1] 65
+[1] "for_netmhci/_output/Vand_Pt37_sm9.tsv"
+[1] 66
+[1] "for_netmhci/_output/Vand_Pt37_sm9r.tsv"
+[1] 67
+[1] "for_netmhci/_output/Vand_Pt38_sm9.tsv"
+[1] 68
+[1] "for_netmhci/_output/Vand_Pt38_sm9r.tsv"
+[1] 69
+[1] "for_netmhci/_output/Vand_Pt8_sm9.tsv"
+[1] 70
+[1] "for_netmhci/_output/Vand_Pt8_sm9r.tsv"
+> 
+> #--------------------------------------------------------------------
+> # MHC-II
+> #--------------------------------------------------------------------
+> 
+> outs = list.files("for_netmhciipan/_output", pattern="txt", 
++                   full.names="TRUE")
+> 
+> length(outs)
+[1] 70
+> outs[1:3]
+[1] "for_netmhciipan/_output/Pt1_hlaii_sm15.txt" 
+[2] "for_netmhciipan/_output/Pt1_hlaii_sm15r.txt"
+[3] "for_netmhciipan/_output/Pt10_hlaii_sm15.txt"
+> 
+> for(i in 1:length(outs)){
++   print(i)
++   input.i  = outs[i]
++   output.i = gsub("txt$", "tsv", input.i)
++   print(output.i)
++   output.i = gsub("_output", "_output_tsv", output.i)
++   cmd = sprintf("perl _summarize_mhciipan_results.pl %s %s", input.i, output.i)
++   system(cmd)
++ }
+[1] 1
+[1] "for_netmhciipan/_output/Pt1_hlaii_sm15.tsv"
+[1] 2
+[1] "for_netmhciipan/_output/Pt1_hlaii_sm15r.tsv"
+[1] 3
+[1] "for_netmhciipan/_output/Pt10_hlaii_sm15.tsv"
+[1] 4
+[1] "for_netmhciipan/_output/Pt10_hlaii_sm15r.tsv"
+[1] 5
+[1] "for_netmhciipan/_output/Pt11_hlaii_sm15.tsv"
+[1] 6
+[1] "for_netmhciipan/_output/Pt11_hlaii_sm15r.tsv"
+[1] 7
+[1] "for_netmhciipan/_output/Pt12_hlaii_sm15.tsv"
+[1] 8
+[1] "for_netmhciipan/_output/Pt12_hlaii_sm15r.tsv"
+[1] 9
+[1] "for_netmhciipan/_output/Pt14_hlaii_sm15.tsv"
+[1] 10
+[1] "for_netmhciipan/_output/Pt14_hlaii_sm15r.tsv"
+[1] 11
+[1] "for_netmhciipan/_output/Pt16_hlaii_sm15.tsv"
+[1] 12
+[1] "for_netmhciipan/_output/Pt16_hlaii_sm15r.tsv"
+[1] 13
+[1] "for_netmhciipan/_output/Pt17_hlaii_sm15.tsv"
+[1] 14
+[1] "for_netmhciipan/_output/Pt17_hlaii_sm15r.tsv"
+[1] 15
+[1] "for_netmhciipan/_output/Pt18_hlaii_sm15.tsv"
+[1] 16
+[1] "for_netmhciipan/_output/Pt18_hlaii_sm15r.tsv"
+[1] 17
+[1] "for_netmhciipan/_output/Pt19_hlaii_sm15.tsv"
+[1] 18
+[1] "for_netmhciipan/_output/Pt19_hlaii_sm15r.tsv"
+[1] 19
+[1] "for_netmhciipan/_output/Pt2_hlaii_sm15.tsv"
+[1] 20
+[1] "for_netmhciipan/_output/Pt2_hlaii_sm15r.tsv"
+[1] 21
+[1] "for_netmhciipan/_output/Pt20_hlaii_sm15.tsv"
+[1] 22
+[1] "for_netmhciipan/_output/Pt20_hlaii_sm15r.tsv"
+[1] 23
+[1] "for_netmhciipan/_output/Pt21_hlaii_sm15.tsv"
+[1] 24
+[1] "for_netmhciipan/_output/Pt21_hlaii_sm15r.tsv"
+[1] 25
+[1] "for_netmhciipan/_output/Pt22_hlaii_sm15.tsv"
+[1] 26
+[1] "for_netmhciipan/_output/Pt22_hlaii_sm15r.tsv"
+[1] 27
+[1] "for_netmhciipan/_output/Pt23_hlaii_sm15.tsv"
+[1] 28
+[1] "for_netmhciipan/_output/Pt23_hlaii_sm15r.tsv"
+[1] 29
+[1] "for_netmhciipan/_output/Pt3_hlaii_sm15.tsv"
+[1] 30
+[1] "for_netmhciipan/_output/Pt3_hlaii_sm15r.tsv"
+[1] 31
+[1] "for_netmhciipan/_output/Pt4_hlaii_sm15.tsv"
+[1] 32
+[1] "for_netmhciipan/_output/Pt4_hlaii_sm15r.tsv"
+[1] 33
+[1] "for_netmhciipan/_output/Pt5_hlaii_sm15.tsv"
+[1] 34
+[1] "for_netmhciipan/_output/Pt5_hlaii_sm15r.tsv"
+[1] 35
+[1] "for_netmhciipan/_output/Pt6_hlaii_sm15.tsv"
+[1] 36
+[1] "for_netmhciipan/_output/Pt6_hlaii_sm15r.tsv"
+[1] 37
+[1] "for_netmhciipan/_output/Pt7_hlaii_sm15.tsv"
+[1] 38
+[1] "for_netmhciipan/_output/Pt7_hlaii_sm15r.tsv"
+[1] 39
+[1] "for_netmhciipan/_output/Pt8_hlaii_sm15.tsv"
+[1] 40
+[1] "for_netmhciipan/_output/Pt8_hlaii_sm15r.tsv"
+[1] 41
+[1] "for_netmhciipan/_output/Vand_Pt10_hlaii_sm15.tsv"
+[1] 42
+[1] "for_netmhciipan/_output/Vand_Pt10_hlaii_sm15r.tsv"
+[1] 43
+[1] "for_netmhciipan/_output/Vand_Pt11_hlaii_sm15.tsv"
+[1] 44
+[1] "for_netmhciipan/_output/Vand_Pt11_hlaii_sm15r.tsv"
+[1] 45
+[1] "for_netmhciipan/_output/Vand_Pt16_hlaii_sm15.tsv"
+[1] 46
+[1] "for_netmhciipan/_output/Vand_Pt16_hlaii_sm15r.tsv"
+[1] 47
+[1] "for_netmhciipan/_output/Vand_Pt17_hlaii_sm15.tsv"
+[1] 48
+[1] "for_netmhciipan/_output/Vand_Pt17_hlaii_sm15r.tsv"
+[1] 49
+[1] "for_netmhciipan/_output/Vand_Pt27_hlaii_sm15.tsv"
+[1] 50
+[1] "for_netmhciipan/_output/Vand_Pt27_hlaii_sm15r.tsv"
+[1] 51
+[1] "for_netmhciipan/_output/Vand_Pt30_hlaii_sm15.tsv"
+[1] 52
+[1] "for_netmhciipan/_output/Vand_Pt30_hlaii_sm15r.tsv"
+[1] 53
+[1] "for_netmhciipan/_output/Vand_Pt31_hlaii_sm15.tsv"
+[1] 54
+[1] "for_netmhciipan/_output/Vand_Pt31_hlaii_sm15r.tsv"
+[1] 55
+[1] "for_netmhciipan/_output/Vand_Pt32_hlaii_sm15.tsv"
+[1] 56
+[1] "for_netmhciipan/_output/Vand_Pt32_hlaii_sm15r.tsv"
+[1] 57
+[1] "for_netmhciipan/_output/Vand_Pt33_hlaii_sm15.tsv"
+[1] 58
+[1] "for_netmhciipan/_output/Vand_Pt33_hlaii_sm15r.tsv"
+[1] 59
+[1] "for_netmhciipan/_output/Vand_Pt34_hlaii_sm15.tsv"
+[1] 60
+[1] "for_netmhciipan/_output/Vand_Pt34_hlaii_sm15r.tsv"
+[1] 61
+[1] "for_netmhciipan/_output/Vand_Pt35_hlaii_sm15.tsv"
+[1] 62
+[1] "for_netmhciipan/_output/Vand_Pt35_hlaii_sm15r.tsv"
+[1] 63
+[1] "for_netmhciipan/_output/Vand_Pt36_hlaii_sm15.tsv"
+[1] 64
+[1] "for_netmhciipan/_output/Vand_Pt36_hlaii_sm15r.tsv"
+[1] 65
+[1] "for_netmhciipan/_output/Vand_Pt37_hlaii_sm15.tsv"
+[1] 66
+[1] "for_netmhciipan/_output/Vand_Pt37_hlaii_sm15r.tsv"
+[1] 67
+[1] "for_netmhciipan/_output/Vand_Pt38_hlaii_sm15.tsv"
+[1] 68
+[1] "for_netmhciipan/_output/Vand_Pt38_hlaii_sm15r.tsv"
+[1] 69
+[1] "for_netmhciipan/_output/Vand_Pt8_hlaii_sm15.tsv"
+[1] 70
+[1] "for_netmhciipan/_output/Vand_Pt8_hlaii_sm15r.tsv"
+> 
+> sessionInfo()
+R version 3.6.1 (2019-07-05)
+Platform: x86_64-apple-darwin15.6.0 (64-bit)
+Running under: macOS High Sierra 10.13.6
+
+Matrix products: default
+BLAS:   /Library/Frameworks/R.framework/Versions/3.6/Resources/lib/libRblas.0.dylib
+LAPACK: /Library/Frameworks/R.framework/Versions/3.6/Resources/lib/libRlapack.dylib
+
+locale:
+[1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+
+attached base packages:
+[1] stats     graphics  grDevices utils     datasets  methods   base     
+
+loaded via a namespace (and not attached):
+[1] compiler_3.6.1
+> q(save="no")
+> proc.time()
+   user  system elapsed 
+ 99.655   4.434 109.692 

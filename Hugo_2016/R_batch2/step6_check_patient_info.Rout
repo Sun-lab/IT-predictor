@@ -1,0 +1,193 @@
+
+R version 3.6.1 (2019-07-05) -- "Action of the Toes"
+Copyright (C) 2019 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin15.6.0 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> 
+> #--------------------------------------------------------------------
+> # Step 6: check patient information
+> #
+> # _supp/mmc2.xlsx is the supplementary table 2 of the paper
+> #
+> # there are also two clinial or sample information from 
+> # https://github.com/hugon/bms038_analysis/blob/master/data/: 
+> # bms038_clinical_data.csv and SampleTableCorrected.9.19.16.csv 
+> #--------------------------------------------------------------------
+> 
+> library(magrittr)
+> library(stringi)
+> library(Biostrings)
+Loading required package: BiocGenerics
+Loading required package: parallel
+
+Attaching package: ‘BiocGenerics’
+
+The following objects are masked from ‘package:parallel’:
+
+    clusterApply, clusterApplyLB, clusterCall, clusterEvalQ,
+    clusterExport, clusterMap, parApply, parCapply, parLapply,
+    parLapplyLB, parRapply, parSapply, parSapplyLB
+
+The following objects are masked from ‘package:stats’:
+
+    IQR, mad, sd, var, xtabs
+
+The following objects are masked from ‘package:base’:
+
+    anyDuplicated, append, as.data.frame, basename, cbind, colnames,
+    dirname, do.call, duplicated, eval, evalq, Filter, Find, get, grep,
+    grepl, intersect, is.unsorted, lapply, Map, mapply, match, mget,
+    order, paste, pmax, pmax.int, pmin, pmin.int, Position, rank,
+    rbind, Reduce, rownames, sapply, setdiff, sort, table, tapply,
+    union, unique, unsplit, which, which.max, which.min
+
+Loading required package: S4Vectors
+Loading required package: stats4
+
+Attaching package: ‘S4Vectors’
+
+The following object is masked from ‘package:base’:
+
+    expand.grid
+
+Loading required package: IRanges
+Loading required package: XVector
+
+Attaching package: ‘Biostrings’
+
+The following object is masked from ‘package:base’:
+
+    strsplit
+
+> library(openxlsx)
+> 
+> #--------------------------------------------------------------------
+> # 0. patient with neoantigen information
+> #--------------------------------------------------------------------
+> 
+> sample_mb = read.table(file = "hugo_patient_mb_info.txt", 
++                                header = TRUE, sep = " ")
+> dim(sample_mb)
+[1] 37  3
+> sample_mb[1:2,]
+  sample total_mutations n_mutations_neoAg
+1    Pt1           18489              3565
+2   Pt10            2001               417
+> 
+> sample_with_neoAg = read.table(file = "hugo_nMut_with_peptides.txt", 
++                               header = TRUE, sep = " ")
+> dim(sample_with_neoAg)
+[1] 37  2
+> sample_with_neoAg[1:2,]
+  matchID nMuts_with_peptides
+1     Pt1                3516
+2    Pt10                 413
+> 
+> names(sample_with_neoAg)[1] = "sample"
+> sample_mb = merge(sample_mb, sample_with_neoAg, by="sample", all.x=TRUE)
+> dim(sample_mb)
+[1] 37  4
+> sample_mb[1:2,]
+  sample total_mutations n_mutations_neoAg nMuts_with_peptides
+1    Pt1           18489              3565                3516
+2   Pt10            2001               417                 413
+> 
+> summary(sample_mb$nMuts_with_peptides)
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+   47.0   210.0   482.0   919.8   738.0 12303.0 
+> sample_mb$nMuts_with_peptides[which(is.na(sample_mb$nMuts_with_peptides))] = 0
+> 
+> summary(sample_mb$n_mutations_neoAg - sample_mb$nMuts_with_peptides)
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+   0.00    3.00    6.00   11.97    9.00  151.00 
+> 
+> sample_mb$lowerID = tolower(sample_mb$sample)
+> dim(sample_mb)
+[1] 37  5
+> sample_mb[1:2,]
+  sample total_mutations n_mutations_neoAg nMuts_with_peptides lowerID
+1    Pt1           18489              3565                3516     pt1
+2   Pt10            2001               417                 413    pt10
+> 
+> #--------------------------------------------------------------------
+> # 2. upload clinical data 
+> #--------------------------------------------------------------------
+> hugo.patient.info = read.delim("patient_info_with_mutations.txt", sep="\t")
+> hugo.patient.info[1:2, 1:26]
+  matchID Patient.ID          irRECIST Study.site Gender Age Disease.Status
+1     Pt1        Pt4  Partial Response       UCLA      M  62            M1c
+2    Pt10       Pt13 Complete Response       UCLA      F  53            M1c
+  Overall.Survival Vital.Status Previous.MAPKi Anatomical.Location BRAF.x
+1              948        Alive              Y             Adrenal  L331F
+2              917        Alive              N      Lower back, SC   <NA>
+  NRAS.x  NF1.x     Treatment   Biopsy.Time WES RNAseq SRA.tumor.WES
+1      - S2597* Pembrolizumab pre-treatment   1      1    SRR3083837
+2      -      - Pembrolizumab pre-treatment   1      1    SRR3083855
+  SRA.normal.WES AccessionID.WES SRA.tumor.RNA accessionID.RNAseq   mb mb_SNV
+1     SRR3083838      SRP067938+    SRR3184281           GSE78220 3638   3614
+2     SRR3083856      SRP067938+    SRR3184289           GSE78220  426    420
+  mb_indel
+1       24
+2        6
+> dim(hugo.patient.info)
+[1]   36 3420
+> 
+> #--------------------------------------------------------------------
+> # 3. check response information from sample file
+> #--------------------------------------------------------------------
+> table(hugo.patient.info$irRECIST)
+
+  Complete Response    Partial Response Progressive Disease 
+                  8                  12                  16 
+> 
+> #remove Vand_Pt27_2
+> hugo.patient.info=hugo.patient.info[which(hugo.patient.info$matchID !="Vand_Pt27_2"),]
+> dim(hugo.patient.info)
+[1]   35 3420
+> table(hugo.patient.info$irRECIST)
+
+  Complete Response    Partial Response Progressive Disease 
+                  7                  12                  16 
+> 
+> sessionInfo()
+R version 3.6.1 (2019-07-05)
+Platform: x86_64-apple-darwin15.6.0 (64-bit)
+Running under: macOS High Sierra 10.13.6
+
+Matrix products: default
+BLAS:   /Library/Frameworks/R.framework/Versions/3.6/Resources/lib/libRblas.0.dylib
+LAPACK: /Library/Frameworks/R.framework/Versions/3.6/Resources/lib/libRlapack.dylib
+
+locale:
+[1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+
+attached base packages:
+[1] stats4    parallel  stats     graphics  grDevices utils     datasets 
+[8] methods   base     
+
+other attached packages:
+[1] openxlsx_4.1.0.1    Biostrings_2.52.0   XVector_0.24.0     
+[4] IRanges_2.18.1      S4Vectors_0.22.0    BiocGenerics_0.30.0
+[7] stringi_1.4.3       magrittr_1.5       
+
+loaded via a namespace (and not attached):
+[1] zlibbioc_1.30.0 compiler_3.6.1  tools_3.6.1     Rcpp_1.0.2     
+[5] zip_2.0.3      
+> q(save="no")
+> proc.time()
+   user  system elapsed 
+  2.050   0.178   2.418 
