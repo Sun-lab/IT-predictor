@@ -1,0 +1,478 @@
+
+R version 4.0.3 (2020-10-10) -- "Bunny-Wunnies Freak Out"
+Copyright (C) 2020 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin17.0 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> 
+> #----------------------------------------------------------------
+> # Step 3. Match predicted HLA per subject/SRR for Riaz Data
+> #         use optitype for HLA_I and hla_hd for HLA_II
+> #----------------------------------------------------------------
+> 
+> library(data.table)
+> library(magrittr)
+> library(Biostrings)
+Loading required package: BiocGenerics
+Loading required package: parallel
+
+Attaching package: ‘BiocGenerics’
+
+The following objects are masked from ‘package:parallel’:
+
+    clusterApply, clusterApplyLB, clusterCall, clusterEvalQ,
+    clusterExport, clusterMap, parApply, parCapply, parLapply,
+    parLapplyLB, parRapply, parSapply, parSapplyLB
+
+The following objects are masked from ‘package:stats’:
+
+    IQR, mad, sd, var, xtabs
+
+The following objects are masked from ‘package:base’:
+
+    anyDuplicated, append, as.data.frame, basename, cbind, colnames,
+    dirname, do.call, duplicated, eval, evalq, Filter, Find, get, grep,
+    grepl, intersect, is.unsorted, lapply, Map, mapply, match, mget,
+    order, paste, pmax, pmax.int, pmin, pmin.int, Position, rank,
+    rbind, Reduce, rownames, sapply, setdiff, sort, table, tapply,
+    union, unique, unsplit, which.max, which.min
+
+Loading required package: S4Vectors
+Loading required package: stats4
+
+Attaching package: ‘S4Vectors’
+
+The following objects are masked from ‘package:data.table’:
+
+    first, second
+
+The following object is masked from ‘package:base’:
+
+    expand.grid
+
+Loading required package: IRanges
+
+Attaching package: ‘IRanges’
+
+The following object is masked from ‘package:data.table’:
+
+    shift
+
+Loading required package: XVector
+
+Attaching package: ‘Biostrings’
+
+The following object is masked from ‘package:base’:
+
+    strsplit
+
+> library(dplyr)
+
+Attaching package: ‘dplyr’
+
+The following objects are masked from ‘package:Biostrings’:
+
+    collapse, intersect, setdiff, setequal, union
+
+The following object is masked from ‘package:XVector’:
+
+    slice
+
+The following objects are masked from ‘package:IRanges’:
+
+    collapse, desc, intersect, setdiff, slice, union
+
+The following objects are masked from ‘package:S4Vectors’:
+
+    first, intersect, rename, setdiff, setequal, union
+
+The following objects are masked from ‘package:BiocGenerics’:
+
+    combine, intersect, setdiff, union
+
+The following objects are masked from ‘package:data.table’:
+
+    between, first, last
+
+The following objects are masked from ‘package:stats’:
+
+    filter, lag
+
+The following objects are masked from ‘package:base’:
+
+    intersect, setdiff, setequal, union
+
+> 
+> #----------------------------------------------------------------
+> # Step 1. Import data 
+> #----------------------------------------------------------------
+> 
+> # patient info with SRR info (should match with mutdata3_sm)
+> riaz.patient.mut = fread("../data/srr_sample2.txt")
+> dim(riaz.patient.mut)
+[1] 109   6
+> riaz.patient.mut[1:2,]
+          Run SampleName trt PtID ref_ind    SRR_ref
+1: SRR5134751    Pt10_on  on Pt10       0 SRR5134829
+2: SRR5134764   Pt10_pre pre Pt10       0 SRR5134829
+> 
+> # load OptiType results
+> riaz_pred_hla = fread("../data/riaz_optitype_result_withSRR.txt")
+> dim(riaz_pred_hla)
+[1] 67  9
+> riaz_pred_hla[1:2,]
+          SRR      A1      A2      B1      B2      C1      C2 Reads Objective
+1: SRR5134745 A*01:01 A*11:01 B*08:01 B*35:01 C*04:01 C*07:01  3249  3102.795
+2: SRR5134747 A*26:01 A*68:02 B*14:02 B*27:05 C*02:02 C*08:02  2727  2628.818
+> names(riaz_pred_hla)[1] = "SRR_ref"
+> 
+> # load HLA-HD results
+> load("../data/riaz_hlahd_result.RData") 
+> ls()
+[1] "riaz_hlahd_out"   "riaz_pred_hla"    "riaz.patient.mut"
+> length(riaz_hlahd_out)
+[1] 68
+> riaz_hlahd_out[1]
+$SRR5134745
+                    V2                V3
+A       HLA-A*11:01:01    HLA-A*01:01:01
+B       HLA-B*08:01:01    HLA-B*35:01:01
+C       HLA-C*07:01:01    HLA-C*04:01:01
+DRB1 HLA-DRB1*03:01:01 HLA-DRB1*01:01:01
+DQA1 HLA-DQA1*01:01:01 HLA-DQA1*05:01:01
+DQB1 HLA-DQB1*05:01:01 HLA-DQB1*02:01:01
+DPA1 HLA-DPA1*01:03:01 HLA-DPA1*01:03:01
+DPB1 HLA-DPB1*04:01:01 HLA-DPB1*04:01:01
+DMA   HLA-DMA*01:01:01  HLA-DMA*01:01:01
+DMB   HLA-DMB*01:01:01  HLA-DMB*01:01:01
+DOA   HLA-DOA*01:01:01  HLA-DOA*01:01:04
+DOB   HLA-DOB*01:01:03  HLA-DOB*01:01:01
+DRA   HLA-DRA*01:02:02  HLA-DRA*01:01:01
+DRB2    HLA-DRB2*01:01    HLA-DRB2*01:01
+DRB3 HLA-DRB3*01:01:02 HLA-DRB3*01:01:02
+DRB4         Not typed         Not typed
+DRB5         Not typed         Not typed
+DRB6    HLA-DRB6*01:01    HLA-DRB6*01:01
+DRB7         Not typed         Not typed
+DRB8         Not typed         Not typed
+DRB9    HLA-DRB9*01:01    HLA-DRB9*01:01
+E       HLA-E*01:01:01       HLA-E*01:06
+F       HLA-F*01:01:02    HLA-F*01:01:03
+G       HLA-G*01:01:02    HLA-G*01:01:03
+H       HLA-H*02:01:01       HLA-H*02:06
+J       HLA-J*01:01:01    HLA-J*01:01:01
+K       HLA-K*01:01:01    HLA-K*01:01:01
+L       HLA-L*01:01:02       HLA-L*01:02
+V       HLA-V*01:01:01    HLA-V*01:01:01
+
+> 
+> table(riaz_pred_hla$SRR_ref %in% names(riaz_hlahd_out))
+
+TRUE 
+  67 
+> x = setdiff(names(riaz_hlahd_out), riaz_pred_hla$SRR_ref)
+> x
+[1] "SRR5134781"
+> 
+> # fill the optiType HLA information of this sample by the HLA-HD results
+> 
+> r1 = riaz_hlahd_out[[x]]
+> r1
+                    V2                V3
+A       HLA-A*01:01:01    HLA-A*02:01:01
+B       HLA-B*08:01:01    HLA-B*27:05:02
+C       HLA-C*07:01:01       HLA-C*01:85
+DRB1 HLA-DRB1*11:01:01    HLA-DRB1*01:03
+DQA1 HLA-DQA1*01:01:01 HLA-DQA1*05:05:01
+DQB1 HLA-DQB1*05:01:01 HLA-DQB1*03:01:01
+DPA1 HLA-DPA1*01:03:01 HLA-DPA1*01:03:01
+DPB1 HLA-DPB1*04:01:01 HLA-DPB1*04:01:01
+DMA   HLA-DMA*01:01:01     HLA-DMA*01:02
+DMB   HLA-DMB*01:01:01  HLA-DMB*01:01:01
+DOA   HLA-DOA*01:01:02  HLA-DOA*01:01:01
+DOB   HLA-DOB*01:01:03  HLA-DOB*01:01:01
+DRA   HLA-DRA*01:01:01  HLA-DRA*01:01:01
+DRB2    HLA-DRB2*01:01    HLA-DRB2*01:01
+DRB3 HLA-DRB3*02:02:01 HLA-DRB3*02:02:01
+DRB4         Not typed         Not typed
+DRB5         Not typed         Not typed
+DRB6         Not typed         Not typed
+DRB7         Not typed         Not typed
+DRB8         Not typed         Not typed
+DRB9    HLA-DRB9*01:01    HLA-DRB9*01:01
+E       HLA-E*01:01:01    HLA-E*01:01:01
+F       HLA-F*01:01:03    HLA-F*01:01:01
+G       HLA-G*01:01:01    HLA-G*01:01:02
+H       HLA-H*02:01:01    HLA-H*01:01:01
+J       HLA-J*01:01:01    HLA-J*01:01:01
+K          HLA-K*01:02    HLA-K*01:01:01
+L       HLA-L*01:01:02    HLA-L*01:01:01
+V       HLA-V*01:01:01    HLA-V*01:01:01
+> 
+> HLA1 = as.character(t(r1[1:3,]))
+> HLA1
+[1] "HLA-A*01:01:01" "HLA-A*02:01:01" "HLA-B*08:01:01" "HLA-B*27:05:02"
+[5] "HLA-C*07:01:01" "HLA-C*01:85"   
+> 
+> HLA1 = gsub("HLA-", "", HLA1, fixed=TRUE)
+> HLA1 = substr(HLA1, 1, 7)
+> 
+> HLA1 = as.data.frame(matrix(HLA1, nrow=1))
+> HLA1
+       V1      V2      V3      V4      V5      V6
+1 A*01:01 A*02:01 B*08:01 B*27:05 C*07:01 C*01:85
+> 
+> HLA1 = cbind(x, HLA1, NA, NA)
+> names(HLA1) = names(riaz_pred_hla)
+> HLA1
+     SRR_ref      A1      A2      B1      B2      C1      C2 Reads Objective
+1 SRR5134781 A*01:01 A*02:01 B*08:01 B*27:05 C*07:01 C*01:85    NA        NA
+> 
+> riaz_pred_hla = rbind(riaz_pred_hla, HLA1)
+> dim(riaz_pred_hla)
+[1] 68  9
+> riaz_pred_hla[c(1,nrow(riaz_pred_hla)),]
+      SRR_ref      A1      A2      B1      B2      C1      C2 Reads Objective
+1: SRR5134745 A*01:01 A*11:01 B*08:01 B*35:01 C*04:01 C*07:01  3249  3102.795
+2: SRR5134781 A*01:01 A*02:01 B*08:01 B*27:05 C*07:01 C*01:85    NA        NA
+> 
+> setequal(riaz_pred_hla$SRR_ref, names(riaz_hlahd_out))
+[1] TRUE
+> 
+> #------------------------------------------------------------------------
+> # Step 2. Manage predictions and create 'riaz_pateintID_with_HLA.txt'
+> #------------------------------------------------------------------------
+> 
+> length(unique(riaz.patient.mut$SRR_ref))
+[1] 68
+> length(unique(riaz_pred_hla$SRR_ref))
+[1] 68
+> 
+> # hla1
+> riaz_pt_with_hla = merge(riaz.patient.mut, riaz_pred_hla[,1:7], 
++                          by="SRR_ref")
+> dim(riaz_pt_with_hla)
+[1] 109  12
+> riaz_pt_with_hla[1:2,]
+      SRR_ref        Run SampleName trt PtID ref_ind      A1      A2      B1
+1: SRR5134745 SRR5134784    Pt86_on  on Pt86       0 A*01:01 A*11:01 B*08:01
+2: SRR5134745 SRR5134851   Pt86_pre pre Pt86       0 A*01:01 A*11:01 B*08:01
+        B2      C1      C2
+1: B*35:01 C*04:01 C*07:01
+2: B*35:01 C*04:01 C*07:01
+> 
+> riaz_pt_with_hla = as.data.frame(riaz_pt_with_hla)
+> 
+> # remove * in the HLA 
+> riaz_pt_with_hla = riaz_pt_with_hla[,c(2, 1, 3:ncol(riaz_pt_with_hla))]
+> 
+> cols = c("A1", "A2", "B1", "B2", "C1", "C2")
+> 
+> for(c1 in cols){
++   riaz_pt_with_hla[[c1]] = gsub("[\\*]", "", riaz_pt_with_hla[[c1]])
++   riaz_pt_with_hla[[c1]] = paste0("HLA-", riaz_pt_with_hla[[c1]])
++ }
+> 
+> # hla2
+> riaz_hlahd_out[[1]]
+                    V2                V3
+A       HLA-A*11:01:01    HLA-A*01:01:01
+B       HLA-B*08:01:01    HLA-B*35:01:01
+C       HLA-C*07:01:01    HLA-C*04:01:01
+DRB1 HLA-DRB1*03:01:01 HLA-DRB1*01:01:01
+DQA1 HLA-DQA1*01:01:01 HLA-DQA1*05:01:01
+DQB1 HLA-DQB1*05:01:01 HLA-DQB1*02:01:01
+DPA1 HLA-DPA1*01:03:01 HLA-DPA1*01:03:01
+DPB1 HLA-DPB1*04:01:01 HLA-DPB1*04:01:01
+DMA   HLA-DMA*01:01:01  HLA-DMA*01:01:01
+DMB   HLA-DMB*01:01:01  HLA-DMB*01:01:01
+DOA   HLA-DOA*01:01:01  HLA-DOA*01:01:04
+DOB   HLA-DOB*01:01:03  HLA-DOB*01:01:01
+DRA   HLA-DRA*01:02:02  HLA-DRA*01:01:01
+DRB2    HLA-DRB2*01:01    HLA-DRB2*01:01
+DRB3 HLA-DRB3*01:01:02 HLA-DRB3*01:01:02
+DRB4         Not typed         Not typed
+DRB5         Not typed         Not typed
+DRB6    HLA-DRB6*01:01    HLA-DRB6*01:01
+DRB7         Not typed         Not typed
+DRB8         Not typed         Not typed
+DRB9    HLA-DRB9*01:01    HLA-DRB9*01:01
+E       HLA-E*01:01:01       HLA-E*01:06
+F       HLA-F*01:01:02    HLA-F*01:01:03
+G       HLA-G*01:01:02    HLA-G*01:01:03
+H       HLA-H*02:01:01       HLA-H*02:06
+J       HLA-J*01:01:01    HLA-J*01:01:01
+K       HLA-K*01:01:01    HLA-K*01:01:01
+L       HLA-L*01:01:02       HLA-L*01:02
+V       HLA-V*01:01:01    HLA-V*01:01:01
+> 
+> riaz_pred_hlaii= as.data.frame(matrix(NA, nrow=nrow(riaz.patient.mut), 
++                                       ncol=11))
+> 
+> colnames(riaz_pred_hlaii)= c("SRR_ref", "DRB11", "DRB12", "DQA11", 
++                              "DQB11", "DQA12", "DQB12", "DPA11", 
++                              "DPB11", "DPA12", "DPB12")
+> 
+> for(i in 1:nrow(riaz.patient.mut)){
++   srr = toString(riaz.patient.mut[i,"SRR_ref"])
++   riaz_pred_hlaii$SRR_ref[i] = srr
++   riaz_pred_hlaii$DRB11[i] = riaz_hlahd_out[[srr]]["DRB1",1]
++   riaz_pred_hlaii$DRB12[i] = riaz_hlahd_out[[srr]]["DRB1",2]
++   riaz_pred_hlaii$DQA11[i] = riaz_hlahd_out[[srr]]["DQA1",1]
++   riaz_pred_hlaii$DQA12[i] = riaz_hlahd_out[[srr]]["DQA1",2]
++   riaz_pred_hlaii$DQB11[i] = riaz_hlahd_out[[srr]]["DQB1",1]
++   riaz_pred_hlaii$DQB12[i] = riaz_hlahd_out[[srr]]["DQB1",2]
++   riaz_pred_hlaii$DPA11[i] = riaz_hlahd_out[[srr]]["DPA1",1]
++   riaz_pred_hlaii$DPA12[i] = riaz_hlahd_out[[srr]]["DPA1",2]
++   riaz_pred_hlaii$DPB11[i] = riaz_hlahd_out[[srr]]["DPB1",1]
++   riaz_pred_hlaii$DPB12[i] = riaz_hlahd_out[[srr]]["DPB1",2]
++ }
+> 
+> # remove repeat observations 
+> dim(riaz_pred_hlaii)
+[1] 109  11
+> riaz_pred_hlaii[1:3,]
+     SRR_ref             DRB11             DRB12             DQA11
+1 SRR5134829 HLA-DRB1*01:01:01 HLA-DRB1*03:01:01 HLA-DQA1*01:01:01
+2 SRR5134829 HLA-DRB1*01:01:01 HLA-DRB1*03:01:01 HLA-DQA1*01:01:01
+3 SRR5134747 HLA-DRB1*13:01:01 HLA-DRB1*01:02:01 HLA-DQA1*01:01:02
+              DQB11             DQA12             DQB12             DPA11
+1 HLA-DQB1*05:01:01 HLA-DQA1*05:01:01 HLA-DQB1*02:01:01 HLA-DPA1*01:03:01
+2 HLA-DQB1*05:01:01 HLA-DQA1*05:01:01 HLA-DQB1*02:01:01 HLA-DPA1*01:03:01
+3 HLA-DQB1*06:03:01 HLA-DQA1*01:03:01 HLA-DQB1*05:01:01 HLA-DPA1*01:03:01
+              DPB11             DPA12          DPB12
+1 HLA-DPB1*04:01:01 HLA-DPA1*01:03:01 HLA-DPB1*02:02
+2 HLA-DPB1*04:01:01 HLA-DPA1*01:03:01 HLA-DPB1*02:02
+3 HLA-DPB1*04:02:01 HLA-DPA1*02:01:01 HLA-DPB1*10:01
+> 
+> riaz_pred_hlaii = distinct(riaz_pred_hlaii)
+> dim(riaz_pred_hlaii)
+[1] 68 11
+> 
+> # check that it is correct
+> riaz_pred_hlaii[25,]
+      SRR_ref             DRB11             DRB12          DQA11
+25 SRR5134763 HLA-DRB1*07:01:01 HLA-DRB1*07:01:01 HLA-DQA1*02:01
+               DQB11          DQA12             DQB12             DPA11
+25 HLA-DQB1*02:02:01 HLA-DQA1*02:01 HLA-DQB1*02:02:01 HLA-DPA1*01:03:01
+               DPB11             DPA12             DPB12
+25 HLA-DPB1*04:01:01 HLA-DPA1*02:02:02 HLA-DPB1*05:01:01
+> riaz_hlahd_out[["SRR5134763"]]
+                    V2                V3
+A       HLA-A*30:01:01    HLA-A*01:01:01
+B       HLA-B*13:02:01    HLA-B*18:01:01
+C       HLA-C*07:01:01    HLA-C*06:02:01
+DRB1 HLA-DRB1*07:01:01 HLA-DRB1*07:01:01
+DQA1    HLA-DQA1*02:01    HLA-DQA1*02:01
+DQB1 HLA-DQB1*02:02:01 HLA-DQB1*02:02:01
+DPA1 HLA-DPA1*01:03:01 HLA-DPA1*02:02:02
+DPB1 HLA-DPB1*04:01:01 HLA-DPB1*05:01:01
+DMA   HLA-DMA*01:01:01     HLA-DMA*01:02
+DMB   HLA-DMB*01:01:01  HLA-DMB*01:01:01
+DOA   HLA-DOA*01:01:02  HLA-DOA*01:01:02
+DOB      HLA-DOB*01:03  HLA-DOB*01:01:01
+DRA   HLA-DRA*01:01:01  HLA-DRA*01:02:02
+DRB2         Not typed         Not typed
+DRB3         Not typed         Not typed
+DRB4 HLA-DRB4*01:03:01 HLA-DRB4*01:01:01
+DRB5         Not typed         Not typed
+DRB6         Not typed         Not typed
+DRB7 HLA-DRB7*01:01:01 HLA-DRB7*01:01:02
+DRB8    HLA-DRB8*01:01    HLA-DRB8*01:01
+DRB9    HLA-DRB9*01:01    HLA-DRB9*01:01
+E       HLA-E*01:01:01    HLA-E*01:01:01
+F       HLA-F*01:01:03    HLA-F*01:01:03
+G         HLA-G*01:05N    HLA-G*01:01:02
+H       HLA-H*02:01:01       HLA-H*02:05
+J       HLA-J*01:01:01    HLA-J*01:01:01
+K       HLA-K*01:01:01       HLA-K*01:03
+L       HLA-L*01:01:01    HLA-L*01:01:02
+V       HLA-V*01:01:01    HLA-V*01:01:01
+> 
+> # -merge hlai and hlaii by SRR
+> pt_hla = merge(riaz_pt_with_hla, riaz_pred_hlaii, by="SRR_ref")
+> pt_hla = pt_hla[, c(2,1, 3:ncol(pt_hla))]
+> dim(pt_hla)
+[1] 109  22
+> pt_hla[1:2,]
+         Run    SRR_ref SampleName trt PtID ref_ind         A1         A2
+1 SRR5134784 SRR5134745    Pt86_on  on Pt86       0 HLA-A01:01 HLA-A11:01
+2 SRR5134851 SRR5134745   Pt86_pre pre Pt86       0 HLA-A01:01 HLA-A11:01
+          B1         B2         C1         C2             DRB11
+1 HLA-B08:01 HLA-B35:01 HLA-C04:01 HLA-C07:01 HLA-DRB1*03:01:01
+2 HLA-B08:01 HLA-B35:01 HLA-C04:01 HLA-C07:01 HLA-DRB1*03:01:01
+              DRB12             DQA11             DQB11             DQA12
+1 HLA-DRB1*01:01:01 HLA-DQA1*01:01:01 HLA-DQB1*05:01:01 HLA-DQA1*05:01:01
+2 HLA-DRB1*01:01:01 HLA-DQA1*01:01:01 HLA-DQB1*05:01:01 HLA-DQA1*05:01:01
+              DQB12             DPA11             DPB11             DPA12
+1 HLA-DQB1*02:01:01 HLA-DPA1*01:03:01 HLA-DPB1*04:01:01 HLA-DPA1*01:03:01
+2 HLA-DQB1*02:01:01 HLA-DPA1*01:03:01 HLA-DPB1*04:01:01 HLA-DPA1*01:03:01
+              DPB12
+1 HLA-DPB1*04:01:01
+2 HLA-DPB1*04:01:01
+> 
+> # format hlaii for netmhc-ii prediction
+> pt_hla$DRB11 = gsub("[:]", "", substr(pt_hla$DRB11, 5, 14))
+> pt_hla$DRB11 = gsub("[\\*]", "_", pt_hla$DRB11)
+> pt_hla$DRB12 = gsub("[:]", "", substr(pt_hla$DRB12, 5, 14))
+> pt_hla$DRB12 = gsub("[\\*]", "_", pt_hla$DRB12)
+> 
+> pt_hla$DQA11 = gsub("[:, \\*]", "", substr(pt_hla$DQA11, 5, 14))
+> pt_hla$DQA12 = gsub("[:, \\*]", "", substr(pt_hla$DQA12, 5, 14))
+> 
+> pt_hla$DQB11 = gsub("[:, \\*]", "", substr(pt_hla$DQB11, 5, 14))
+> pt_hla$DQB12 = gsub("[:, \\*]", "", substr(pt_hla$DQB12, 5, 14))
+> 
+> pt_hla$DPA11 = gsub("[:, \\*]", "", substr(pt_hla$DPA11, 5, 14))
+> pt_hla$DPA12 = gsub("[:, \\*]", "", substr(pt_hla$DPA12, 5, 14))
+> 
+> pt_hla$DPB11 = gsub("[:, \\*]", "", substr(pt_hla$DPB11, 5, 14))
+> pt_hla$DPB12 = gsub("[:, \\*]", "", substr(pt_hla$DPB12, 5, 14))
+> 
+> # output table 
+> write.table(pt_hla, file = "../data/riaz_patientID_with_HLA.txt", 
++             sep="\t", quote=FALSE, col.names=TRUE, row.names=FALSE)
+> 
+> sessionInfo()
+R version 4.0.3 (2020-10-10)
+Platform: x86_64-apple-darwin17.0 (64-bit)
+Running under: macOS Big Sur 10.16
+
+Matrix products: default
+BLAS:   /Library/Frameworks/R.framework/Versions/4.0/Resources/lib/libRblas.dylib
+LAPACK: /Library/Frameworks/R.framework/Versions/4.0/Resources/lib/libRlapack.dylib
+
+locale:
+[1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+
+attached base packages:
+[1] stats4    parallel  stats     graphics  grDevices utils     datasets 
+[8] methods   base     
+
+other attached packages:
+[1] dplyr_1.0.2         Biostrings_2.58.0   XVector_0.30.0     
+[4] IRanges_2.24.1      S4Vectors_0.28.1    BiocGenerics_0.36.0
+[7] magrittr_2.0.1      data.table_1.13.6  
+
+loaded via a namespace (and not attached):
+ [1] crayon_1.3.4     R6_2.5.0         lifecycle_0.2.0  pillar_1.4.7    
+ [5] rlang_0.4.10     zlibbioc_1.36.0  ellipsis_0.3.1   vctrs_0.3.6     
+ [9] generics_0.1.0   tools_4.0.3      glue_1.4.2       purrr_0.3.4     
+[13] compiler_4.0.3   pkgconfig_2.0.3  tidyselect_1.1.0 tibble_3.0.4    
+> q(save="no")
+> proc.time()
+   user  system elapsed 
+  2.150   0.187   2.429 
