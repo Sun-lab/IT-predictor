@@ -195,10 +195,18 @@ table(rowSums(avail))
 
 #../netMHCIIpan -f example.fsa -a DRB1_0101 > example.fsa.myout
 
-fnm = "step4_netMHC_II_pan_submit_jobs.sh"
-cat("", file=fnm)
+# create shell script to submit jobs 
+# one job per 20 samples
+
+jobid = 1
 
 for(i in 1:nrow(riaz_obs_per_pt1)){
+  
+  if(i %% 20 == 1){
+    fnm = sprintf("step4_netMHC_II_pan_submit_job_%d.sh", jobid)
+    cat("", file=fnm)
+    jobid = jobid + 1
+  }
   
   id = riaz_obs_per_pt1[i,1]
   wi = which(riaz_pt_with_hla$SampleName == id)
