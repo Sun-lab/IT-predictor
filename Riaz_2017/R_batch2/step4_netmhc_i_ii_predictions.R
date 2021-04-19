@@ -1,12 +1,12 @@
 
-#------------------------------------------------------
+#--------------------------------------------------------------------
 # Preperation of NetMHC I and II data for prediction and manage 
 #  predictions for RIAZ data 
 # 1. Import data 
 # 2. Output somatic mutations (sm) for NetMHC prediction
 # 3. Output sbatch code (emlinating HLA not valid for netmhc)
 # Note: Using NetMHCpan4.1 and NetMHCIIpan-4.0
-#------------------------------------------------------
+#--------------------------------------------------------------------
 
 library(magrittr)
 library(Biostrings)
@@ -25,7 +25,7 @@ dim(riaz_mutdata_sm)
 riaz_mutdata_sm[1:2,]
 
 #--------------------------------------------------------------------
-# Step 2: Output somatic mutations for predictions (in terminal)
+# Step 2: Output somatic mutations for predictions
 #--------------------------------------------------------------------
 
 riaz_sm = riaz_mutdata_sm
@@ -42,7 +42,7 @@ riaz_sm1 = riaz_sm[which(! riaz_sm$som_mut17 %in% w2rm),]
 dim(riaz_sm1)
 riaz_sm1[1:2,]
 
-# calcualte number of peptides per patient
+# calcualte the number of peptides per patient
 
 tb1 = table(riaz_sm1$id)
 sort(tb1)
@@ -171,8 +171,9 @@ cat("", file=fnm)
 
 for(i in 1:nrow(riaz_obs_per_pt1)){
   id = riaz_obs_per_pt1[i,1]
-  t0 = riaz_pt_with_hla[which(riaz_pt_with_hla$SampleName == id),7:12] 
-  t1 = t0[, t0 %in% valid_hlai]
+  t0 = riaz_pt_with_hla[which(riaz_pt_with_hla$SampleName == id),7:12]
+  t0 = unique(unlist(t0))
+  t1 = sort(t0[t0 %in% valid_hlai])
   t2 = paste(t1, collapse=",")
   
   cat(paste("./step4_run_NetMHCpan.sh", id, t2, "\n", sep=" "), 
@@ -196,13 +197,13 @@ table(rowSums(avail))
 #../netMHCIIpan -f example.fsa -a DRB1_0101 > example.fsa.myout
 
 # create shell script to submit jobs 
-# one job per 20 samples
+# one job per 15 samples
 
 jobid = 1
 
 for(i in 1:nrow(riaz_obs_per_pt1)){
   
-  if(i %% 20 == 1){
+  if(i %% 15 == 1){
     fnm = sprintf("step4_netMHC_II_pan_submit_job_%d.sh", jobid)
     cat("", file=fnm)
     jobid = jobid + 1
@@ -211,23 +212,36 @@ for(i in 1:nrow(riaz_obs_per_pt1)){
   id = riaz_obs_per_pt1[i,1]
   wi = which(riaz_pt_with_hla$SampleName == id)
   t0 = riaz_pt_with_hla[wi,13:ncol(riaz_pt_with_hla)]
-  t1 = t0[, t0 %in% valid_hlaii]
   
-  t2 = paste(t1$DRB11, t1$DRB12, sep=",")
-  t3 = paste("HLA", t1$DQA11, t1$DQB11, sep="-")
-  t4 = paste("HLA", t1$DQA12, t1$DQB12, sep="-")
-  t5 = paste("HLA", t1$DQA11, t1$DQB12, sep="-")
-  t6 = paste("HLA", t1$DQA12, t1$DQB11, sep="-")
-  t7 = paste("HLA", t1$DPA11, t1$DPB11, sep="-")
-  t8 = paste("HLA", t1$DPA12, t1$DPB12, sep="-") 
-  t9 = paste("HLA", t1$DPA11, t1$DPB12, sep="-")
-  t10 = paste("HLA", t1$DPA12, t1$DPB11, sep="-")
-  t11 = c(t2, t3, t4, t5, t6, t7, t8, t9, t10)
-  w2rm = union(grep("--", t11, fixed=TRUE), grep("-$", t11))
-  if(length(w2rm) > 0){ t11 = t11[-w2rm] }
-  t11 = paste(t11, collapse=",")
+  t1 = list()
+  t1[["DRB1"]] = sort(unique(c(t0$DRB11, t0$DRB12)))
+  t1[["DPA1"]] = sort(unique(c(t0$DPA11, t0$DPA12)))
+  t1[["DPB1"]] = sort(unique(c(t0$DPB11, t0$DPB12)))
+  t1[["DQA1"]] = sort(unique(c(t0$DQA11, t0$DQA12)))
+  t1[["DQB1"]] = sort(unique(c(t0$DQB11, t0$DQB12)))
+  
+  for(i in 1:length(t1)){
+    t1[[i]] = intersect(t1[[i]], valid_hlaii)
+  }
+  
+  tR = paste(t1[["DRB1"]], collapse=",")
+  tP = tQ = NULL
+  
+  for(alpha in t1[["DPA1"]]){
+    for(beta in t1[["DPB1"]]){
+      tP = c(tP, paste("HLA", alpha, beta, sep="-"))
+    }
+  }
+  
+  for(alpha in t1[["DQA1"]]){
+    for(beta in t1[["DQB1"]]){
+      tQ = c(tQ, paste("HLA", alpha, beta, sep="-"))
+    }
+  }
+  
+  hlaII = paste(c(tR, tP, tQ), collapse=",")
  
-  cat(paste("./step4_run_NetMHCIIpan.sh", id , t11, "\n", sep=" "),
+  cat(paste("./step4_run_NetMHCIIpan.sh", id , hlaII, "\n", sep=" "),
       file=fnm, append=TRUE)
   
 }
