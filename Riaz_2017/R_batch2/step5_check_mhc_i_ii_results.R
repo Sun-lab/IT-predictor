@@ -33,12 +33,15 @@ table(output_info$label)
 # read in HLA-I results
 #--------------------------------------------------------------------
 
-outs_hal_i = outs[grep("_hlai_", outs)]
-length(outs_hal_i)
+outs_hla_i = outs[grep("_hlai_", outs)]
+length(outs_hla_i)
+
+hla_i_nms = gsub("../output/|.txt.gz", "", outs_hla_i)
+hla_i_nms[1:4]
 
 paste1 <- function(x,y){
   for(k in 2:length(x)){
-    if(x[k] == ""){ x[k] = x[k-1]}
+    if(x[k] == "" && y[k] != "Ave"){ x[k] = x[k-1]}
   }
   x[x!=""] = paste0(x[x!=""], "_")
   paste0(x, y)
@@ -46,8 +49,8 @@ paste1 <- function(x,y){
 
 dat_hla_i = list()
 
-for(i in 1:length(outs_hal_i)){
-  input_i  = outs_hal_i[i]
+for(i in 1:length(outs_hla_i)){
+  input_i  = outs_hla_i[i]
   header_i = fread(input_i, nrows=2)
   header_i = as.matrix(header_i)
   header_i = paste1(header_i[1,], header_i[2,])
@@ -69,16 +72,23 @@ for(i in 1:length(outs_hal_i)){
   dat_hla_i[[i]] = dat_i
 }
 
+names(dat_hla_i) = hla_i_nms
+
 length(dat_hla_i)
 summary(sapply(dat_hla_i, nrow))
 table(sapply(dat_hla_i, ncol))
+
+saveRDS(dat_hla_i, file = "../data/netMHCpan4_1_results.rds")
 
 #--------------------------------------------------------------------
 # read in HLA-II results
 #--------------------------------------------------------------------
 
-outs_hal_ii = outs[grep("_hlaii_", outs)]
-length(outs_hal_ii)
+outs_hla_ii = outs[grep("_hlaii_", outs)]
+length(outs_hla_ii)
+
+hla_ii_nms = gsub("../output/|.txt.gz", "", outs_hla_ii)
+hla_ii_nms[1:4]
 
 paste2 <- function(x,y){
   for(k in 2:length(x)){
@@ -91,8 +101,8 @@ paste2 <- function(x,y){
 dat_hla_ii = list()
 
 
-for(i in 1:length(outs_hal_ii)){
-  input_i  = outs_hal_ii[i]
+for(i in 1:length(outs_hla_ii)){
+  input_i  = outs_hla_ii[i]
   header_i = fread(input_i, nrows=2, fill=TRUE)
   header_i = as.matrix(header_i)
   header_i = paste2(header_i[1,], header_i[2,])
@@ -105,11 +115,14 @@ for(i in 1:length(outs_hal_ii)){
   dat_hla_ii[[i]] = dat_i
 }
 
+names(dat_hla_ii) = hla_ii_nms
+
 length(dat_hla_ii)
+
 summary(sapply(dat_hla_ii, nrow))
 table(sapply(dat_hla_ii, ncol))
 
-
+saveRDS(dat_hla_ii, file = "../data/netMHCIIpan4_0_results.rds")
 
 sessionInfo()
 q(save="no")

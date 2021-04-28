@@ -95,17 +95,17 @@ The following objects are masked from ‘package:S4Vectors’:
 [1] "riaz_mutdata_sm"
 > 
 > dim(riaz_mutdata_sm)
-[1] 31303    23
+[1] 31301    23
 > riaz_mutdata_sm[1:2,]
        id seqnames     start       end REF ALT tumor_name normal_name W pos M
 1 Pt10_on     chr1 114716127 114716127   C   A SRR5134751  SRR5134829 G  12 C
 2 Pt10_on     chr1 155024524 155024524   G   A SRR5134751  SRR5134829 R 564 W
   Wseq seqpos Mseq      EnsembleID         som_mut17        som_mut17r
-1    G     34    T ENST00000369535 YKLVVVGAGGVGKSALT YKLVVVGAGGVGKSALT
-2    C   1690    T ENST00000368424 AALHRSVRRRAADQGHR AALHRSVRRRAADQGHR
+1    G     34    T ENST00000369535 YKLVVVGACGVGKSALT YKLVVVGAGGVGKSALT
+2    C   1690    T ENST00000368424 AALHRSVRWRAADQGHR AALHRSVRRRAADQGHR
                             som_mut35                          som_mut35r
-1       MTEYKLVVVGAGGVGKSALTIQLIQNHFV       MTEYKLVVVGAGGVGKSALTIQLIQNHFV
-2 LLSRRTNLLAALHRSVRRRAADQGHRSAFLVLASR LLSRRTNLLAALHRSVRRRAADQGHRSAFLVLASR
+1       MTEYKLVVVGACGVGKSALTIQLIQNHFV       MTEYKLVVVGAGGVGKSALTIQLIQNHFV
+2 LLSRRTNLLAALHRSVRWRAADQGHRSAFLVLASR LLSRRTNLLAALHRSVRRRAADQGHRSAFLVLASR
   mut17_start mut17_end mut35_start mut35_end
 1           4        20           1        29
 2         556       572         547       581
@@ -114,36 +114,27 @@ The following objects are masked from ‘package:S4Vectors’:
 > # Step 2: Output somatic mutations for predictions
 > #--------------------------------------------------------------------
 > 
-> riaz_sm = riaz_mutdata_sm
-> 
-> sum(riaz_sm$som_mut17 == "ENST not found")
+> sum(riaz_mutdata_sm$som_mut17 == "ENST not found")
 [1] 0
-> sum(riaz_sm$som_mut17 == "Sequence unavailable")
-[1] 2
+> sum(riaz_mutdata_sm$som_mut17 == "Sequence unavailable")
+[1] 0
 > 
-> head(riaz_sm[riaz_sm$som_mut17 == "ENST not found",])
+> head(riaz_mutdata_sm[riaz_mutdata_sm$som_mut17 == "ENST not found",])
  [1] id          seqnames    start       end         REF         ALT        
  [7] tumor_name  normal_name W           pos         M           Wseq       
 [13] seqpos      Mseq        EnsembleID  som_mut17   som_mut17r  som_mut35  
 [19] som_mut35r  mut17_start mut17_end   mut35_start mut35_end  
 <0 rows> (or 0-length row.names)
-> head(riaz_sm[riaz_sm$som_mut17 == "Sequence unavailable",])
-            id seqnames    start      end REF ALT tumor_name normal_name W pos
-20947 Pt65_pre    chr14 22505118 22505118   G   A SRR5134812  SRR5134825 W   3
-27674 Pt87_pre     chr2 88860602 88860602   G   A SRR5134875  SRR5134852 H   2
-      M Wseq seqpos Mseq      EnsembleID            som_mut17
-20947 X    G      9    A ENST00000614481 Sequence unavailable
-27674 Y    C      4    T ENST00000390238 Sequence unavailable
-                som_mut17r            som_mut35           som_mut35r
-20947 Sequence unavailable Sequence unavailable Sequence unavailable
-27674 Sequence unavailable Sequence unavailable Sequence unavailable
-      mut17_start mut17_end mut35_start mut35_end
-20947          NA        NA          NA        NA
-27674          NA        NA          NA        NA
+> head(riaz_mutdata_sm[riaz_mutdata_sm$som_mut17 == "Sequence unavailable",])
+ [1] id          seqnames    start       end         REF         ALT        
+ [7] tumor_name  normal_name W           pos         M           Wseq       
+[13] seqpos      Mseq        EnsembleID  som_mut17   som_mut17r  som_mut35  
+[19] som_mut35r  mut17_start mut17_end   mut35_start mut35_end  
+<0 rows> (or 0-length row.names)
 > 
 > # remove observations with missing sequence 
 > w2rm = c("ENST not found", "Sequence unavailable")
-> riaz_sm1 = riaz_sm[which(! riaz_sm$som_mut17 %in% w2rm),]
+> riaz_sm1 = riaz_mutdata_sm[which(! riaz_mutdata_sm$som_mut17 %in% w2rm),]
 > dim(riaz_sm1)
 [1] 31301    23
 > riaz_sm1[1:2,]
@@ -151,11 +142,11 @@ The following objects are masked from ‘package:S4Vectors’:
 1 Pt10_on     chr1 114716127 114716127   C   A SRR5134751  SRR5134829 G  12 C
 2 Pt10_on     chr1 155024524 155024524   G   A SRR5134751  SRR5134829 R 564 W
   Wseq seqpos Mseq      EnsembleID         som_mut17        som_mut17r
-1    G     34    T ENST00000369535 YKLVVVGAGGVGKSALT YKLVVVGAGGVGKSALT
-2    C   1690    T ENST00000368424 AALHRSVRRRAADQGHR AALHRSVRRRAADQGHR
+1    G     34    T ENST00000369535 YKLVVVGACGVGKSALT YKLVVVGAGGVGKSALT
+2    C   1690    T ENST00000368424 AALHRSVRWRAADQGHR AALHRSVRRRAADQGHR
                             som_mut35                          som_mut35r
-1       MTEYKLVVVGAGGVGKSALTIQLIQNHFV       MTEYKLVVVGAGGVGKSALTIQLIQNHFV
-2 LLSRRTNLLAALHRSVRRRAADQGHRSAFLVLASR LLSRRTNLLAALHRSVRRRAADQGHRSAFLVLASR
+1       MTEYKLVVVGACGVGKSALTIQLIQNHFV       MTEYKLVVVGAGGVGKSALTIQLIQNHFV
+2 LLSRRTNLLAALHRSVRWRAADQGHRSAFLVLASR LLSRRTNLLAALHRSVRRRAADQGHRSAFLVLASR
   mut17_start mut17_end mut35_start mut35_end
 1           4        20           1        29
 2         556       572         547       581
@@ -219,11 +210,11 @@ Pt108_pre   Pt37_on  Pt37_pre  Pt98_pre  Pt103_on   Pt82_on  Pt77_pre  Pt82_pre
 1 Pt10_on     chr1 114716127 114716127   C   A SRR5134751  SRR5134829 G  12 C
 2 Pt10_on     chr1 155024524 155024524   G   A SRR5134751  SRR5134829 R 564 W
   Wseq seqpos Mseq      EnsembleID         som_mut17        som_mut17r
-1    G     34    T ENST00000369535 YKLVVVGAGGVGKSALT YKLVVVGAGGVGKSALT
-2    C   1690    T ENST00000368424 AALHRSVRRRAADQGHR AALHRSVRRRAADQGHR
+1    G     34    T ENST00000369535 YKLVVVGACGVGKSALT YKLVVVGAGGVGKSALT
+2    C   1690    T ENST00000368424 AALHRSVRWRAADQGHR AALHRSVRRRAADQGHR
                             som_mut35                          som_mut35r
-1       MTEYKLVVVGAGGVGKSALTIQLIQNHFV       MTEYKLVVVGAGGVGKSALTIQLIQNHFV
-2 LLSRRTNLLAALHRSVRRRAADQGHRSAFLVLASR LLSRRTNLLAALHRSVRRRAADQGHRSAFLVLASR
+1       MTEYKLVVVGACGVGKSALTIQLIQNHFV       MTEYKLVVVGAGGVGKSALTIQLIQNHFV
+2 LLSRRTNLLAALHRSVRWRAADQGHRSAFLVLASR LLSRRTNLLAALHRSVRRRAADQGHRSAFLVLASR
   mut17_start mut17_end mut35_start mut35_end             key
 1           4        20           1        29 1:114716127:C:A
 2         556       572         547       581 1:155024524:G:A
@@ -488,4 +479,4 @@ loaded via a namespace (and not attached):
 > q(save="no")
 > proc.time()
    user  system elapsed 
- 26.530  12.615  39.751 
+ 28.405  13.390  42.493 

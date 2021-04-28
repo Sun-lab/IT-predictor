@@ -1,7 +1,7 @@
 
-R version 3.5.2 (2018-12-20) -- "Eggshell Igloo"
-Copyright (C) 2018 The R Foundation for Statistical Computing
-Platform: x86_64-apple-darwin15.6.0 (64-bit)
+R version 4.0.3 (2020-10-10) -- "Bunny-Wunnies Freak Out"
+Copyright (C) 2020 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin17.0 (64-bit)
 
 R is free software and comes with ABSOLUTELY NO WARRANTY.
 You are welcome to redistribute it under certain conditions.
@@ -48,13 +48,12 @@ The following objects are masked from ‘package:stats’:
 
 The following objects are masked from ‘package:base’:
 
-    anyDuplicated, append, as.data.frame, basename, cbind, colMeans,
-    colnames, colSums, dirname, do.call, duplicated, eval, evalq,
-    Filter, Find, get, grep, grepl, intersect, is.unsorted, lapply,
-    lengths, Map, mapply, match, mget, order, paste, pmax, pmax.int,
-    pmin, pmin.int, Position, rank, rbind, Reduce, rowMeans, rownames,
-    rowSums, sapply, setdiff, sort, table, tapply, union, unique,
-    unsplit, which, which.max, which.min
+    anyDuplicated, append, as.data.frame, basename, cbind, colnames,
+    dirname, do.call, duplicated, eval, evalq, Filter, Find, get, grep,
+    grepl, intersect, is.unsorted, lapply, Map, mapply, match, mget,
+    order, paste, pmax, pmax.int, pmin, pmin.int, Position, rank,
+    rbind, Reduce, rownames, sapply, setdiff, sort, table, tapply,
+    union, unique, unsplit, which.max, which.min
 
 Loading required package: S4Vectors
 Loading required package: stats4
@@ -80,8 +79,8 @@ The following object is masked from ‘package:base’:
 > # 0. patient with neoantigen information
 > #--------------------------------------------------------------------
 > 
-> sample_mb = read.table(file = "riaz_patient_mb_info.txt", 
-+                                header = TRUE, sep = " ")
+> sample_mb = read.table(file = "../data/riaz_patient_mb_info.txt", 
++                        header = TRUE, sep = " ")
 > dim(sample_mb)
 [1] 104   3
 > sample_mb[1:2,]
@@ -89,45 +88,20 @@ The following object is masked from ‘package:base’:
 1  Pt10_on             112                44
 2 Pt10_pre             118                46
 > 
-> sample_with_neoAg = read.table(file = "riaz_nMut_with_peptides.txt", 
-+                               header = TRUE, sep = " ")
-> dim(sample_with_neoAg)
-[1] 90  2
-> sample_with_neoAg[1:2,]
-   matchID nMuts_with_peptides
-1  Pt10_on                  44
-2 Pt10_pre                  46
-> 
-> names(sample_with_neoAg)[1] = "sample"
-> sample_mb = merge(sample_mb, sample_with_neoAg, by="sample", all.x=TRUE)
-> dim(sample_mb)
-[1] 104   4
-> sample_mb[1:2,]
-    sample total_mutations n_mutations_neoAg nMuts_with_peptides
-1  Pt10_on             112                44                  44
-2 Pt10_pre             118                46                  46
-> 
-> summary(sample_mb$nMuts_with_peptides)
-   Min. 1st Qu.  Median    Mean 3rd Qu.    Max.    NA's 
-    1.0    44.0   154.5   342.9   360.8  6641.0      14 
-> sample_mb$nMuts_with_peptides[which(is.na(sample_mb$nMuts_with_peptides))] = 0
-> 
-> summary(sample_mb$n_mutations_neoAg - sample_mb$nMuts_with_peptides)
-   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-  0.000   0.000   1.500   4.308   5.000  83.000 
+> table(sample_mb$n_mutations_neoAg > 0)
+
+FALSE  TRUE 
+   14    90 
 > 
 > sample_mb$lowerID = tolower(sample_mb$sample)
 > sample_mb$PreOn = sub(".*_", "", sample_mb$sample)
 > sample_mb$Patient = sub("_.*", "", sample_mb$sample)
 > dim(sample_mb)
-[1] 104   7
+[1] 104   6
 > sample_mb[1:2,]
-    sample total_mutations n_mutations_neoAg nMuts_with_peptides  lowerID PreOn
-1  Pt10_on             112                44                  44  pt10_on    on
-2 Pt10_pre             118                46                  46 pt10_pre   pre
-  Patient
-1    Pt10
-2    Pt10
+    sample total_mutations n_mutations_neoAg  lowerID PreOn Patient
+1  Pt10_on             112                44  pt10_on    on    Pt10
+2 Pt10_pre             118                46 pt10_pre   pre    Pt10
 > 
 > table(sample_mb$PreOn)
 
@@ -139,7 +113,7 @@ The following object is masked from ‘package:base’:
 > #--------------------------------------------------------------------
 > # import patient info 
 > 
-> supp.clinic = read.xlsx("_supp/mmc2.xlsx", startRow=2)
+> supp.clinic = read.xlsx("../data/_supp/mmc2.xlsx", startRow=2)
 > dim(supp.clinic)
 [1] 73 12
 > supp.clinic[1:2,]
@@ -153,7 +127,7 @@ The following object is masked from ‘package:base’:
 1               NA       977.86911
 2               56        65.84072
 > 
-> riaz.clinic = read.csv("_github/bms038_clinical_data.csv")
+> riaz.clinic = read.csv("../data/_github/bms038_clinical_data.csv")
 > dim(riaz.clinic)
 [1] 73 17
 > riaz.clinic[1:2,]
@@ -233,7 +207,7 @@ TRUE
 > # 2. compare clinical and sample information from GitHub
 > #--------------------------------------------------------------------
 > 
-> riaz.sample = read.csv("_github/SampleTableCorrected.9.19.16.csv")
+> riaz.sample = read.csv("../data/_github/SampleTableCorrected.9.19.16.csv")
 > dim(riaz.sample)
 [1] 108  14
 > riaz.sample[1:2,]
@@ -246,6 +220,7 @@ TRUE
          USUBJID    Cohort
 1 CA209038-3-101 NIV3-PROG
 2 CA209038-3-101 NIV3-PROG
+> 
 > table(riaz.sample$X == riaz.sample$Sample)
 
 TRUE 
@@ -323,6 +298,7 @@ FALSE  TRUE
   PD 47    0  0
   PR  0   16  0
   SD  0    0 34
+> 
 > response.sample = unique(riaz.sample[,c("PatientID", "BOR")])
 > dim(response.sample)
 [1] 64  2
@@ -330,6 +306,7 @@ FALSE  TRUE
   PatientID BOR
 1     Pt101  PR
 3     Pt103  PD
+> 
 > table(table(response.sample$PatientID))
 
  1 
@@ -356,13 +333,13 @@ FALSE  TRUE
   SD  0  0  0  0 19
 > 
 > sessionInfo()
-R version 3.5.2 (2018-12-20)
-Platform: x86_64-apple-darwin15.6.0 (64-bit)
-Running under: macOS Mojave 10.14.6
+R version 4.0.3 (2020-10-10)
+Platform: x86_64-apple-darwin17.0 (64-bit)
+Running under: macOS Big Sur 10.16
 
 Matrix products: default
-BLAS: /Library/Frameworks/R.framework/Versions/3.5/Resources/lib/libRblas.0.dylib
-LAPACK: /Library/Frameworks/R.framework/Versions/3.5/Resources/lib/libRlapack.dylib
+BLAS:   /Library/Frameworks/R.framework/Versions/4.0/Resources/lib/libRblas.dylib
+LAPACK: /Library/Frameworks/R.framework/Versions/4.0/Resources/lib/libRlapack.dylib
 
 locale:
 [1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
@@ -372,14 +349,14 @@ attached base packages:
 [8] methods   base     
 
 other attached packages:
-[1] openxlsx_4.1.0.1    Biostrings_2.50.2   XVector_0.22.0     
-[4] IRanges_2.16.0      S4Vectors_0.20.1    BiocGenerics_0.28.0
-[7] stringi_1.4.3       magrittr_1.5       
+[1] openxlsx_4.2.3      Biostrings_2.58.0   XVector_0.30.0     
+[4] IRanges_2.24.1      S4Vectors_0.28.1    BiocGenerics_0.36.0
+[7] stringi_1.5.3       magrittr_2.0.1     
 
 loaded via a namespace (and not attached):
-[1] zlibbioc_1.28.0 compiler_3.5.2  tools_3.5.2     Rcpp_1.0.1     
-[5] zip_2.0.4      
+[1] zlibbioc_1.36.0 compiler_4.0.3  tools_4.0.3     Rcpp_1.0.5     
+[5] crayon_1.3.4    zip_2.1.1      
 > q(save="no")
 > proc.time()
    user  system elapsed 
-  1.529   0.239   1.822 
+  1.793   0.167   2.063 

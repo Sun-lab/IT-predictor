@@ -61,12 +61,13 @@ for(i in 1:nrow(riaz_mutdata_refaa)){
     som_mut35[i] = som_mut35r[i] = "Sequence unavailable"
   } else{
 
-    # replace aa at position 'pos' with mutated aa
-    b$prot.seq.ref = b$prot.seq
-    
     if(substr(b$prot.seq, b$pos, b$pos) != b$W){
       stop("mismatch of amino acid for wild type allelel")
     }
+    
+    # replace aa at position 'pos' with mutated aa
+    b$prot.seq.ref = b$prot.seq
+    substr(b$prot.seq, as.numeric(b$pos), as.numeric(b$pos)) = as.character(b$M)
     
     # extract aa of interest per somatic mutation
     mut17_start[i] = max(as.numeric(b$pos)-8, 1)
@@ -84,6 +85,16 @@ for(i in 1:nrow(riaz_mutdata_refaa)){
 riaz_mutdata_sm = data.frame(riaz_mutdata_refaa[,1:15], som_mut17, som_mut17r, 
                          som_mut35, som_mut35r, mut17_start, mut17_end, 
                          mut35_start, mut35_end, stringsAsFactors=FALSE)
+dim(riaz_mutdata_sm)
+riaz_mutdata_sm[1:2,]
+
+table(riaz_mutdata_sm$som_mut17 == "Sequence unavailable")
+table(riaz_mutdata_sm$som_mut17 == "ENST not found")
+
+w1 = which(riaz_mutdata_sm$som_mut17 == "Sequence unavailable")
+riaz_mutdata_sm[w1,]
+
+riaz_mutdata_sm = riaz_mutdata_sm[-w1,]
 dim(riaz_mutdata_sm)
 riaz_mutdata_sm[1:2,]
 

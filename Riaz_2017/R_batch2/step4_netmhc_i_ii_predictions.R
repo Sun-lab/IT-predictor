@@ -28,17 +28,15 @@ riaz_mutdata_sm[1:2,]
 # Step 2: Output somatic mutations for predictions
 #--------------------------------------------------------------------
 
-riaz_sm = riaz_mutdata_sm
+sum(riaz_mutdata_sm$som_mut17 == "ENST not found")
+sum(riaz_mutdata_sm$som_mut17 == "Sequence unavailable")
 
-sum(riaz_sm$som_mut17 == "ENST not found")
-sum(riaz_sm$som_mut17 == "Sequence unavailable")
-
-head(riaz_sm[riaz_sm$som_mut17 == "ENST not found",])
-head(riaz_sm[riaz_sm$som_mut17 == "Sequence unavailable",])
+head(riaz_mutdata_sm[riaz_mutdata_sm$som_mut17 == "ENST not found",])
+head(riaz_mutdata_sm[riaz_mutdata_sm$som_mut17 == "Sequence unavailable",])
 
 # remove observations with missing sequence 
 w2rm = c("ENST not found", "Sequence unavailable")
-riaz_sm1 = riaz_sm[which(! riaz_sm$som_mut17 %in% w2rm),]
+riaz_sm1 = riaz_mutdata_sm[which(! riaz_mutdata_sm$som_mut17 %in% w2rm),]
 dim(riaz_sm1)
 riaz_sm1[1:2,]
 

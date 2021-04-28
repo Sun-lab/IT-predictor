@@ -18,25 +18,12 @@ library(openxlsx)
 # 0. patient with neoantigen information
 #--------------------------------------------------------------------
 
-sample_mb = read.table(file = "riaz_patient_mb_info.txt", 
-                               header = TRUE, sep = " ")
+sample_mb = read.table(file = "../data/riaz_patient_mb_info.txt", 
+                       header = TRUE, sep = " ")
 dim(sample_mb)
 sample_mb[1:2,]
 
-sample_with_neoAg = read.table(file = "riaz_nMut_with_peptides.txt", 
-                              header = TRUE, sep = " ")
-dim(sample_with_neoAg)
-sample_with_neoAg[1:2,]
-
-names(sample_with_neoAg)[1] = "sample"
-sample_mb = merge(sample_mb, sample_with_neoAg, by="sample", all.x=TRUE)
-dim(sample_mb)
-sample_mb[1:2,]
-
-summary(sample_mb$nMuts_with_peptides)
-sample_mb$nMuts_with_peptides[which(is.na(sample_mb$nMuts_with_peptides))] = 0
-
-summary(sample_mb$n_mutations_neoAg - sample_mb$nMuts_with_peptides)
+table(sample_mb$n_mutations_neoAg > 0)
 
 sample_mb$lowerID = tolower(sample_mb$sample)
 sample_mb$PreOn = sub(".*_", "", sample_mb$sample)
@@ -51,11 +38,11 @@ table(sample_mb$PreOn)
 #--------------------------------------------------------------------
 # import patient info 
 
-supp.clinic = read.xlsx("_supp/mmc2.xlsx", startRow=2)
+supp.clinic = read.xlsx("../data/_supp/mmc2.xlsx", startRow=2)
 dim(supp.clinic)
 supp.clinic[1:2,]
 
-riaz.clinic = read.csv("_github/bms038_clinical_data.csv")
+riaz.clinic = read.csv("../data/_github/bms038_clinical_data.csv")
 dim(riaz.clinic)
 riaz.clinic[1:2,]
 table(riaz.clinic$SampleType)
@@ -77,9 +64,10 @@ table(sample_mb$Patient %in% supp.clinic$Patient)
 # 2. compare clinical and sample information from GitHub
 #--------------------------------------------------------------------
 
-riaz.sample = read.csv("_github/SampleTableCorrected.9.19.16.csv")
+riaz.sample = read.csv("../data/_github/SampleTableCorrected.9.19.16.csv")
 dim(riaz.sample)
 riaz.sample[1:2,]
+
 table(riaz.sample$X == riaz.sample$Sample)
 riaz.sample = riaz.sample[,-1]
 dim(riaz.sample)
@@ -107,9 +95,11 @@ setdiff(riaz.sample$Sample, riaz.clinic$Sample)
 #--------------------------------------------------------------------
 
 table(riaz.sample$BOR, riaz.sample$Response)
+
 response.sample = unique(riaz.sample[,c("PatientID", "BOR")])
 dim(response.sample)
 response.sample[1:2,]
+
 table(table(response.sample$PatientID))
 
 response2compare = merge(riaz.clinic, response.sample, by="PatientID")
