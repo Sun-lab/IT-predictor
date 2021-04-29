@@ -20,7 +20,9 @@ output_info = gsub("../output/", "", outs)
 output_info = gsub(".txt.gz", "", output_info)
 
 output_info = strsplit(output_info, "_hla")
+
 table(sapply(output_info, length))
+
 output_info = data.frame(matrix(unlist(output_info), byrow = TRUE, ncol=2))
 names(output_info) = c("sample", "label")
 dim(output_info)

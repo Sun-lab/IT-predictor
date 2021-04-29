@@ -94,7 +94,7 @@ FALSE  TRUE
    14    90 
 > 
 > sample_mb$lowerID = tolower(sample_mb$sample)
-> sample_mb$PreOn = sub(".*_", "", sample_mb$sample)
+> sample_mb$PreOn   = sub(".*_", "", sample_mb$sample)
 > sample_mb$Patient = sub("_.*", "", sample_mb$sample)
 > dim(sample_mb)
 [1] 104   6
@@ -245,13 +245,17 @@ TRUE
  1 
 73 
 > 
-> table(unique(tolower(riaz.sample$PatientID)) %in% tolower(riaz.clinic$PatientID))
+> table(unique(riaz.sample$PatientID) %in% riaz.clinic$PatientID)
 
 FALSE  TRUE 
     7    57 
 > setdiff(riaz.sample$PatientID, riaz.clinic$PatientID)
 [1] "Pt105" "Pt109" "Pt16"  "Pt35"  "Pt69"  "Pt80"  "Pt81" 
 > 
+> table(riaz.clinic$PatientID %in% riaz.sample$PatientID)
+
+FALSE  TRUE 
+   16    57 
 > table(tolower(riaz.clinic$PatientID) %in% tolower(riaz.sample$PatientID))
 
 FALSE  TRUE 
@@ -359,4 +363,4 @@ loaded via a namespace (and not attached):
 > q(save="no")
 > proc.time()
    user  system elapsed 
-  1.793   0.167   2.063 
+  1.814   0.162   2.044 

@@ -26,7 +26,7 @@ sample_mb[1:2,]
 table(sample_mb$n_mutations_neoAg > 0)
 
 sample_mb$lowerID = tolower(sample_mb$sample)
-sample_mb$PreOn = sub(".*_", "", sample_mb$sample)
+sample_mb$PreOn   = sub(".*_", "", sample_mb$sample)
 sample_mb$Patient = sub("_.*", "", sample_mb$sample)
 dim(sample_mb)
 sample_mb[1:2,]
@@ -76,9 +76,10 @@ riaz.sample[1:2,]
 table(table(riaz.sample$PatientID))
 table(table(riaz.clinic$PatientID))
 
-table(unique(tolower(riaz.sample$PatientID)) %in% tolower(riaz.clinic$PatientID))
+table(unique(riaz.sample$PatientID) %in% riaz.clinic$PatientID)
 setdiff(riaz.sample$PatientID, riaz.clinic$PatientID)
 
+table(riaz.clinic$PatientID %in% riaz.sample$PatientID)
 table(tolower(riaz.clinic$PatientID) %in% tolower(riaz.sample$PatientID))
 
 riaz.clinic$Sample = tolower(riaz.clinic$Sample)

@@ -11,6 +11,7 @@ library(data.table)
 library(tidyr)
 library(ggpubr)
 library(scales)
+library(ggpointdensity)
 
 theme_set(theme_classic())
 
@@ -29,6 +30,7 @@ dat[1:2,]
 
 dat_l1 = pivot_longer(dat[,c(1:3,seq(4,ncol(dat)-2,by=2))], 
                       values_to="EL_score", cols=ends_with("_EL-score"))
+
 dat_l2 = pivot_longer(dat[,c(1:3,seq(5,ncol(dat)-2,by=2))], 
                       values_to="EL_rank", cols=ends_with("_EL_Rank"))
 
@@ -99,6 +101,7 @@ table(dat$Target)
 
 dat_l1 = pivot_longer(dat[,c(1:3,seq(5,ncol(dat)-2,by=2))], 
                       values_to="EL_score", cols=ends_with("_Score"))
+
 dat_l2 = pivot_longer(dat[,c(1:3,seq(6,ncol(dat)-2,by=2))], 
                       values_to="EL_rank", cols=ends_with("_Rank"))
 
@@ -171,6 +174,7 @@ for(k in names(hla_i)){
 
   dat_l1 = pivot_longer(dat[,c(1:3,seq(4,ncol(dat)-2,by=2))], 
                         values_to="EL_score", cols=ends_with("_EL-score"))
+  
   dat_l2 = pivot_longer(dat[,c(1:3,seq(5,ncol(dat)-2,by=2))], 
                         values_to="EL_rank", cols=ends_with("_EL_Rank"))
   
@@ -195,8 +199,6 @@ for(k in names(hla_i)){
 length(hla_i_long)
 sapply(hla_i_long[1:5], dim)
 
-names(hla_i_long)[1:5]
-
 # next combine _mut and _ref
 which.ref = grep("_ref", names(hla_i_long), fixed=TRUE)
 nms.m = names(hla_i_long)[-which.ref]
@@ -207,119 +209,231 @@ length(nms.r)
 
 table(gsub("_ref", "", nms.r) == gsub("_mut", "", nms.m))
 
-neoAg.mhci = NULL
+neoAg_mhc_i = NULL
+cols2align = c("Pos", "ID", "HLA")
 
 for(i in 1:length(nms.m)){
   m1 = hla_i_long[[nms.m[i]]]
   r1 = hla_i_long[[nms.r[i]]]
   
+  # remove those with ID like "Un_GL000219v1_8"
+  w2rm = grep("^Un_", m1$ID)
+  if(length(w2rm) > 0){m1 = m1[-w2rm,]}
+  
+  w2rm = grep("^Un_", r1$ID)
+  if(length(w2rm) > 0){r1 = r1[-w2rm,]}
+  
   sample = gsub("_mut", "", nms.m[i])
   
   if(nrow(m1) != nrow(r1)){ stop("nrow do not match\n") }
-  stopifnot(all(m1$Pos  == r1$Pos))
-  stopifnot(all(m1$ID   == r1$ID))
-  stopifnot(all(m1$HLA  == r1$HLA))
-  stopifnot(all(m1$Peptide  == r1$Peptide))
   
-  df1 = merge(m1, r1, by = c("Pos", "ID", "HLA"), 
+  stopifnot(setequal(apply(m1[,cols2align], 1, paste, collapse=":"), 
+                     apply(r1[,cols2align], 1, paste, collapse=":")))
+
+  df1 = merge(m1, r1, by = cols2align, 
               suffixes = c("_mut", "_ref"))
+  stopifnot(nrow(df1) == nrow(m1))
   
+  df1$sample = rep(sample, nrow(df1))
   dim(df1)
   df1[1:5,]
   
-  neoAg.mhci = rbind(neoAg.mhci, df1)
+  neoAg_mhc_i = rbind(neoAg_mhc_i, df1)
 }
 
-dim(neoAg.mhci)
-head(neoAg.mhci)
+dim(neoAg_mhc_i)
+head(neoAg_mhc_i)
 
-table(neoAg.mhci$pos == neoAg.mhci$pos.ref)
+rank.diff = neoAg_mhc_i$EL_rank_mut - neoAg_mhc_i$EL_rank_ref
+table(rank.diff == 0)
+table(abs(rank.diff) > 1)
+table(abs(rank.diff) > 5)
+table(abs(rank.diff) > 10)
 
-png("figures/compare_rank_mutation_vs_reference_mhci.png", 
-    width=8, height=4, units="in", res=300)
-par(mfrow=c(1,2), mar=c(5,4,1,1), bty="n")
-plot(log10(neoAg.mhci$rank.ref), log10(neoAg.mhci$rank), pch=20, cex=0.5, 
-     col="darkgrey", xlab="log10(rank.reference)", ylab="log10(rank.mutation)")
-abline(0, 1, lwd=2, col='red')
+table(rank.diff > 5 & rank.diff <= 10)
+table(rank.diff < -5 & rank.diff >= -10)
 
-rank.diff = neoAg.mhci$rank - neoAg.mhci$rank.ref
+table(rank.diff > 10)
+table(rank.diff < -10)
 
+pdf("../figures/compare_rank_mutation_vs_reference_mhc_i_hist1.pdf", 
+    width=3, height=3)
+par(mar=c(5,4,1,1))
 hist(rank.diff[rank.diff !=0 ], breaks=100, main="", 
+     xlab="rank.mutation - rank.reference", xlim=c(-20,20))
+abline(v=0, lwd=1, col='red')
+dev.off()
+
+pdf("../figures/compare_rank_mutation_vs_reference_mhc_i_hist2.pdf", 
+    width=5, height=3)
+par(mar=c(5,4,1,1))
+hist(rank.diff[abs(rank.diff) > 10 ], breaks=100, main="", 
      xlab="rank.mutation - rank.reference")
-abline(v=0, lwd=2, col='red')
+abline(v=0, lwd=1, col='red')
+
+dev.off()
+
+neoAg_mhc_i_sub = neoAg_mhc_i[which(neoAg_mhc_i$EL_rank_mut < 2),]
+dim(neoAg_mhc_i_sub)
+neoAg_mhc_i_sub[1:2,]
+
+min(neoAg_mhc_i_sub$EL_rank_mut)
+min(neoAg_mhc_i_sub$EL_rank_ref)
+
+
+gs1 = ggplot(neoAg_mhc_i_sub, aes(x = log10(EL_rank_ref), 
+                                 y = log10(EL_rank_mut))) +
+  geom_pointdensity(size = 0.6) + scale_color_viridis_c() +
+  labs(x = "log10(rank_reference)", y = "log10(rank_mutation)") + 
+  geom_abline(intercept = 0, slope = 1)
+
+png("../figures/compare_rank_mutation_vs_reference_mhc_i.png", 
+    width=6, height=4, units="in", res=300)
+gs1
 dev.off()
 
 #--------------------------------------------------------------------
 # 4. re-organize results for HLA-II
 #--------------------------------------------------------------------
 
-which.ref = grep("_sm15r", names(mhciipan), fixed=TRUE)
-nms.m = names(mhciipan)[-which.ref]
-nms.r = names(mhciipan)[which.ref]
+# first transform to the long format
+hla_ii_long = list()
+
+for(k in names(hla_ii)){
+  dat = as.data.frame(hla_ii[[k]])
+  
+  dat_l1 = pivot_longer(dat[,c(1:3,seq(5,ncol(dat)-2,by=2))], 
+                        values_to="EL_score", cols=ends_with("_Score"))
+  
+  dat_l2 = pivot_longer(dat[,c(1:3,seq(6,ncol(dat)-2,by=2))], 
+                        values_to="EL_rank", cols=ends_with("_Rank"))
+  
+  dat_l1$HLA = gsub("_Score", "", dat_l1$name)
+  dat_l2$HLA = gsub("_Rank",  "", dat_l2$name)
+  
+  dim(dat_l1)
+  dat_l1[1:2,]
+  
+  dim(dat_l2)
+  dat_l2[1:2,]
+  
+  stopifnot(all(dat_l1$Pos  == dat_l2$Pos))
+  stopifnot(all(dat_l1$ID   == dat_l2$ID))
+  stopifnot(all(dat_l1$HLA  == dat_l2$HLA))
+  stopifnot(all(dat_l1$Peptide  == dat_l2$Peptide))
+  
+  mhc_ii = merge(dat_l1[,-4], dat_l2[,-4])
+  hla_ii_long[[k]] = mhc_ii
+}
+
+length(hla_ii_long)
+sapply(hla_ii_long[1:5], dim)
+
+# next combine _mut and _ref
+which.ref = grep("_ref", names(hla_ii_long), fixed=TRUE)
+nms.m = names(hla_ii_long)[-which.ref]
+nms.r = names(hla_ii_long)[which.ref]
 
 length(nms.m)
 length(nms.r)
-nms.m[1:5]
-nms.r[1:5]
 
-table(nms.r == paste0(nms.m, "r"))
+table(gsub("_ref", "", nms.r) == gsub("_mut", "", nms.m))
 
-neoAg.mhciipan = NULL
+neoAg_mhc_ii = NULL
+cols2align = c("Pos", "ID", "HLA")
 
 for(i in 1:length(nms.m)){
-  m1 = mhciipan[[nms.m[i]]]
-  r1 = mhciipan[[nms.r[i]]]
+  m1 = hla_ii_long[[nms.m[i]]]
+  r1 = hla_ii_long[[nms.r[i]]]
   
-  sample = gsub("_hlaii_sm15", "", nms.m[i])
+  # remove those with ID like "Un_GL000219v1_8"
+  w2rm = grep("^Un_", m1$ID)
+  if(length(w2rm) > 0){m1 = m1[-w2rm,]}
+  
+  w2rm = grep("^Un_", r1$ID)
+  if(length(w2rm) > 0){r1 = r1[-w2rm,]}
+  
+  sample = gsub("_mut", "", nms.m[i])
   
   if(nrow(m1) != nrow(r1)){ stop("nrow do not match\n") }
-  if(any(m1$allele != r1$allele)){ stop("HLA do not match\n") }
-  if(any(m1$identity != r1$identity)){ stop("identity do not match\n") }
   
-  names(r1)[-c(2,4)] = paste(names(r1)[-c(2,4)], "ref", sep=".")
+  stopifnot(setequal(apply(m1[,cols2align], 1, paste, collapse=":"), 
+                     apply(r1[,cols2align], 1, paste, collapse=":")))
   
-  m1  = cbind(m1, r1[,-c(2,4)])
-  df1 = data.frame(sample=rep(sample, nrow(m1)), m1, stringsAsFactors=FALSE)
+  df1 = merge(m1, r1, by = cols2align, 
+              suffixes = c("_mut", "_ref"))
+  stopifnot(nrow(df1) == nrow(m1))
   
-  neoAg.mhciipan = rbind(neoAg.mhciipan, df1)
+  df1$sample = rep(sample, nrow(df1))
+  dim(df1)
+  df1[1:5,]
+  
+  neoAg_mhc_ii = rbind(neoAg_mhc_ii, df1)
 }
 
-dim(neoAg.mhciipan)
-head(neoAg.mhciipan)
+dim(neoAg_mhc_ii)
+head(neoAg_mhc_ii)
 
-table(neoAg.mhciipan$seq == neoAg.mhciipan$seq.ref)
+rank.diff = neoAg_mhc_ii$EL_rank_mut - neoAg_mhc_ii$EL_rank_ref
 
-png("figures/compare_rank_mutation_vs_reference_mhciipan.png", 
-    width=8, height=4, units="in", res=300)
-par(mfrow=c(1,2), mar=c(5,4,1,1), bty="n")
-plot(log10(neoAg.mhciipan$rank.ref), log10(neoAg.mhciipan$rank), pch=20, cex=0.5, 
-     col="darkgrey", xlab="log10(rank.reference)", ylab="log10(rank.mutation)")
-abline(0, 1, lwd=2, col='red')
+table(rank.diff == 0)
+table(abs(rank.diff) > 1)
+table(abs(rank.diff) > 5)
+table(abs(rank.diff) > 10)
 
-rank.diff = neoAg.mhciipan$rank - neoAg.mhciipan$rank.ref
+table(rank.diff > 0)
+table(rank.diff > 5 & rank.diff <= 10)
+table(rank.diff < -5 & rank.diff >= -10)
+
+table(rank.diff > 10)
+table(rank.diff < -10)
+
+pdf("../figures/compare_rank_mutation_vs_reference_mhc_ii_hist1.pdf", 
+    width=3, height=3)
+par(mar=c(5,4,1,1))
 hist(rank.diff[rank.diff !=0 ], breaks=100, main="", 
-     xlab="rank.mutation - rank.reference")
-abline(v=0, lwd=2, col='red')
+     xlab="rank.mutation - rank.reference", xlim=c(-20,20))
+abline(v=0, lwd=1, col='red')
 dev.off()
 
-table(neoAg.mhci$rank == neoAg.mhci$rank.ref)
-table(neoAg.mhciipan$rank == neoAg.mhciipan$rank.ref)
+pdf("../figures/compare_rank_mutation_vs_reference_mhc_ii_hist2.pdf", 
+    width=5, height=3)
+par(mar=c(5,4,1,1))
+hist(rank.diff[abs(rank.diff) > 10 ], breaks=100, main="", 
+     xlab="rank.mutation - rank.reference")
+abline(v=0, lwd=1, col='red')
 
-table(neoAg.mhci$rank - neoAg.mhci$rank.ref < 0)
-table(neoAg.mhciipan$rank - neoAg.mhciipan$rank.ref < 0)
+dev.off()
+
+neoAg_mhc_ii_sub = neoAg_mhc_ii[which(neoAg_mhc_ii$EL_rank_mut < 2),]
+dim(neoAg_mhc_ii_sub)
+neoAg_mhc_ii_sub[1:2,]
+
+min(neoAg_mhc_ii_sub$EL_rank_mut)
+min(neoAg_mhc_ii_sub$EL_rank_mut[neoAg_mhc_ii_sub$EL_rank_mut > 0])
+neoAg_mhc_ii_sub$EL_rank_mut[which(neoAg_mhc_ii_sub$EL_rank_mut < 1e-2)] = 5e-3
+
+min(neoAg_mhc_ii_sub$EL_rank_ref)
+min(neoAg_mhc_ii_sub$EL_rank_ref[neoAg_mhc_ii_sub$EL_rank_ref > 0])
+neoAg_mhc_ii_sub$EL_rank_ref[which(neoAg_mhc_ii_sub$EL_rank_ref < 1e-2)] = 5e-3
+
+gs1 = ggplot(neoAg_mhc_ii_sub, aes(x = log10(EL_rank_ref), 
+                                 y = log10(EL_rank_mut))) +
+  geom_pointdensity(size = 0.6) + scale_color_viridis_c() +
+  labs(x = "log10(rank_reference)", y = "log10(rank_mutation)") + 
+  geom_abline(intercept = 0, slope = 1)
+
+png("../figures/compare_rank_mutation_vs_reference_mhc_ii.png", 
+    width=6, height=4, units="in", res=300)
+gs1
+dev.off()
 
 #--------------------------------------------------------------------
 # 5. save the neoAg
 #--------------------------------------------------------------------
 
-length(mhci)
-mhci[[1]]
-
-length(mhciipan)
-mhciipan[[1]]
-
-saveRDS(neoAg.mhci, file="output/mhci_min_rank_per_HLA_mutation.rds")
-saveRDS(neoAg.mhciipan, file="output/mhciipan_min_rank_per_HLA_mutation.rds")
+saveRDS(neoAg_mhc_i,  file="../data/neoAg_netMHCpan4_1.rds")
+saveRDS(neoAg_mhc_ii, file="../data/neoAg_netMHCIIpan4_0.rds")
 
 sessionInfo()
 q(save="no")

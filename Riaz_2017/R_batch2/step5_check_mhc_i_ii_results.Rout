@@ -42,10 +42,12 @@ Type 'q()' to quit R.
 > output_info = gsub(".txt.gz", "", output_info)
 > 
 > output_info = strsplit(output_info, "_hla")
+> 
 > table(sapply(output_info, length))
 
   2 
 360 
+> 
 > output_info = data.frame(matrix(unlist(output_info), byrow = TRUE, ncol=2))
 > names(output_info) = c("sample", "label")
 > dim(output_info)
@@ -201,4 +203,4 @@ loaded via a namespace (and not attached):
 > q(save="no")
 > proc.time()
    user  system elapsed 
- 36.785   5.585  45.394 
+ 40.406   5.552  47.507 
