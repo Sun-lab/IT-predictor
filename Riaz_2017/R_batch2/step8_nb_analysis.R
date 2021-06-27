@@ -2,6 +2,7 @@
 library(data.table)
 library(ggplot2)
 library(ggpointdensity)
+theme_set(theme_bw())
 
 #--------------------------------------------------------------------
 # 1. read in neoantigen estimation
@@ -52,6 +53,8 @@ table(tc)
 summary(mhci$EL_rank_mut)
 summary(mhci$EL_score_mut)
 
+# a random sample of 10,000 peptides
+set.seed(2021)
 mhci_sam = mhci[sample(nrow(mhci), 10000),]
 dim(mhci_sam)
 
@@ -59,7 +62,10 @@ g1 = ggplot(mhci_sam, aes(x=EL_score_mut, y=log10(EL_rank_mut))) +
   geom_pointdensity() + scale_color_viridis_c() + 
   geom_hline(yintercept=log10(2), col="grey") + ggtitle("MHC-I")
 
+png("../figures/step8_mhc_i_EL_score_mut_vs_EL_rank_mut.png", 
+    width=5, height=4, units="in", res=300)
 g1
+dev.off()
 
 summary(mhcii$EL_rank_mut)
 summary(mhcii$EL_score_mut)
@@ -67,12 +73,19 @@ min0 = min(mhcii$EL_rank_mut[mhcii$EL_rank_mut > 0])
 min0
 mhcii$EL_rank_mut[which(mhcii$EL_rank_mut == 0)] = 0.5*min0
 
+# a random sample of 10,000 peptides
+set.seed(2021)
 mhcii_sam = mhcii[sample(nrow(mhcii), 10000),]
 dim(mhcii_sam)
 
 g2 = ggplot(mhcii_sam, aes(x=EL_score_mut, y=log10(EL_rank_mut))) + 
   geom_pointdensity() + scale_color_viridis_c() + 
   geom_hline(yintercept=log10(2), col="grey") + ggtitle("MHC-II")
+
+png("../figures/step8_mhc_ii_EL_score_mut_vs_EL_rank_mut.png", 
+    width=5, height=4, units="in", res=300)
+g2
+dev.off()
 
 #--------------------------------------------------------------------
 # 2. compare reference and mutated peptides for HLA-I
@@ -118,7 +131,6 @@ names(df1.mhci)[2:3] = c("mut_H", "ref_H")
 names(df1.mhci)[4:5] = c("mut_H_mut_ge_0.2", "ref_H_ref_ge_0.2")
 names(df1.mhci)[6:7] = c("TDR", "TDR_ge_0.2")
 
-options(width=80)
 dim(df1.mhci)
 df1.mhci
 
@@ -177,12 +189,17 @@ mhcii
 length(unique(mhci$sample))
 length(unique(mhcii$sample))
 
-
+# take maximum across position in the peptide and HLA alleles
 mhci_max = mhci[,.(EL_score_mut_max = max(EL_score_mut)), by = .(ID, sample)]
 mhci_max
 
 mhcii_max = mhcii[,.(EL_score_mut_max = max(EL_score_mut)), by = .(ID, sample)]
 mhcii_max
+
+dim(mhci)
+dim(mhcii)
+dim(mhci_max)
+dim(mhcii_max)
 
 summary(mhci$EL_score_mut)
 summary(mhcii$EL_score_mut)
@@ -207,31 +224,41 @@ colnames(mhci)
 
 ## count one somatic mutation multiple times if multple position of it
 ## is bound to multiple HLA allele
+## or count one somatic mutation at most once 
+
 nb$mhci  = mhci[EL_score_mut > 0.187, .N, by=sample]
 nb$mhci_max  = mhci_max[EL_score_mut_max > 0.9154, .N, by=sample]
 
 nb$mhcii = mhcii[EL_score_mut > 0.40, .N, by=sample]
 nb$mhcii_max = mhcii_max[EL_score_mut_max > 0.9524, .N, by=sample]
 
-## count one somatic mutation at most once 
-
 length(nb)
+lapply(nb, dim)
+lapply(nb, head)
+
 samples_i  = unique(mhci$sample)
 samples_ii = unique(mhcii$sample)
+
 length(samples_i)
 length(samples_ii)
-setequal(samples_i, samples_ii)
+
+stopifnot(all(gsub("_hlai",  "", samples_i) == 
+                gsub("_hlaii", "", samples_ii)))
+
+samples = gsub("_hlai",  "", samples_i)
 
 nb.mx = matrix(0, nrow=length(samples), ncol=4)
-rownames(nb.mx) = samples_i
+rownames(nb.mx) = samples
 
 for(i in 1:2){
   w2update = match(nb[[i]]$sample, samples_i)
+  stopifnot(! any(is.na(w2update)))
   nb.mx[w2update,i] = unlist(nb[[i]][,2])
 }
 
 for(i in 3:4){
   w2update = match(nb[[i]]$sample, samples_ii)
+  stopifnot(! any(is.na(w2update)))
   nb.mx[w2update,i] = unlist(nb[[i]][,2])
 }
 
@@ -241,8 +268,10 @@ dim(nb.mx)
 nb.mx[1:6,]
 
 summary(nb.mx)
-pairs(log10(nb.mx+1))
 
+pdf(file="../figures/step8_compare_nb.pdf", width=8, height=8)
+pairs(log10(nb.mx+1))
+dev.off()
 
 #--------------------------------------------------------------------
 # Step 7. Save datasets 
