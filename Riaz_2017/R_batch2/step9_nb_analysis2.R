@@ -4,7 +4,7 @@ library(ggplot2)
 library(ggpubr)
 library(quantreg)
 
-theme_set(theme_classic())
+theme_set(theme_bw())
 
 #--------------------------------------------------------------------
 # Step 9: Neoantigen Burden Analysis 
@@ -18,27 +18,27 @@ theme_set(theme_classic())
 # load mb/nb results and clinical information
 #--------------------------------------------------------------------
 
-sample_nb = read.table("output/neoAg_burden.txt", sep="\t", 
+sample_nb = read.table("../output/neoAg_burden.txt", sep="\t", 
                        header=TRUE, as.is=TRUE)
 dim(sample_nb)
 sample_nb[1:2,]
 
-sample_mb = read.table(file = "riaz_patient_mb_info.txt", 
+sample_mb = read.table(file = "../data/riaz_patient_mb_info.txt", 
                        header = TRUE, sep = " ")
 dim(sample_mb)
 sample_mb[1:2,]
 
-sample_nb$PreOn = sub(".*_", "", sample_nb$sample)
+sample_nb$PreOn   = sub(".*_", "", sample_nb$sample)
 sample_nb$Patient = sub("_.*", "", sample_nb$sample)
 dim(sample_nb)
 sample_nb[1:2,]
 
-sample_mb$PreOn = sub(".*_", "", sample_mb$sample)
+sample_mb$PreOn   = sub(".*_", "", sample_mb$sample)
 sample_mb$Patient = sub("_.*", "", sample_mb$sample)
 dim(sample_mb)
 sample_mb[1:2,]
 
-clinic = read.xlsx("_supp/mmc2.xlsx", startRow=2)
+clinic = read.xlsx("../data/_supp/mmc2.xlsx", startRow=2)
 dim(clinic)
 clinic[1:2,]
 
@@ -75,19 +75,22 @@ clinic[["mb.on"]]  = log10(sample_mb.on$n_mutations_neoAg[mat.on] + 1)
 #--------------------------------------------------------------------
 
 sample_nb[1:2,]
-sample_nb.pre = sample_nb[which(sample_nb$PreOn == "pre"),-c(1,8)]
-sample_nb.on  = sample_nb[which(sample_nb$PreOn == "on"),-c(1,8)]
+col2rm = which(names(sample_nb) %in% c("sample", "PreOn"))
+col2rm
+
+sample_nb.pre = sample_nb[which(sample_nb$PreOn == "pre"),-col2rm]
+sample_nb.on  = sample_nb[which(sample_nb$PreOn == "on"),-col2rm]
 
 dim(sample_nb.pre)
 dim(sample_nb.on)
 
-names(sample_nb.on)[-7] = paste0(names(sample_nb.on)[-7], ".on")
+names(sample_nb.on)[-5] = paste0(names(sample_nb.on)[-5], ".on")
 
 sample_nb.pre[1:2,]
 sample_nb.on[1:2,]
 
-sample_nb.pre[,-7] = log10(sample_nb.pre[,-7] + 1)
-sample_nb.on[,-7]  = log10(sample_nb.on[,-7] + 1)
+sample_nb.pre[,1:4] = log10(sample_nb.pre[,1:4] + 1)
+sample_nb.on[,1:4]  = log10(sample_nb.on[,1:4] + 1)
 
 clinic = merge(clinic, sample_nb.pre, by="Patient", all.x = TRUE)
 dim(clinic)
@@ -112,8 +115,8 @@ colSums(is.na(clinic))
 grep("^mhc", names(clinic))
 grep(".on$", names(clinic))
 
-clinic[which(clinic$mb.pre == 0),15:20] = 0
-clinic[which(clinic$mb.on == 0),21:26]  = 0
+clinic[which(clinic$mb.pre == 0),15:18] = 0
+clinic[which(clinic$mb.on == 0),19:22]  = 0
 
 table(clinic$mb.pre == 0, clinic$mb.on == 0)
 
@@ -128,23 +131,26 @@ clinic$Mutation.Load = log10(clinic$Mutation.Load + 1)
 clinic$`Neo-antigen.Load` = log10(clinic$`Neo-antigen.Load` + 1)
 clinic$`Neo-peptide.Load` = log10(clinic$`Neo-peptide.Load` + 1)
 
-pdf("figures/compare_mb_nb_Riaz_vs_us.pdf", width=9, height=6)
+pdf("../figures/step9_compare_mb_nb_Riaz_vs_us.pdf", width=9, height=6)
 par(mfrow=c(2,3), mar=c(5,4,1,1), bty="n")
 plot(clinic$Mutation.Load, clinic$`Neo-antigen.Load`, 
      xlab="Riaz et al. MB", ylab="Riaz et al. NeoAg")
+abline(0, 1, col="brown")
 plot(clinic$Mutation.Load, clinic$`Neo-peptide.Load`, 
      xlab="Riaz et al. MB", ylab="Riaz et al. Neo-pep")
+abline(0, 1, col="brown")
 plot(clinic$`Neo-antigen.Load`, clinic$`Neo-peptide.Load`,
      xlab="Riaz et al. NeoAg", ylab="Riaz et al. Neo-pep")
+abline(0, 1, col="brown")
 
 plot(clinic$Mutation.Load, clinic$mb.pre, 
      xlab="Riaz et al. MB", ylab="our MB")
 abline(0, 1, col="brown")
-plot(clinic$`Neo-antigen.Load`, clinic$mhci,
-     xlab="Riaz et al. NeoAg", ylab="our Neo-pep")
+plot(clinic$`Neo-antigen.Load`, clinic$mhci_all,
+     xlab="Riaz et al. NeoAg", ylab="our all peptides")
 abline(0, 1, col="brown")
-plot(clinic$`Neo-peptide.Load`, clinic$mhci,
-     xlab="Riaz et al. Neo-pep", ylab="our Neo-pep")
+plot(clinic$`Neo-antigen.Load`, clinic$mhci_max,
+     xlab="Riaz et al. NeoAg", ylab="our neoantigens")
 abline(0, 1, col="brown")
 dev.off()
 
@@ -174,19 +180,11 @@ anova(lm(clinic$`Neo-peptide.Load` ~ clinic$Response))
 
 anova(lm(clinic$mb.pre ~ clinic$Response))
 
-anova(lm(clinic$mhci ~ clinic$Response))
-anova(lm(clinic$mhci.lt.ref ~ clinic$Response))
-anova(lm(clinic$mhci.lt.ref.weighted ~ clinic$Response))
+anova(lm(clinic$mhci_max ~ clinic$Response))
+anova(lm(clinic$mhci_all ~ clinic$Response))
 
-anova(lm(clinic$mhciipan ~ clinic$Response))
-anova(lm(clinic$mhciipan.lt.ref ~ clinic$Response))
-anova(lm(clinic$mhciipan.lt.ref.weighted ~ clinic$Response))
-
-
-x = clinic$mhci.lt.ref.weighted
-y = clinic$mhciipan.lt.ref.weighted
-z = x + y
-anova(lm(z ~ clinic$Response))
+anova(lm(clinic$mhcii_max ~ clinic$Response))
+anova(lm(clinic$mhcii_all ~ clinic$Response))
 
 clinic$mut_diff = clinic$mb.pre - clinic$mb.on
 anova(lm(clinic$mut_diff ~ clinic$Response))
@@ -200,22 +198,22 @@ p0 = ggplot(clinic, aes(x=Response, y=mb.pre)) +
   geom_jitter(position=position_jitter(0.2), size=1) + 
   labs(title="", x="Response", y = "log10(MB)") 
 
-p1 = ggplot(clinic, aes(x=Response, y=mhci.lt.ref.weighted)) + 
+p1 = ggplot(clinic, aes(x=Response, y=mhci_max)) + 
   geom_boxplot() + 
   geom_jitter(position=position_jitter(0.2), size=1) + 
-  labs(title="", x="Response", y = "log10(MHC-I NB weighted)") 
+  labs(title="", x="Response", y = "log10(MHC-I neoantigen)") 
 
-p2 = ggplot(clinic, aes(x=Response, y=mhciipan.lt.ref.weighted)) + 
+p2 = ggplot(clinic, aes(x=Response, y=mhcii_max)) + 
   geom_boxplot() + 
   geom_jitter(position=position_jitter(0.2), size=1) + 
-  labs(title="", x="Response", y = "log10(MHC-II NB weighted)") 
+  labs(title="", x="Response", y = "log10(MHC-II neoantigen)") 
 
 p3 = ggplot(clinic, aes(x=Response, y=mb.pre - mb.on)) + 
   geom_boxplot() + 
   geom_jitter(position=position_jitter(0.2), size=1) + 
   labs(title="", x="Response", y = "log10(MB) pre - on") 
 
-pdf("figures/boxplot_nb_vs_response.pdf", width=6, height=6)
+pdf("../figures/step9_boxplot_nb_vs_response.pdf", width=6, height=6)
 ggarrange(p0, p1, p2, p3, ncol = 2, nrow = 2)
 dev.off()
 
@@ -223,20 +221,19 @@ dev.off()
 # check the way to combine MHC-I and MHC-II
 #--------------------------------------------------------------------
 
-g0 = ggplot(clinic, aes(x=mhci, y=mhci.lt.ref, color=Response)) + 
+g0 = ggplot(clinic, aes(x=mhci_all, y=mhci_max, color=Response)) + 
   geom_point()
 
-g1 = ggplot(clinic, aes(x=mhci, y=mhci.lt.ref.weighted, color=Response)) + 
+g1 = ggplot(clinic, aes(x=mhcii_all, y=mhcii_max, color=Response)) + 
   geom_point()
 
-g2 = ggplot(clinic, aes(x=mhciipan, y=mhciipan.lt.ref, color=Response)) + 
+g2 = ggplot(clinic, aes(x=mhci_all, y=mhcii_all, color=Response)) + 
   geom_point()
 
-g3 = ggplot(clinic, aes(x=mhciipan, y=mhciipan.lt.ref.weighted, 
-                        color=Response)) + 
+g3 = ggplot(clinic, aes(x=mhci_max, y=mhcii_all, color=Response)) + 
   geom_point()
 
-pdf("figures/scatter_nb_vs_response.pdf", width=8, height=6)
+pdf("../figures/step9_scatter_nb_vs_response.pdf", width=8, height=6)
 ggarrange(g0, g1, g2, g3, ncol = 2, nrow = 2)
 dev.off()
 
@@ -244,14 +241,17 @@ dev.off()
 # fit linear regression 
 #----------------------------------------------------------------
 
-x = clinic$mhci
-y = clinic$mhciipan
+x_min = 1
+x_max = 3.5
 
-g2 = ggplot(clinic, aes(x=mhci, y=mhciipan, color=Response)) + 
+x = clinic$mhci_all
+y = clinic$mhcii_all
+
+g2 = ggplot(clinic, aes(x=mhci_all, y=mhcii_all, color=Response)) + 
   geom_point(size=1.2) + 
   labs(x="HLA-I neoantigen burden", y = "HLA-II neoantigen burden") 
 
-w2kp = which(x > 2 & x < 3.5)
+w2kp = which(x > x_min & x < x_max)
 
 lm1  = lm(y ~ -1 + x, subset=w2kp)
 summary(lm1)
@@ -260,8 +260,9 @@ beta0 = 0
 beta1 = lm1$coef[1]
 beta1
 
-g2_lin = g2 + geom_segment(aes(x = 2, y = beta0 + beta1*2, 
-                           xend = 3.5, yend = beta0 + beta1*3.5), 
+g2_lin = g2 + 
+  geom_segment(aes(x = x_min, y = beta0 + beta1*x_min, 
+                   xend = x_max, yend = beta0 + beta1*x_max), 
                        col="black")
 
 #----------------------------------------------------------------
@@ -275,9 +276,10 @@ med.beta0 = 0
 med.beta1 = med.fit$coef[1]
 med.beta1
 
-g2_med = g2 + geom_segment(aes(x = 2, y = med.beta0 + med.beta1*2, 
-                               xend = 3.5, yend = med.beta0 + med.beta1*3.5), 
-                           col="black")
+g2_med = g2 + 
+  geom_segment(aes(x = x_min, y = med.beta0 + med.beta1*x_min, 
+                   xend = x_max, yend = med.beta0 + med.beta1*x_max), 
+               col="black")
 
 #----------------------------------------------------------------
 # Prediction
@@ -320,12 +322,14 @@ g3_med2 = ggboxplot(df1_med, x = "Cohort", y = "Absolute_Residual",
                     outlier.shape = NA, legend = "none") + 
   stat_compare_means(aes(group = Response), label = "p.format")
 
-pdf("figures/boxplot_nb_res_vs_response_linear.pdf", width=9, height=3)
+pdf("../figures/step9_boxplot_nb_res_vs_response_linear.pdf", 
+    width=9, height=3)
 ggarrange(g2_lin, g3_lin, g3_lin2, ncol = 3, nrow = 1, widths=c(4,2,3), 
           labels = c("A", "B", "C"))
 dev.off()
 
-pdf("figures/boxplot_nb_res_vs_response_medquant.pdf", width=9, height=3)
+pdf("../figures/step9_boxplot_nb_res_vs_response_medquant.pdf", 
+    width=9, height=3)
 ggarrange(g2_med, g3_med, g3_med2, ncol = 3, nrow = 1, widths=c(4,2,3),
           labels = c("A", "B", "C"))
 dev.off()
@@ -334,7 +338,7 @@ dev.off()
 # save updated clinical information
 #--------------------------------------------------------------------
 
-write.table(clinic, file = "output/clinic_info.txt", append = FALSE, 
+write.table(clinic, file = "../output/clinic_info.txt", append = FALSE, 
             quote = FALSE, sep = "\t", row.names = FALSE, col.names = TRUE)
 
 sessionInfo()
