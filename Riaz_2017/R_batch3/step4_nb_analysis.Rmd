@@ -1,0 +1,512 @@
+---
+title: "Analysis of neoantigen data"
+output:
+  html_document:
+    fig_width: 4
+    fig_height: 3
+    df_print: paged
+    keep_md: true
+---
+
+# Read in PEPPRMINT estimates
+```{r warning=FALSE, echo = FALSE, results = 'hide', warning = FALSE, message = FALSE}
+library(data.table)
+library(ggplot2)
+library(ggpointdensity)
+library(readxl)
+library(survival)
+library(survminer)
+library(dplyr)
+library(viridis)
+
+theme_set(theme_classic())
+```
+
+# Read in neoantigen estimation by NetMHC
+```{r}
+netmhc_all  = readRDS("../data/neoAg_netMHCpan4_1.rds")
+
+colnames(netmhc_all)
+dim(netmhc_all)
+head(netmhc_all)
+netmhc_all  = as.data.table(netmhc_all)
+```
+
+## Taking maximum for each somatic mutation using mutated petides
+```{r}
+netmhc_mut = netmhc_all[,.(EL_score_mut_max = max(EL_score_mut)), 
+                        by = .(ID, sample)]
+dim(netmhc_mut)
+netmhc_mut
+netmhc_mut$key = gsub("_", ":", netmhc_mut$ID)
+netmhc_mut$sample = gsub("_hlai", "", netmhc_mut$sample)
+
+g1 = ggplot(netmhc_mut, aes(x=EL_score_mut_max)) + xlab("NetMHC score (mut)") + 
+  geom_histogram(color="darkblue", fill="lightblue")
+g1
+```
+
+## Taking maximum for each somatic mutation using reference peptides
+```{r}
+netmhc_ref = netmhc_all[,.(EL_score_ref_max = max(EL_score_ref)), 
+                        by = .(ID, sample)]
+dim(netmhc_ref)
+netmhc_ref
+netmhc_ref$key = gsub("_", ":", netmhc_ref$ID)
+netmhc_ref$sample = gsub("_hlai", "", netmhc_ref$sample)
+
+g1 = ggplot(netmhc_ref, aes(x=EL_score_ref_max)) + xlab("NetMHC score (ref)") + 
+  geom_histogram(color="darkblue", fill="lightblue")
+g1
+```
+
+## Compare NetMHC estimates between reference and mutation
+```{r fig.height=3.5, fig.width=4.5}
+table(netmhc_mut$ID == netmhc_ref$ID)
+table(netmhc_mut$sample == netmhc_ref$sample)
+
+netmhc = merge(netmhc_mut, netmhc_ref)
+netmhc
+
+gg1 = ggplot(data = netmhc, mapping = aes(x = EL_score_ref_max, 
+                                          y = EL_score_mut_max)) +
+  geom_pointdensity(size=1) + xlab("NetMHCpan-4.1 ref") + 
+  ylab("NetMHCpan-4.1 mut") + 
+  scale_color_viridis() + theme(legend.position = "top")
+
+pdf("step4_nb_analysis_files/netmhc_ref_vs_mut.pdf", width=3.5, height=4.2)
+gg1
+dev.off()
+
+```
+
+# Read in neoantigen estimation by PEPPRMINT
+
+## Results after taking maximum for the scores from mutated peptides
+```{r}
+ppmint_mut = fread("../output_PEPPRMINT/PEPPRMINT_Riaz_2017_aggregate.tsv")
+dim(ppmint_mut)
+ppmint_mut
+summary(ppmint_mut$pepprmint)
+
+setequal(ppmint_mut$sample, netmhc$sample)
+length(setdiff(ppmint_mut$key, netmhc$key))
+
+g1 = ggplot(ppmint_mut, aes(x=pepprmint)) + xlab("PEPPRMINT score (mut)") + 
+  geom_histogram(color="darkblue", fill="lightblue")
+g1
+```
+
+## Results after taking maximum for the scores from reference peptides
+```{r}
+ppmint_ref = fread("../output_PEPPRMINT/PEPPRMINT_Riaz_2017_ref_aggregate.tsv")
+dim(ppmint_ref)
+ppmint_ref
+summary(ppmint_ref$pepprmint)
+
+table(ppmint_mut$key == ppmint_ref$key)
+table(ppmint_mut$sample == ppmint_ref$sample)
+
+g1 = ggplot(ppmint_ref, aes(x=pepprmint)) + xlab("PEPPRMINT score (ref)") + 
+  geom_histogram(color="darkblue", fill="lightblue")
+g1
+```
+
+## Compare PEPPRMINT estimates between reference and mutation
+```{r fig.height=3.5, fig.width=4.5}
+ppmint = merge(ppmint_mut, ppmint_ref, by = c("key", "sample"), 
+               suffixes = c("_mut", "_ref"))
+ppmint
+
+gg2 = ggplot(data = ppmint, mapping = aes(x = pepprmint_ref, y = pepprmint_mut)) +
+  geom_pointdensity(size=1) + xlab("PEPPRMINT ref") + ylab("PEPPRMINT mut") + 
+  scale_color_viridis() + theme(legend.position = "top")
+
+pdf("step4_nb_analysis_files/pepprmint_ref_vs_mut.pdf", width=3.5, height=4.2)
+gg2
+dev.off()
+```
+
+# Read in patient information
+
+```{r}
+sample_mb = fread(file = "../data/riaz_patient_mb_info.txt")
+dim(sample_mb)
+sample_mb[1:2,]
+
+ppmint$Patient = sub("_.*", "", ppmint$sample)
+netmhc$Patient = sub("_.*", "", netmhc$sample)
+sample_mb$Patient = sub("_.*", "", sample_mb$sample)
+
+clinic = read_excel("../data/_supp/mmc2.xlsx", skip=1)
+dim(clinic)
+clinic[1:2,]
+
+clinic = as.data.frame(clinic)
+table(clinic$Patient %in% sample_mb$Patient)
+table(tolower(clinic$Patient) %in% tolower(sample_mb$Patient))
+
+patient = intersect(clinic$Patient, sample_mb$Patient)
+length(patient)
+
+patient = intersect(patient, ppmint$Patient)
+length(patient)
+
+clinic[which(! clinic$Patient %in% patient),]
+
+clinic = clinic[match(patient, clinic$Patient),]
+dim(clinic)
+head(clinic)
+names(clinic)[c(4:5,7)] = c("Dead", "Time", "Mutation")
+head(clinic)
+```
+
+# Prepare clinical information
+
+```{r}
+table(clinic$Response)
+clinic[["Response3"]] = clinic$Response
+clinic$Response3[which(clinic$Response == "NE")] = "PD"
+clinic$Response3[which(clinic$Response == "CR")] = "PRCR"
+clinic$Response3[which(clinic$Response == "PR")] = "PRCR"
+
+clinic$Response = clinic$Response3
+clinic$Response[which(clinic$Response3 == "SD")] = "PDSD"
+clinic$Response[which(clinic$Response3 == "PD")] = "PDSD"
+
+table(clinic$Response, clinic$Response3)
+
+clinic$Cohort[which(clinic$Cohort == "NIV3-NAIVE")] = "Ipi naive"
+clinic$Cohort[which(clinic$Cohort == "NIV3-PROG")]  = "Ipi prog"
+```
+
+# Get mutation burden information
+
+```{r}
+mat_pre = match(paste0(patient, "_pre"), sample_mb$sample)
+clinic[["mb_pre"]] = log10(sample_mb$n_mutations_neoAg[mat_pre] + 1)
+
+mat_on = match(paste0(patient, "_on"), sample_mb$sample)
+clinic[["mb_on"]]  = log10(sample_mb$n_mutations_neoAg[mat_on] + 1)
+```
+
+
+# Check the relation between mutation burden and clinical response
+
+```{r}
+clinic$mut_diff = clinic$mb_pre - clinic$mb_on
+anova(lm(mut_diff ~ Response, data = clinic))
+anova(lm(mb_pre ~ Response, data = clinic))
+
+p0 = ggplot(clinic, aes(x=Response, y=mb_pre)) + 
+  geom_boxplot(outlier.shape = NA) + 
+  geom_jitter(position=position_jitter(0.2), size=1) + 
+  labs(title="", x="Response", y = "log10(MB)") 
+p0
+
+p0 = ggplot(clinic, aes(x=Response, y=mb_pre - mb_on)) + 
+  geom_boxplot(outlier.shape = NA) + 
+  geom_jitter(position=position_jitter(0.2), size=1) + 
+  labs(title="", x="Response", y = "log10(MB) decrease") 
+p0
+
+res_cox = coxph(Surv(Time, Dead) ~ mb_pre, data = clinic)
+res_cox
+```
+
+# Estimate neoAg burden
+
+## Assess association between neoAg versus cytolytic_score
+
+```{r}
+cutoffs = seq(0.75, 0.95, by=0.05)
+pvals   = matrix(NA, nrow=length(cutoffs), ncol=2)
+
+netmhc$sample = as.factor(netmhc$sample)
+ppmint$sample = as.factor(ppmint$sample)
+
+clinic$`Cytolytic Score` = as.numeric(clinic$`Cytolytic Score`)
+summary(clinic$cytolytic_score)
+
+g1 = ggplot(clinic, aes(x=log10(`Cytolytic Score`))) + 
+  xlab("log10(Cytolytic Score)") + 
+  geom_histogram(color="darkblue", fill="lightblue")
+g1
+
+clinic[["cytolytic_score"]] = log10(clinic$`Cytolytic Score`)
+  
+for(i in 1:length(cutoffs)){
+  ci = cutoffs[i]
+  
+  tti       = table(netmhc$sample[netmhc$EL_score_mut_max >= ci])
+  mat_pre   = match(paste0(patient, "_pre"), names(tti))
+  nb_netmhc_pre = log10(tti[mat_pre] + 1)
+  pvals[i,1] = anova(lm(clinic$cytolytic_score ~ nb_netmhc_pre))$`Pr(>F)`[1]
+
+  tti       = table(ppmint$sample[ppmint$pepprmint_mut >= ci])
+  mat_pre   = match(paste0(patient, "_pre"), names(tti))
+  nb_ppmint_pre = log10(tti[mat_pre] + 1)
+  pvals[i,2] = anova(lm(clinic$cytolytic_score ~ nb_ppmint_pre))$`Pr(>F)`[1]
+}
+pvals
+
+pval_df = data.frame(pval = c(pvals), 
+                     cutoff = rep(as.character(cutoffs), times=2),
+                     method = rep(c("NetMHCpan-4.1", "PEPPRMINT"), each=5))
+
+pm = ggplot(pval_df, aes(x = method, y = -log10(pval), fill = cutoff)) + 
+  geom_bar( stat="identity", position=position_dodge()) + 
+  scale_fill_brewer(palette="Paired") + theme(legend.position = "top") +  
+  geom_hline(yintercept = -log10(0.05), lty=2) + 
+  guides(fill=guide_legend(nrow=2, byrow=TRUE))
+
+pdf("step4_nb_analysis_files/nb_vs_cytolytic_pvals.pdf", width=2.8, height=4)
+print(pm)
+dev.off()
+
+anova(lm(clinic$cytolytic_score ~ clinic$mb_pre))
+```
+
+## Illustrate the relation between neoAg versus cytolytic_score
+
+Here we use 0.9 as cutoff of neoantigen score. 
+
+```{r fig.height=3, fig.width=8}
+ci = 0.9
+
+tti       = table(netmhc$sample[netmhc$EL_score_mut_max >= ci])
+mat_pre   = match(paste0(patient, "_pre"), names(tti))
+nb_netmhc_pre = log10(tti[mat_pre] + 1)
+
+mat_on    = match(paste0(patient, "_on"), names(tti))
+nb_netmhc_on  = log10(tti[mat_on] + 1)
+
+
+tti       = table(ppmint$sample[ppmint$pepprmint_mut >= ci])
+mat_pre   = match(paste0(patient, "_pre"), names(tti))
+nb_ppmint_pre = log10(tti[mat_pre] + 1)
+
+mat_on    = match(paste0(patient, "_on"), names(tti))
+nb_ppmint_on  = log10(tti[mat_on] + 1)
+
+clinic[["nb_netmhc_pre"]] = nb_netmhc_pre
+clinic[["nb_ppmint_pre"]] = nb_ppmint_pre
+
+clinic2 = clinic[which(!is.na(clinic$`Cytolytic Score`)),]
+
+lm1  = lm(cytolytic_score ~ mb_pre, data=clinic2)
+lm1
+pval = anova(lm1)$`Pr(>F)`[1]
+g1 = ggplot(clinic2, aes(x=mb_pre, y=cytolytic_score)) +
+  geom_point() + xlab("mutation burden\n") + geom_smooth(method=lm) + 
+  ggtitle(sprintf("pvalue = %.3f", pval))
+
+pval = anova(lm(cytolytic_score ~ nb_netmhc_pre, data=clinic2))$`Pr(>F)`[1]
+g2 = ggplot(clinic2, aes(x=nb_netmhc_pre, y=cytolytic_score)) + 
+  geom_point() + xlab("neoantigen burden \n(NetMHCpan 4.1)") + 
+  geom_smooth(method=lm) + 
+  ggtitle(sprintf("pvalue = %.3f", pval))
+
+pval = anova(lm(cytolytic_score ~ nb_ppmint_pre, data=clinic2))$`Pr(>F)`[1]
+g3 = ggplot(clinic2, aes(x=nb_ppmint_pre, y=cytolytic_score)) +
+  geom_point() + xlab("neoantigen burden \n(PEPPRMINT)") + 
+  geom_smooth(method=lm) + 
+  ggtitle(sprintf("pvalue = %.3f", pval))
+
+gg1 = ggarrange(g1, g2, g3, ncol = 3, 
+          common.legend = TRUE, legend = "bottom")
+gg1
+pdf("step4_nb_analysis_files/nb_vs_cytolytic.pdf", width=8, height=3)
+print(gg1)
+dev.off()
+```
+
+
+## Check the relation between neoantigen change and treatment response
+
+```{r fig.height=3, fig.width=5.6}
+ci = 0.9
+
+tti       = table(netmhc$sample[netmhc$EL_score_mut_max >= ci])
+mat_pre   = match(paste0(patient, "_pre"), names(tti))
+nb_netmhc_pre = log10(as.numeric(tti[mat_pre]) + 1)
+
+mat_on    = match(paste0(patient, "_on"), names(tti))
+nb_netmhc_on  = log10(as.numeric(tti[mat_on]) + 1)
+
+tti       = table(ppmint$sample[ppmint$pepprmint_mut >= ci])
+mat_pre   = match(paste0(patient, "_pre"), names(tti))
+nb_ppmint_pre = log10(as.numeric(tti[mat_pre]) + 1)
+
+mat_on    = match(paste0(patient, "_on"), names(tti))
+nb_ppmint_on  = log10(as.numeric(tti[mat_on]) + 1)
+
+clinic[["nb_netmhc_pre"]] = nb_netmhc_pre
+clinic[["nb_ppmint_pre"]] = nb_ppmint_pre
+
+clinic[["nb_netmhc_on"]] = nb_netmhc_on
+clinic[["nb_ppmint_on"]] = nb_ppmint_on
+
+clinic$mut_diff = clinic$mb_pre - clinic$mb_on
+anova(lm(mut_diff ~ Response, data = clinic))
+
+clinic$nb_netmhc_diff = clinic$nb_netmhc_pre - clinic$nb_netmhc_on
+anova(lm(nb_netmhc_diff ~ Response, data = clinic))
+
+clinic$nb_ppmint_diff = clinic$nb_ppmint_pre - clinic$nb_ppmint_on
+anova(lm(nb_ppmint_diff ~ Response, data = clinic))
+
+table(clinic$Response, is.na(clinic$mut_diff))
+
+table(clinic$Response, is.na(clinic$nb_netmhc_diff))
+table(clinic$Response, is.na(clinic$nb_ppmint_diff))
+clinic[clinic$Response == "PRCR" & !is.na(clinic$nb_ppmint_diff),]
+
+clinic$Response = factor(clinic$Response, levels = c("PDSD", "PRCR"))
+
+g0 = ggplot(clinic, aes(x = nb_netmhc_pre, y = nb_netmhc_on, color=Response)) +
+    geom_jitter(width = 0.02, height=0.02, size = 1) + 
+  xlab("pre-therapy") + ylab("on-therapy") + 
+  ggtitle("NetMHCpan-4.1 \n neoantigen burden") + xlim(-0.02, 2.2)
+
+g1 = ggplot(clinic, aes(x = nb_ppmint_pre, y = nb_ppmint_on, color=Response)) +
+    geom_jitter(width = 0.02, height=0.02, size = 1) + 
+  xlab("pre-therapy") + ylab("on-therapy") + 
+  ggtitle("PEPPRMINT \n neoantigen burden") + xlim(-0.02, 2.2)
+
+gg2 = ggarrange(g0, g1, ncol = 2, common.legend = TRUE, legend = "bottom", 
+                labels = c("(A)", "(B)"))
+gg2
+
+pdf("step4_nb_analysis_files/compare_nb_pre_on.pdf", width=5.6, height=3)
+print(gg2)
+dev.off()
+```
+
+
+# Select potential neoantigens
+
+```{r}
+cols = c("sample", "key", "EL_score_mut_max", "EL_score_ref_max", "Patient")
+netmhc = netmhc[, ..cols]
+median(netmhc$EL_score_ref_max)
+
+table(netmhc$EL_score_mut_max > 0.8 & netmhc$EL_score_ref_max < 0.22)
+table(netmhc$EL_score_mut_max > 0.8 & netmhc$EL_score_ref_max < 0.2)
+table(netmhc$EL_score_ref_max > 0.8 & netmhc$EL_score_mut_max < 0.2)
+
+table(netmhc$EL_score_mut_max > 0.9 & netmhc$EL_score_ref_max < 0.22)
+table(netmhc$EL_score_mut_max > 0.9 & netmhc$EL_score_ref_max < 0.1)
+table(netmhc$EL_score_ref_max > 0.9 & netmhc$EL_score_mut_max < 0.1)
+
+cols = c("sample", "key", "pepprmint_mut", "pepprmint_ref", "Patient")
+ppmint = ppmint[, ..cols]
+
+median(ppmint$pepprmint_ref)
+
+table(ppmint$pepprmint_mut > 0.8 & ppmint$pepprmint_ref < 0.5)
+table(ppmint$pepprmint_mut > 0.8 & ppmint$pepprmint_ref < 0.2)
+table(ppmint$pepprmint_ref > 0.8 & ppmint$pepprmint_mut < 0.2)
+
+table(ppmint$pepprmint_mut > 0.9 & ppmint$pepprmint_ref < 0.5)
+table(ppmint$pepprmint_mut > 0.9 & ppmint$pepprmint_ref < 0.1)
+table(ppmint$pepprmint_ref > 0.9 & ppmint$pepprmint_mut < 0.1)
+
+neoAg_netMHC = netmhc[EL_score_mut_max > 0.9 & EL_score_ref_max < 0.22]
+neoAg_ppmint = ppmint[pepprmint_mut > 0.9 & ppmint$pepprmint_ref < 0.5]
+
+dim(neoAg_netMHC)
+dim(neoAg_ppmint)
+
+neoAg_netMHC[1:2,]
+neoAg_ppmint[1:2,]
+
+t1 = table(neoAg_netMHC$key)
+table(t1)
+
+t2 = table(neoAg_ppmint$key)
+table(t2)
+
+df_both = merge(neoAg_netMHC, neoAg_ppmint, by=c("sample", "key"))
+dim(df_both)
+df_both[1:2,]
+
+t1 = table(neoAg_netMHC$sample)
+t2 = table(neoAg_ppmint$sample)
+table(t1)
+table(t2)
+
+sort(t1, decreasing = TRUE)[1:10]
+sort(t2, decreasing = TRUE)[1:10]
+
+t1p = t1[t1 > 0]
+t2p = t2[t2 > 0]
+length(t1p)
+length(t2p)
+length(intersect(names(t1p), names(t2p)))
+
+
+t1 = table(neoAg_netMHC$Patient)
+t2 = table(neoAg_ppmint$Patient)
+table(t1)
+table(t2)
+
+sort(t1, decreasing = TRUE)[1:10]
+sort(t2, decreasing = TRUE)[1:10]
+
+length(intersect(names(t1), names(t2)))
+
+table(clinic$Patient %in% names(t1), clinic$Response)
+table(clinic$Patient %in% names(t2), clinic$Response)
+
+fisher.test(clinic$Patient %in% names(t1), clinic$Response)
+fisher.test(clinic$Patient %in% names(t2), clinic$Response)
+```
+
+# Add mutation annotation data
+
+```{r}
+load("../data/riaz_mutdata.RData")
+dim(riaz_mutdata)
+names(riaz_mutdata)
+
+riaz_mutdata = riaz_mutdata[,c(1, 9:13, 74:75, 77:78)]
+riaz_mutdata$key = paste(gsub("chr", "", riaz_mutdata$seqnames), 
+                         riaz_mutdata$start, sep=":")
+riaz_mutdata$key = paste(riaz_mutdata$key, 
+                         riaz_mutdata$REF, sep=":")
+riaz_mutdata$key = paste(riaz_mutdata$key, 
+                         riaz_mutdata$ALT, sep=":")
+riaz_mutdata[1:2,]
+
+table(neoAg_ppmint$key %in% riaz_mutdata$key)
+
+mat1 = match(neoAg_netMHC$key, riaz_mutdata$key)
+neoAg_netMHC_with_anno = cbind(neoAg_netMHC, riaz_mutdata[mat1,-(1:6)])
+
+mat2 = match(neoAg_ppmint$key, riaz_mutdata$key)
+neoAg_ppmint_with_anno = cbind(neoAg_ppmint, riaz_mutdata[mat2,-(1:6)])
+
+t1 = table(neoAg_netMHC_with_anno$Gene.ensGene)
+table(t1)
+
+sort(t1, decreasing = TRUE)[1:10]
+
+
+t2 = table(neoAg_ppmint_with_anno$Gene.ensGene)
+table(t2)
+
+sort(t2, decreasing = TRUE)[1:10]
+
+fwrite(neoAg_netMHC_with_anno, 
+       file="step4_nb_analysis_files/neoAg_netMHC_with_anno.tsv", sep = "\t")
+
+fwrite(neoAg_ppmint_with_anno, 
+       file="step4_nb_analysis_files/neoAg_ppmint_with_anno.tsv", sep = "\t")
+```
+
+# SessionInfo
+
+```{r}
+sessionInfo()
+```

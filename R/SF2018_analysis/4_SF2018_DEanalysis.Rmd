@@ -1,0 +1,330 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+```{r warning=FALSE, echo = TRUE, results = 'hide', message = FALSE}
+library(lme4)
+library(MAST)
+library(data.table)
+library(R.utils)
+library(doParallel)
+library(stringr)
+```
+
+# Processing data
+
+```{r}
+fnm1 = "GSE120575_Sade_Feldman_melanoma_single_cells_nolabel_1.txt.gz"
+fnm2 = "GSE120575_Sade_Feldman_melanoma_single_cells_2.txt.gz"
+
+sf_tpm1 = fread(paste0("../../scRNAseq/Sade_Feldman_2018/", fnm1), 
+                fill = TRUE, header = TRUE)
+
+sf_tpm2 = fread(paste0("../../scRNAseq/Sade_Feldman_2018/", fnm2), 
+                fill = TRUE, drop = 16293, col.names = colnames(sf_tpm1))
+
+ls_tpm = list(sf_tpm1,sf_tpm2)
+rm(sf_tpm1)
+rm(sf_tpm2)
+
+sf_tpm = rbindlist(ls_tpm)
+
+rm(ls_tpm)
+```
+
+```{r}
+dim(sf_tpm) # 55737 x 16292
+sf_tpm[1:2,1:4]
+
+gene.names = sf_tpm$V1
+rownames(sf_tpm) = gene.names
+sf_tpm$V1 = NULL
+```
+
+Only select classified cells  
+```{r}
+cell_type = read.table("./output/cell_type.txt", header = TRUE, 
+                       sep = "\t", as.is = TRUE)
+dim(cell_type)
+cell_type[1:2,]
+
+table(cell_type$type, useNA="ifany")
+clustered_cells = cell_type$cell[cell_type$type != "unclustered"]
+cluster_sf_tpm  = sf_tpm[, ..clustered_cells]
+dim(cluster_sf_tpm)
+rownames(cluster_sf_tpm) = gene.names
+cluster_sf_tpm[1:3,1:3]
+
+rm(sf_tpm)
+rm(clustered_cells)
+```
+
+# Select ~10,000 genes expressed in at least a proportion of cells
+
+Calculate the proportion of cells that each gene is expressed in
+```{r}
+cellprop.per.gene = rowMeans(cluster_sf_tpm > 0)
+summary(cellprop.per.gene)
+
+table(cellprop.per.gene > 0.02)
+table(cellprop.per.gene > 0.05)
+
+he.genes = gene.names[cellprop.per.gene > 0.02]
+HEgenes_cluster_tpm = cluster_sf_tpm[cellprop.per.gene > 0.02, ]
+rownames(HEgenes_cluster_tpm) = he.genes
+dim(HEgenes_cluster_tpm)
+
+summary(cellprop.per.gene[cellprop.per.gene > 0.02])
+
+rm(cellprop.per.gene)
+rm(cluster_sf_tpm)
+```
+
+# Average expression of each gene in each cell type
+
+First calculate the expression of each gene across all cells
+
+```{r}
+all.expression = rowSums(HEgenes_cluster_tpm)
+```
+
+u_CT1: average expression of each gene in cell type CT1. 
+o_CT1: average expression of each gene in all the cells that do not belong to cell type CT1. 
+
+```{r}
+average_expression = data.frame(gene = he.genes)
+levels(factor(cell_type$type))
+
+for (i in levels(factor(cell_type$type))[-12]) {
+  # select cells in each cell cluster
+  cc = cell_type$cell[cell_type$type == i] 
+  # total expression of each gene across all the cells of a particular cluster
+  cluster.exp = apply(HEgenes_cluster_tpm[, ..cc], 1, sum)
+  # total expression of each gene across all other cells
+  exclu.exp = all.expression - cluster.exp
+  # divide by the number of cells in the cluster to get the average expression
+  aveg.cluster.exp = cluster.exp / length(cc)
+  # divide by the number of all other cells to get the average expression
+  aveg.exclu.exp = exclu.exp / (ncol(HEgenes_cluster_tpm) - length(cc))
+  
+  fc = aveg.exclu.exp / aveg.cluster.exp
+  
+  ulabel = paste0("u_",i)
+  average_expression[[ulabel]] = aveg.cluster.exp
+  
+  olabel = paste0("o_",i)
+  average_expression[[olabel]] = aveg.exclu.exp
+  
+  fclabel = paste0("fc_",i)
+  average_expression[[fclabel]] = fc
+}
+
+rm(cc)
+rm(cluster.exp)
+rm(exclu.exp)
+rm(aveg.cluster.exp)
+rm(aveg.exclu.exp)
+rm(fc)
+for(i in 1:5){ gc() }
+gc()
+```
+
+```{r}
+write.table(average_expression, quote = FALSE, 
+            file = "output/Average_GeneExpression_by_CellType.txt", 
+            sep = "\t", row.names = FALSE, col.names = TRUE)
+```
+
+# Testing differential gene expression
+
+## Loading sample/patient information
+
+```{r}
+
+dir = "../../scRNAseq/Sade_Feldman_2018/"
+fnm = paste0(dir, "GSE120575_patient_ID_single_cells_rm_headers.txt")
+
+info.SF = fread(fnm)
+dim(info.SF)
+info.SF[1:2,]
+
+names(info.SF) = gsub("characteristics: ", "", names(info.SF))
+names(info.SF)[5] = "sampleID"
+
+all(is.na(c(data.matrix(info.SF[,8:35]))))
+info.SF = info.SF[,1:7]
+
+pIDs = str_split_fixed(info.SF$sampleID, "_", 2)
+dim(pIDs)
+pIDs[1:2,]
+
+info.SF$patientID = pIDs[,2]
+info.SF$type = pIDs[,1]
+
+dim(info.SF)
+info.SF[1:2,]
+
+length(unique(info.SF$title))
+length(unique(info.SF$patientID))
+
+info.SF.ind = unique(info.SF[,.(patientID, sampleID, type, response, therapy)])
+dim(info.SF.ind)
+info.SF.ind[1:2,]
+
+table(info.SF.ind$response, info.SF.ind$therapy)
+table(info.SF.ind$response, info.SF.ind$type)
+
+sort(table(info.SF$sampleID))
+table(tapply(info.SF.ind$type, info.SF.ind$patientID, paste, collapse=":"))
+```
+
+##  Prepare gene expression data
+
+The tutorial for MAST mentioned that the data should be a matrix of log2 + 1 transcripts per million (TPM). The data from Sade-Feldman et al. (2018) are in TPM format, so I transfromed it with log2(x+1): 
+
+```{r}
+table(names(HEgenes_cluster_tpm) %in% info.SF$title)
+info.SF_HEgenes = info.SF[match(names(HEgenes_cluster_tpm), info.SF$title),]
+dim(info.SF_HEgenes)
+info.SF_HEgenes[1:2,]
+sort(table(info.SF_HEgenes$patientID))
+
+HEgenes_cluster_tpm_log = log2(1 + as.matrix(HEgenes_cluster_tpm))
+
+row.names(HEgenes_cluster_tpm_log) = he.genes
+cell.id = colnames(HEgenes_cluster_tpm_log)
+
+dim(HEgenes_cluster_tpm_log)
+HEgenes_cluster_tpm_log[1:2,1:5]
+```
+
+## Calculating the CDR rate: proportion of genes detected for each cell
+```{r}
+cdr = colMeans(HEgenes_cluster_tpm > 0)
+summary(cdr)
+```
+
+## Preparing a SingleCellAssay object for MAST
+
+```{r}
+fData = data.frame(primerid = he.genes)
+cData = data.frame(wellKey = cell.id)
+
+sca = FromMatrix(HEgenes_cluster_tpm_log, cData, fData) 
+
+colData(sca)$cngeneson = scale(cdr)
+colData(sca)$patientID = info.SF_HEgenes$patientID
+
+uniq_cell_types = sort(unique(cell_type$type))
+
+for(i in 1:11){
+  label = uniq_cell_types[i]
+  colData(sca)[[label]] = "control"
+  caseid = match(cell_type$cell[cell_type$type == label],colData(sca)$wellKey)
+  colData(sca)[[label]][caseid] = "case"
+  colData(sca)[[label]] = as.factor(colData(sca)[[label]])
+}
+
+colData(sca)
+
+rm(HEgenes_cluster_tpm)
+rm(HEgenes_cluster_tpm_log)
+for(i in 1:5){ gc() }
+gc()
+```
+  
+## Fitting model, for one cell type to compare standard model vs. mixed effect model
+
+First try to fit two models for 1000 genes, one is the standard MAST model and the other one is a mixed effect model that accounts for the dependency of cells that are from the same patient. For this dataset with around 1,000 genes and 14,544 cells, MAST takes around 2G memory per thread. With 10 threads, standard MAST (zlm and lrt) takes about 1 minute, and MAST mixed effect takes about 7 minutes. 
+
+```{r}
+# number of cores for multi-core computation
+nCore = 10
+registerDoParallel(cores=nCore)
+options(mc.cores=nCore)
+getOption("mc.cores")
+
+i = 1
+cti = uniq_cell_types[i]
+f0  = as.formula(sprintf("~ %s + cngeneson", cti))
+f1  = as.formula(sprintf("~ %s + cngeneson + (1|patientID)", cti))
+
+date()
+b0  = zlm(formula = f0, sca = sca[1:1000,], parallel = TRUE) 
+date()
+lrt0 = lrTest(b0, cti)
+date()
+b1 = zlm(formula = f1, sca=sca[1:1000,], method = "glmer", 
+         ebayes=F, parallel = T)
+date()
+lrt1 = lrTest(b1, cti)
+date()
+
+mast_pval_zlm  = apply(lrt0, 1, function(x){x[3,3]})
+mas_pval_zlmer = apply(lrt1, 1, function(x){x[3,3]})
+
+summary(mast_pval_zlm)
+summary(mas_pval_zlmer)
+
+min(mast_pval_zlm)
+min(mast_pval_zlm[mast_pval_zlm > 0])
+table(mast_pval_zlm < 1e-100)
+table(mas_pval_zlmer < 1e-100)
+
+mast_pval_zlm[which(mast_pval_zlm < 1e-100)] = 1e-100
+mas_pval_zlmer[which(mas_pval_zlmer < 1e-100)] = 1e-100
+
+cor(-log10(mast_pval_zlm), -log10(mas_pval_zlmer), use="pairwise")
+
+plot(-log10(mast_pval_zlm), -log10(mas_pval_zlmer), pch=20, cex=0.5)
+abline(0, 1, col="orange", lwd=2)
+
+plot(-log10(mast_pval_zlm), -log10(mas_pval_zlmer), xlim=c(0,10), ylim=c(0,10), pch=20, cex=0.5)
+abline(0, 1, col="orange", lwd=2)
+```
+
+## Fitting model, for all cell types
+
+Since the above results show that p-values from standard MAST and mixed model are similar and mixed model is much slower. Here we just use the standard MAST. 
+
+```{r}
+# number of cores for multi-core computation
+nCore = 5
+registerDoParallel(cores=nCore)
+options(mc.cores=nCore)
+getOption("mc.cores")
+
+mast_pval_zlm_df = fData
+names(mast_pval_zlm_df)[1] = "gene"
+
+for(i in 1:11){
+  cti = uniq_cell_types[i]
+
+  cat(i, cti, date(), "\n")
+  f0  = as.formula(sprintf("~ %s + cngeneson", cti))
+  b0  = zlm(formula = f0, sca = sca, parallel = TRUE) 
+  cat("start lrtest", date(), "\n")
+
+  lrt0 = lrTest(b0, cti)
+
+  mast_pval_zlm_df[[cti]]  = apply(lrt0, 1, function(x){x[3,3]})
+  gc()
+}
+
+dim(mast_pval_zlm_df)
+mast_pval_zlm_df[1:2,]
+write.csv(mast_pval_zlm_df, file = "output/MastGenePvals_by_CellType.csv", 
+          quote = FALSE)
+```
+
+
+```{r}
+gc()
+sessionInfo()
+```
+
+

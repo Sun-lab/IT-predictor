@@ -1,0 +1,69 @@
+
+R version 3.4.2 (2017-09-28) -- "Short Summer"
+Copyright (C) 2017 The R Foundation for Statistical Computing
+Platform: x86_64-pc-linux-gnu (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> 
+> setwd("/fh/fast/sun_w/research/Immuno/data/Hugo_2016")
+> 
+> srr1 = scan(file="SRR_Acc_List.txt", what=character(0))
+Read 47 items
+> srr2 = scan(file="SRR_Acc_List_Vanderbilt.txt", what=character(0))
+Read 31 items
+> 
+> srr1[1:5]
+[1] "SRR3083837" "SRR3083838" "SRR3083839" "SRR3083840" "SRR3083841"
+> srr2[1:5]
+[1] "SRR4289714" "SRR4289715" "SRR4289716" "SRR4289717" "SRR4289718"
+> 
+> srr = c(srr1, srr2)
+> 
+> nn = length(srr)
+> 
+> setwd("/fh/fast/sun_w/research/Immuno/R_batch2")
+> 
+> codes = scan("step3_pre_process_ex.sh", what=character(), sep="\n", 
++              blank.lines.skip=FALSE)
+Read 83 items
+> length(codes)
+[1] 83
+> codes[1:5]
+[1] "#!/bin/bash"                                                          
+[2] ""                                                                     
+[3] "sampleName=\"SRR2648102\""                                            
+[4] "picard=\"/fh/fast/sun_w/bin/picard.jar\""                             
+[5] "gatk=\"/fh/fast/sun_w/bin/GenomeAnalysisTK-3.6/GenomeAnalysisTK.jar\""
+> 
+> shells=paste0("step3/step3_pre_process_", srr, ".sh")
+> 
+> for(i in 1:nn){
++   srr1 = srr[i]
++   codes[3] = sprintf("sampleName=\"%s\"", srr1)
++   cat(codes, file=shells[i], sep="\n")
++   cat("\n", file=shells[i], append=TRUE)
++ }
+> 
+> logFile = paste0("prep_", srr, ".txt")
+> cmds = "sbatch -n 1 -c 2 --mem=16192 --error="
+> cmds = paste0(cmds, logFile, " --output=", logFile, " ", shells)
+> 
+> cat(cmds, file="step3_pre_process_batch.sh", sep="\n")
+> 
+> q(save="no")
+> proc.time()
+   user  system elapsed 
+  0.283   0.109   0.941 

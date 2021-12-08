@@ -1,0 +1,368 @@
+
+R version 4.0.3 (2020-10-10) -- "Bunny-Wunnies Freak Out"
+Copyright (C) 2020 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin17.0 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> 
+> #--------------------------------------------------------------------
+> # Preperation Input data for Peppermint 
+> # 1. Import data 
+> # 2. Output somatic mutations (sm) for NetMHC prediction
+> # 3. Output sbatch code (emlinating HLA that are not valid 
+> #--------------------------------------------------------------------
+> 
+> library(magrittr)
+> library(Biostrings)
+Loading required package: BiocGenerics
+Loading required package: parallel
+
+Attaching package: ‘BiocGenerics’
+
+The following objects are masked from ‘package:parallel’:
+
+    clusterApply, clusterApplyLB, clusterCall, clusterEvalQ,
+    clusterExport, clusterMap, parApply, parCapply, parLapply,
+    parLapplyLB, parRapply, parSapply, parSapplyLB
+
+The following objects are masked from ‘package:stats’:
+
+    IQR, mad, sd, var, xtabs
+
+The following objects are masked from ‘package:base’:
+
+    anyDuplicated, append, as.data.frame, basename, cbind, colnames,
+    dirname, do.call, duplicated, eval, evalq, Filter, Find, get, grep,
+    grepl, intersect, is.unsorted, lapply, Map, mapply, match, mget,
+    order, paste, pmax, pmax.int, pmin, pmin.int, Position, rank,
+    rbind, Reduce, rownames, sapply, setdiff, sort, table, tapply,
+    union, unique, unsplit, which.max, which.min
+
+Loading required package: S4Vectors
+Loading required package: stats4
+
+Attaching package: ‘S4Vectors’
+
+The following object is masked from ‘package:base’:
+
+    expand.grid
+
+Loading required package: IRanges
+Loading required package: XVector
+
+Attaching package: ‘Biostrings’
+
+The following object is masked from ‘package:base’:
+
+    strsplit
+
+> library(data.table)
+
+Attaching package: ‘data.table’
+
+The following object is masked from ‘package:IRanges’:
+
+    shift
+
+The following objects are masked from ‘package:S4Vectors’:
+
+    first, second
+
+> 
+> #--------------------------------------------------------------------
+> # Step 1: Import Data 
+> #--------------------------------------------------------------------
+> 
+> # somatic mutation data 
+> 
+> load("../data/riaz_mutdata_sm.RData")
+> ls()
+[1] "riaz_mutdata_sm"
+> 
+> dim(riaz_mutdata_sm)
+[1] 31301    23
+> riaz_mutdata_sm[1:2,]
+       id seqnames     start       end REF ALT tumor_name normal_name W pos M
+1 Pt10_on     chr1 114716127 114716127   C   A SRR5134751  SRR5134829 G  12 C
+2 Pt10_on     chr1 155024524 155024524   G   A SRR5134751  SRR5134829 R 564 W
+  Wseq seqpos Mseq      EnsembleID         som_mut17        som_mut17r
+1    G     34    T ENST00000369535 YKLVVVGACGVGKSALT YKLVVVGAGGVGKSALT
+2    C   1690    T ENST00000368424 AALHRSVRWRAADQGHR AALHRSVRRRAADQGHR
+                            som_mut35                          som_mut35r
+1       MTEYKLVVVGACGVGKSALTIQLIQNHFV       MTEYKLVVVGAGGVGKSALTIQLIQNHFV
+2 LLSRRTNLLAALHRSVRWRAADQGHRSAFLVLASR LLSRRTNLLAALHRSVRRRAADQGHRSAFLVLASR
+  mut17_start mut17_end mut35_start mut35_end
+1           4        20           1        29
+2         556       572         547       581
+> 
+> #--------------------------------------------------------------------
+> # Step 2: Output somatic mutations for predictions
+> #--------------------------------------------------------------------
+> 
+> sum(riaz_mutdata_sm$som_mut17 == "ENST not found")
+[1] 0
+> sum(riaz_mutdata_sm$som_mut17 == "Sequence unavailable")
+[1] 0
+> 
+> head(riaz_mutdata_sm[riaz_mutdata_sm$som_mut17 == "ENST not found",])
+ [1] id          seqnames    start       end         REF         ALT        
+ [7] tumor_name  normal_name W           pos         M           Wseq       
+[13] seqpos      Mseq        EnsembleID  som_mut17   som_mut17r  som_mut35  
+[19] som_mut35r  mut17_start mut17_end   mut35_start mut35_end  
+<0 rows> (or 0-length row.names)
+> head(riaz_mutdata_sm[riaz_mutdata_sm$som_mut17 == "Sequence unavailable",])
+ [1] id          seqnames    start       end         REF         ALT        
+ [7] tumor_name  normal_name W           pos         M           Wseq       
+[13] seqpos      Mseq        EnsembleID  som_mut17   som_mut17r  som_mut35  
+[19] som_mut35r  mut17_start mut17_end   mut35_start mut35_end  
+<0 rows> (or 0-length row.names)
+> 
+> # remove observations with missing sequence 
+> w2rm = c("ENST not found", "Sequence unavailable")
+> riaz_sm1 = riaz_mutdata_sm[which(! riaz_mutdata_sm$som_mut17 %in% w2rm),]
+> dim(riaz_sm1)
+[1] 31301    23
+> riaz_sm1[1:2,]
+       id seqnames     start       end REF ALT tumor_name normal_name W pos M
+1 Pt10_on     chr1 114716127 114716127   C   A SRR5134751  SRR5134829 G  12 C
+2 Pt10_on     chr1 155024524 155024524   G   A SRR5134751  SRR5134829 R 564 W
+  Wseq seqpos Mseq      EnsembleID         som_mut17        som_mut17r
+1    G     34    T ENST00000369535 YKLVVVGACGVGKSALT YKLVVVGAGGVGKSALT
+2    C   1690    T ENST00000368424 AALHRSVRWRAADQGHR AALHRSVRRRAADQGHR
+                            som_mut35                          som_mut35r
+1       MTEYKLVVVGACGVGKSALTIQLIQNHFV       MTEYKLVVVGAGGVGKSALTIQLIQNHFV
+2 LLSRRTNLLAALHRSVRWRAADQGHRSAFLVLASR LLSRRTNLLAALHRSVRRRAADQGHRSAFLVLASR
+  mut17_start mut17_end mut35_start mut35_end
+1           4        20           1        29
+2         556       572         547       581
+> 
+> # write out input for PEPPRMINT
+> 
+> # if 'start' is numeric, the past function will add some space
+> riaz_sm1$start = as.character(riaz_sm1$start)
+> key.cols       = c("seqnames", "start", "REF", "ALT")
+> riaz_sm1$key   = apply(riaz_sm1[,key.cols], 1, paste, collapse=":")
+> riaz_sm1$start = as.numeric(riaz_sm1$start)
+> riaz_sm1$key   = gsub("^chr", "", riaz_sm1$key)
+> dim(riaz_sm1)
+[1] 31301    24
+> 
+> riaz_sm1$mut17_len = nchar(riaz_sm1$som_mut17)
+> table(riaz_sm1$mut17_len)
+
+    6     9    10    11    12    13    14    15    16    17 
+    3   106    79    78    92    98    98    89    96 30562 
+> riaz_sm1 = riaz_sm1[which(riaz_sm1$mut17_len >= 9),]
+> dim(riaz_sm1)
+[1] 31298    25
+> riaz_sm1[1:2,]
+       id seqnames     start       end REF ALT tumor_name normal_name W pos M
+1 Pt10_on     chr1 114716127 114716127   C   A SRR5134751  SRR5134829 G  12 C
+2 Pt10_on     chr1 155024524 155024524   G   A SRR5134751  SRR5134829 R 564 W
+  Wseq seqpos Mseq      EnsembleID         som_mut17        som_mut17r
+1    G     34    T ENST00000369535 YKLVVVGACGVGKSALT YKLVVVGAGGVGKSALT
+2    C   1690    T ENST00000368424 AALHRSVRWRAADQGHR AALHRSVRRRAADQGHR
+                            som_mut35                          som_mut35r
+1       MTEYKLVVVGACGVGKSALTIQLIQNHFV       MTEYKLVVVGAGGVGKSALTIQLIQNHFV
+2 LLSRRTNLLAALHRSVRWRAADQGHRSAFLVLASR LLSRRTNLLAALHRSVRRRAADQGHRSAFLVLASR
+  mut17_start mut17_end mut35_start mut35_end             key mut17_len
+1           4        20           1        29 1:114716127:C:A        17
+2         556       572         547       581 1:155024524:G:A        17
+> 
+> # prepare input files for PEPPRMINT
+> 
+> idx2kp = NULL
+> seq_mut = seq_ref = NULL
+> 
+> encode9 <- function(x){
++   paste0(substr(x, 1, 4), "XXX", substr(x, 5, 5), "XXX", substr(x, 6, 9))
++ }
+> 
+> for( i in 1:nrow(riaz_sm1)){
++   if(i %% 2000 == 0) {cat(i, date(), "\n")}
++   len_i = riaz_sm1$mut17_len[i]
++   
++   for(j in 1:(len_i - 8)){
++     seq_ij_mut = encode9(substr(riaz_sm1$som_mut17[i], j, j+8))
++     seq_ij_ref = encode9(substr(riaz_sm1$som_mut17r[i], j, j+8))
++     
++     seq_mut = c(seq_mut, seq_ij_mut)
++     seq_ref = c(seq_ref, seq_ij_ref)
++     idx2kp  = c(idx2kp, i)
++   }
++ }
+2000 Fri Sep  3 17:11:05 2021 
+4000 Fri Sep  3 17:11:18 2021 
+6000 Fri Sep  3 17:11:40 2021 
+8000 Fri Sep  3 17:12:15 2021 
+10000 Fri Sep  3 17:13:01 2021 
+12000 Fri Sep  3 17:14:06 2021 
+14000 Fri Sep  3 17:15:33 2021 
+16000 Fri Sep  3 17:17:34 2021 
+18000 Fri Sep  3 17:20:22 2021 
+20000 Fri Sep  3 17:23:40 2021 
+22000 Fri Sep  3 17:26:46 2021 
+24000 Fri Sep  3 17:30:05 2021 
+26000 Fri Sep  3 17:33:59 2021 
+28000 Fri Sep  3 17:41:25 2021 
+30000 Fri Sep  3 17:46:13 2021 
+> 
+> pdat_mut = data.frame(peptide = seq_mut)
+> pdat_mut = cbind(pdat_mut, riaz_sm1[idx2kp, c("key", "id")])
+> 
+> pdat_ref = data.frame(peptide = seq_ref)
+> pdat_ref = cbind(pdat_ref, riaz_sm1[idx2kp, c("key", "id")])
+> 
+> names(pdat_mut)[3] = names(pdat_ref)[3] = "sample"
+> 
+> dim(pdat_mut)
+[1] 278393      3
+> pdat_mut[1:2,]
+            peptide             key  sample
+1   YKLVXXXVXXXVGAC 1:114716127:C:A Pt10_on
+1.1 KLVVXXXVXXXGACG 1:114716127:C:A Pt10_on
+> 
+> dim(pdat_ref)
+[1] 278393      3
+> pdat_ref[1:2,]
+            peptide             key  sample
+1   YKLVXXXVXXXVGAG 1:114716127:C:A Pt10_on
+1.1 KLVVXXXVXXXGAGG 1:114716127:C:A Pt10_on
+> 
+> u_sample = unique(pdat_mut$sample)
+> 
+> fwrite(pdat_mut, "../data/riaz_peptide_mut.txt", sep="\t")
+> fwrite(pdat_ref, "../data/riaz_peptide_ref.txt", sep="\t")
+> 
+> #--------------------------------------------------------------------
+> # Step 3: Output sbatch code for terminal
+> #--------------------------------------------------------------------
+> 
+> # patient with HLA prediction
+> 
+> riaz_pt_with_hla = fread("../data/riaz_patientID_with_HLA.txt")
+> dim(riaz_pt_with_hla)
+[1] 109  22
+> riaz_pt_with_hla[1:2,]
+          Run    SRR_ref SampleName trt PtID ref_ind         A1         A2
+1: SRR5134784 SRR5134745    Pt86_on  on Pt86       0 HLA-A01:01 HLA-A11:01
+2: SRR5134851 SRR5134745   Pt86_pre pre Pt86       0 HLA-A01:01 HLA-A11:01
+           B1         B2         C1         C2     DRB11     DRB12    DQA11
+1: HLA-B08:01 HLA-B35:01 HLA-C04:01 HLA-C07:01 DRB1_0301 DRB1_0101 DQA10101
+2: HLA-B08:01 HLA-B35:01 HLA-C04:01 HLA-C07:01 DRB1_0301 DRB1_0101 DQA10101
+      DQB11    DQA12    DQB12    DPA11    DPB11    DPA12    DPB12
+1: DQB10501 DQA10501 DQB10201 DPA10103 DPB10401 DPA10103 DPB10401
+2: DQB10501 DQA10501 DQB10201 DPA10103 DPB10401 DPA10103 DPB10401
+> riaz_pt_with_hla = as.data.frame(riaz_pt_with_hla)
+> 
+> table(u_sample %in% riaz_pt_with_hla$SampleName)
+
+TRUE 
+  90 
+> 
+> # valid hla alleles
+> 
+> # HLA-i
+> valid_hlai = scan("../data/netMHC_pan_4.1_allele_names.txt", 
++                   what = character())
+Read 3584 items
+> length(valid_hlai)
+[1] 3584
+> valid_hlai[1:2]
+[1] "HLA-A01:01" "HLA-A01:02"
+> 
+> # HLA-I
+> # check how many HLA alleles can be predicted 
+> 
+> HLA1  = as.matrix(riaz_pt_with_hla[,7:12])
+> dim(HLA1)
+[1] 109   6
+> HLA1[1:2,]
+     A1           A2           B1           B2           C1          
+[1,] "HLA-A01:01" "HLA-A11:01" "HLA-B08:01" "HLA-B35:01" "HLA-C04:01"
+[2,] "HLA-A01:01" "HLA-A11:01" "HLA-B08:01" "HLA-B35:01" "HLA-C04:01"
+     C2          
+[1,] "HLA-C07:01"
+[2,] "HLA-C07:01"
+> 
+> avail = t(apply(HLA1, 1, function(v){ v %in% valid_hlai}))
+> dim(avail)
+[1] 109   6
+> avail[1:2,]
+     [,1] [,2] [,3] [,4] [,5] [,6]
+[1,] TRUE TRUE TRUE TRUE TRUE TRUE
+[2,] TRUE TRUE TRUE TRUE TRUE TRUE
+> 
+> sum(c(avail))/(6*nrow(avail))
+[1] 0.9969419
+> table(rowSums(avail))
+
+  5   6 
+  2 107 
+> 
+> # create hla allele list file
+> 
+> hlas = rep(NA, length(u_sample))
+> 
+> for(i in 1:length(u_sample)){
++   wi = which(riaz_pt_with_hla$SampleName == u_sample[i])
++   if(length(wi) != 1){ stop('unexpected length') }
++   t0 = riaz_pt_with_hla[wi,7:12]
++   t0 = unique(unlist(t0))
++   t1 = sort(t0[t0 %in% valid_hlai])
++   t2 = paste(t1, collapse=",")
++   hlas[i] = t2
++ }
+> 
+> hla_df = data.frame(sample=u_sample, hlas=hlas)
+> dim(hla_df)
+[1] 90  2
+> hla_df[1:2,]
+    sample                                                   hlas
+1  Pt10_on HLA-A02:01,HLA-A30:02,HLA-B18:01,HLA-B44:02,HLA-C05:01
+2 Pt10_pre HLA-A02:01,HLA-A30:02,HLA-B18:01,HLA-B44:02,HLA-C05:01
+> 
+> fnm = "../data/riaz_HLA_I_allele_list.txt"
+> fwrite(hla_df, file=fnm, sep=" ", col.names = FALSE)
+> 
+> 
+> sessionInfo()
+R version 4.0.3 (2020-10-10)
+Platform: x86_64-apple-darwin17.0 (64-bit)
+Running under: macOS Big Sur 10.16
+
+Matrix products: default
+BLAS:   /Library/Frameworks/R.framework/Versions/4.0/Resources/lib/libRblas.dylib
+LAPACK: /Library/Frameworks/R.framework/Versions/4.0/Resources/lib/libRlapack.dylib
+
+locale:
+[1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+
+attached base packages:
+[1] stats4    parallel  stats     graphics  grDevices utils     datasets 
+[8] methods   base     
+
+other attached packages:
+[1] data.table_1.13.6   Biostrings_2.58.0   XVector_0.30.0     
+[4] IRanges_2.24.1      S4Vectors_0.28.1    BiocGenerics_0.36.0
+[7] magrittr_2.0.1     
+
+loaded via a namespace (and not attached):
+[1] zlibbioc_1.36.0 compiler_4.0.3  tools_4.0.3     crayon_1.3.4   
+> q(save="no")
+> proc.time()
+    user   system  elapsed 
+2146.385  170.538 2319.184 

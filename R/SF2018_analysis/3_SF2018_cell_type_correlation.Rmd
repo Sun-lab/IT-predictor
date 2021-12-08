@@ -1,0 +1,364 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+---
+```{r warning=FALSE, echo = TRUE, results = 'hide', message = FALSE}
+library(data.table)
+library(Rtsne)
+library(R.utils)
+library(ggplot2)
+library(ggcorrplot)
+theme_set(theme_bw())
+```
+
+# Processing data
+
+## Sade-Feldman(2018) data
+```{r}
+fnm1 = "GSE120575_Sade_Feldman_melanoma_single_cells_nolabel_1.txt.gz"
+fnm2 = "GSE120575_Sade_Feldman_melanoma_single_cells_2.txt.gz"
+
+sf_tpm1 = fread(paste0("../../scRNAseq/Sade_Feldman_2018/", fnm1), 
+                fill = TRUE, header = TRUE)
+
+sf_tpm2 = fread(paste0("../../scRNAseq/Sade_Feldman_2018/", fnm2), 
+                fill = TRUE, drop = 16293, col.names = colnames(sf_tpm1))
+
+ls_tpm = list(sf_tpm1,sf_tpm2)
+sf_tpm = rbindlist(ls_tpm)
+
+rm(ls_tpm)
+rm(sf_tpm1)
+rm(sf_tpm2)
+```
+
+```{r}
+dim(sf_tpm) # 55737 x 16292
+gene.names = sf_tpm$V1
+rownames(sf_tpm) = gene.names
+sf_tpm$V1 = NULL
+```
+
+Select a subset of genes that are expressed in more than 500 cells, i.e., about 3% of the 16,292 cells. 
+
+```{r}
+gene.grouping = rep(1:28, each = 2000)[1:dim(sf_tpm)[1]]
+cells.per.gene = NULL
+for (i in 1:28) {
+  temp.counts = rowSums(sf_tpm[gene.grouping==i,] > 0)
+  cells.per.gene = c(cells.per.gene,temp.counts)
+}
+table(cells.per.gene==0)
+table(cells.per.gene==1)
+table(cells.per.gene > 100)
+table(cells.per.gene > 500)
+# kept 12705 genes
+high.express.genes.all = gene.names[which(cells.per.gene > 500)] 
+rm(gene.grouping)
+```
+
+## 11 cell types we defined from Sade-Feldman(2018) data
+
+```{r}
+cell_type = read.table("./output/cell_type.txt", header = TRUE, 
+                       sep = "\t", as.is = TRUE)
+dim(cell_type)
+cell_type[1:2,]
+
+clustered_cells = cell_type$cell[cell_type$type != "unclustered"]
+length(clustered_cells)
+
+# select TPM data for 12705 genes with high expression in 
+# the 14743 clustered cells
+mat1 = match(high.express.genes.all, rownames(sf_tpm))
+clustered_tpm_HEgenes = sf_tpm[mat1, ..clustered_cells] 
+rownames(clustered_tpm_HEgenes) = high.express.genes.all
+
+dim(clustered_tpm_HEgenes)
+clustered_tpm_HEgenes[1:2,1:6]
+rm(sf_tpm)
+```
+
+## percentages of zero expression genes for each cell in each cell type
+
+```{r}
+zeros.per.cell = colMeans(clustered_tpm_HEgenes==0)
+zeros.per.cell[1:2]
+
+ctype = factor(cell_type$type[match(clustered_cells, cell_type$cell)])
+zero.percentages = data.table(percentage.zero = zeros.per.cell, 
+                              grouping = ctype)
+rownames(zero.percentages) = names(zeros.per.cell)
+dim(zero.percentages)
+head(zero.percentages)
+
+# distribution of the percentages of zero expression genes for cells by cell type
+ggplot(data = zero.percentages) + 
+  geom_histogram(aes(x=percentage.zero), binwidth = 0.01) + 
+  facet_wrap(~grouping) + 
+  ggtitle("Distribution of the percentages of genes with zero expression")
+```
+
+Summarize the quantiles (0%, 25%, 50%, 75%, 100%) of the percentage of 0's for each ell type. 
+```{r}
+zero.percentages[, .(.N), by = .(grouping)]
+z2 = zero.percentages[, .(qs=list(quantile(percentage.zero))), 
+                 by = .(grouping)]
+print(z2)
+
+rm(zeros.per.cell)
+```
+
+Based on the graph, the spread of distribution of the percentages of zero expression genes is quite different for each cell type, here we try to select 200 cells with the smallest percentages of zero expression genes.
+```{r}
+fun1 <- function(x) {
+  q75 = quantile(x$percentage.zero, probs = 0.75)
+  rownames(x)[which(x$percentage.zero < q75)]
+}
+
+fewzero_cells = unname(unlist(by(zero.percentages, 
+                                 zero.percentages$grouping, 
+                                 FUN = fun1)))
+length(fewzero_cells)
+fewzero_cells[1:3]
+```
+
+## LM22 signature matrix  
+- select genes that appear both in the LM22 signature matrix and the SF data
+- in those genes, further select genes that have expression in a relatively large amount of cells
+```{r}
+CBST_LM22 = read.table("../../_reference/LM22.txt", sep = "\t", 
+                       header = TRUE, as.is = TRUE)
+dim(CBST_LM22)
+CBST_LM22[1:2,]
+
+# 538 out of 547
+CBST.SFgenes = CBST_LM22$Gene.symbol[CBST_LM22$Gene.symbol %in% gene.names]
+length(CBST.SFgenes)
+
+# 323 out of 538
+CBST.HE.genes = intersect(CBST.SFgenes, high.express.genes.all)
+length(CBST.HE.genes)
+
+# 323 x 23
+CBST_LM22_SF_HEgenes = CBST_LM22[match(CBST.HE.genes, CBST_LM22$Gene.symbol),] 
+
+dim(CBST_LM22_SF_HEgenes)
+CBST_LM22_SF_HEgenes[1:2,]
+```
+
+# Compare the correlation of cell types
+
+- Compare the correlation between our 11 cell types. 
+- Compare the correlation between the cell types in the LM22 vs. the 11 cell types we had. 
+- Two types of correlation: using all cells for each cell type to calculate mean gene expression, or calculate the mean expression using 200 cells with smallest percentages of zero expression genes. 
+
+## Correlation matrix for our 11 cell types
+### using mean expression of filtered genes shared between SF data and LM22 matrix
+```{r}
+table(rownames(clustered_tpm_HEgenes) == high.express.genes.all)
+match1 = match(CBST.HE.genes, high.express.genes.all)
+HEgenes_CBST_tpm = as.data.table(t(clustered_tpm_HEgenes[match1,]))
+
+rownames(HEgenes_CBST_tpm) = clustered_cells
+colnames(HEgenes_CBST_tpm) = CBST.HE.genes
+dim(HEgenes_CBST_tpm)
+HEgenes_CBST_tpm[1:5,1:5]
+
+HEgenes_CBST_tpm$grouping = factor(cell_type$type[match(clustered_cells, cell_type$cell)])
+table(HEgenes_CBST_tpm$grouping)
+
+cmean = HEgenes_CBST_tpm[, lapply(.SD, mean),   by = grouping]
+cmed  = HEgenes_CBST_tpm[, lapply(.SD, median), by = grouping]
+csd   = HEgenes_CBST_tpm[, lapply(.SD, sd),     by = grouping]
+
+dim(cmean)
+cmean[1:2,1:5]
+
+dim(cmed)
+cmed[1:2,1:5]
+
+dim(csd)
+csd[1:2,1:5]
+
+plot(as.numeric(unlist(cmean[,-1])), as.numeric(unlist(csd[,-1])), 
+     xlab="mean expression per gene per cell type", 
+     ylab="sd per gene per cell type", cex=0.5)
+
+plot(as.numeric(unlist(cmean[,-1])), as.numeric(unlist(cmed[,-1])), 
+     xlab="mean expression per gene per cell type", 
+     ylab="median expression per gene per cell type", cex=0.5)
+
+HEgene_CBST_expression = HEgenes_CBST_tpm[, lapply(.SD, mean), by = grouping]
+HEgene_CBST_expression = HEgene_CBST_expression[order(HEgene_CBST_expression$grouping),]
+dim(HEgene_CBST_expression)
+HEgene_CBST_expression[,1:6]
+
+HEgene_CBST_compare_expression = as.data.frame(t(HEgene_CBST_expression[,-1]))
+colnames(HEgene_CBST_compare_expression) = HEgene_CBST_expression$grouping
+head(HEgene_CBST_compare_expression)
+
+rm(HEgene_CBST_expression)
+rm(HEgenes_CBST_tpm)
+```
+
+The patterns of the correlation roughly match our expectation: 
+
+- Plasma cells, Monocytes/Macrophages, Dendritic cells and B cells do no have major correlation with other cell types, matches the clustering result that these 4 cell types form most distinct clusters
+- The 3 NK cell clusters are closely related with each other
+- CD8 cells, NK cells, and CD4 T cells are closely related
+
+```{r}
+cormat_HE.CBSTgenes_11type = cor(HEgene_CBST_compare_expression, method = "spearman")
+ggcorrplot(cormat_HE.CBSTgenes_11type)
+```
+
+### using mean expression for filtered genes shared between SF data and LM22 matrix, over the cells with fewer zero gene expression 
+
+```{r}
+match1 = match(CBST.HE.genes, high.express.genes.all)
+HEgenes_CBST_few0_tpm = as.data.table(t(clustered_tpm_HEgenes[match1, ..fewzero_cells])) 
+rownames(HEgenes_CBST_few0_tpm) = fewzero_cells
+colnames(HEgenes_CBST_few0_tpm) = CBST.HE.genes
+
+HEgenes_CBST_few0_tpm[1:5,1:5]
+mat1 = match(fewzero_cells, cell_type$cell)
+HEgenes_CBST_few0_tpm$grouping = factor(cell_type$type[mat1])
+table(HEgenes_CBST_few0_tpm$grouping)
+
+# 11 x 324
+HEgene_CBST_few0_expression = HEgenes_CBST_few0_tpm[, lapply(.SD, mean), by = grouping] 
+HEgene_CBST_few0_expression[,1:6]
+
+HEgene_CBST_few0_compare_expression = as.data.frame(t(HEgene_CBST_few0_expression[,-1]))
+colnames(HEgene_CBST_few0_compare_expression) = HEgene_CBST_few0_expression$grouping
+head(HEgene_CBST_few0_compare_expression)
+rm(HEgene_CBST_few0_expression)
+rm(HEgenes_CBST_few0_tpm)
+```
+
+The result using cells with fewer zero expression genes is not very different from the result using all cells. 
+```{r}
+cormat_HE.CBST.few0genes_11type = cor(HEgene_CBST_few0_compare_expression, 
+                                      method = "spearman")
+ggcorrplot(cormat_HE.CBST.few0genes_11type)
+
+table(colnames(HEgene_CBST_few0_compare_expression) == 
+        colnames(HEgene_CBST_compare_expression))
+
+cor_2signatures = cor(HEgene_CBST_compare_expression, 
+                      HEgene_CBST_few0_compare_expression, 
+                      method = "spearman")
+summary(diag(cor_2signatures))
+```
+
+## Correlations between our 11 cell types and the cell types in the LM22 matrix
+### using mean expression of filtered genes shared between SF data and LM22 matrix
+```{r}
+cormat_LM22_11type = cor(CBST_LM22_SF_HEgenes[,-1], 
+                         HEgene_CBST_compare_expression,  
+                         method = "spearman")
+dim(cormat_LM22_11type)
+cormat_LM22_11type[1:2,1:3]
+range(c(cormat_LM22_11type))
+```
+
+The correlations between our 11 cell types and the cell types in the LM22 matrix.
+
+```{r fig.height=5, fig.width=8, warning=FALSE, message = FALSE}
+p = ggcorrplot(t(cormat_LM22_11type), tl.cex = 6)
+p + scale_fill_gradient2(limit = c(-0.8,0.8), low = "blue", high =  "red", 
+                         mid = "white", midpoint = 0) 
+```
+
+### using mean expression for filtered genes shared between SF data and LM22 matrix over cells with fewer zero gene expression 
+```{r}
+cormat_LM22_11type_few0 = cor(CBST_LM22_SF_HEgenes[,-1], 
+                              HEgene_CBST_few0_compare_expression,  
+                         method = "spearman")
+dim(cormat_LM22_11type_few0)
+cormat_LM22_11type_few0[1:2,1:3]
+range(c(cormat_LM22_11type_few0))
+```
+
+The result using cells with fewer zero expression genes is not very different from the result using all cells. But we observed some potential issues: LM22 B cells seem to be correlated with all other cell types except B cells in our data. 
+```{r fig.height=5, fig.width=8, warning=FALSE, message = FALSE}
+p = ggcorrplot(t(cormat_LM22_11type_few0), tl.cex = 6)
+p + scale_fill_gradient2(limit = c(-0.8,0.8), low = "blue", high =  "red", 
+                         mid = "white", midpoint = 0) 
+```
+
+## Compare the scatterplot of gene expressions between LM22 cell types and our cell types
+### B cells and B cells
+```{r}
+par(mar=c(3,3,2.5,0.8), mgp=c(1.5,0.5,0), cex.axis=0.85, cex.lab=0.85, cex.main=0.85)
+layout(matrix(c(1,2,3,4),nrow=2,ncol = 2,byrow = TRUE))
+
+plot(as.numeric(HEgene_CBST_compare_expression$`B_cells`), 
+               as.numeric(CBST_LM22_SF_HEgenes$B.cells.naive), 
+               main = "Our B cell v.s. LM22 naive B cells", 
+               xlab = "our B cell", ylab = "LM22 naive B cells", 
+               pch=20, cex = 0.5)
+
+plot(as.numeric(HEgene_CBST_compare_expression$`B_cells`), 
+               as.numeric(CBST_LM22_SF_HEgenes$B.cells.memory), 
+               main = "Our B cell v.s. LM22 memory B cells", 
+               xlab = "our B cell", ylab = "LM22 memory B cells", 
+               pch=20, cex = 0.5)
+
+plot(log10(as.numeric(HEgene_CBST_compare_expression$`B_cells`) + 0.01), 
+               log10(as.numeric(CBST_LM22_SF_HEgenes$B.cells.naive) + 0.01), 
+               main = "Our B cell v.s. LM22 naive B cells, log10", 
+               xlab = "our B cell", ylab = "LM22 naive B cells", 
+               pch=20, cex = 0.5)
+
+plot(log10(as.numeric(HEgene_CBST_compare_expression$`B_cells`) + 0.01), 
+               log10(as.numeric(CBST_LM22_SF_HEgenes$B.cells.memory) + 0.01), 
+               main = "Our B cell v.s. LM22 memory B cells, log10", 
+               xlab = "our B cell", ylab = "LM22 memory B cells", 
+               pch=20, cex = 0.5)
+```
+
+
+### CD8 cells and CD8 cells
+
+```{r}
+par(mar=c(3,3,2.5,0.8), mgp=c(1.5,0.5,0), cex.axis=0.85, cex.lab=0.85, cex.main=0.85)
+layout(matrix(c(1,2,3,4),nrow=2,ncol = 2,byrow = TRUE))
+
+
+plot(as.numeric(HEgene_CBST_compare_expression$`CD8T_B`), 
+               as.numeric(CBST_LM22_SF_HEgenes$T.cells.CD8), 
+               main = "CD8T_B v.s. LM22 CD8 T cells", 
+               xlab = "CD8T_B", ylab = "LM22 CD8 T cells", 
+               pch=20, cex = 0.5)
+
+plot(as.numeric(HEgene_CBST_compare_expression$`CD8T_G`), 
+               as.numeric(CBST_LM22_SF_HEgenes$T.cells.CD8), 
+               main = "CD8T_G v.s. LM22 CD8 T cells", 
+               xlab = "CD8T_G", ylab = "LM22 CD8 T cells", 
+               pch=20, cex = 0.5)
+
+plot(log10(as.numeric(HEgene_CBST_compare_expression$`CD8T_B`) + 0.01), 
+               log10(as.numeric(CBST_LM22_SF_HEgenes$T.cells.CD8) + 0.01), 
+               main = "CD8T_B v.s. LM22 CD8 T cells, log10", 
+               xlab = "CD8T_B", ylab = "LM22 CD8 T cells", 
+               pch=20, cex = 0.5)
+
+plot(log10(as.numeric(HEgene_CBST_compare_expression$`CD8T_G`) + 0.01), 
+               log10(as.numeric(CBST_LM22_SF_HEgenes$T.cells.CD8) + 0.01), 
+               main = "CD8T_G v.s. LM22 CD8 T cells, log10", 
+               xlab = "CD8T_G", ylab = "LM22 CD8 T cells", 
+               pch=20, cex = 0.5)
+```
+
+
+
+```{r}
+gc()
+sessionInfo()
+```
+
+

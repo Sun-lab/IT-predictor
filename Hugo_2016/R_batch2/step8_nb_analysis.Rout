@@ -1,0 +1,567 @@
+
+R version 3.6.1 (2019-07-05) -- "Action of the Toes"
+Copyright (C) 2019 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin15.6.0 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> 
+> library(data.table)
+> 
+> #--------------------------------------------------------------------
+> # 1. read in neoantigen estimation
+> #--------------------------------------------------------------------
+> 
+> mhci = readRDS("output/mhci_min_rank_per_HLA_mutation.rds")
+> mhciipan = readRDS("output/mhciipan_min_rank_per_HLA_mutation.rds")
+> 
+> dim(mhci)
+[1] 154911     11
+> head(mhci)
+  sample pos       HLA   peptide      identity affinity rank pos.ref
+1    Pt1   8 HLA-A0201 LLKDRDPEF  1_957229_C_A 12225.12 18.0       8
+2    Pt1   2 HLA-A0201 FFRSIDXDL 1_2175307_G_A 15786.65 22.0       2
+3    Pt1   6 HLA-A0201 ELFRRPEEV 1_3022381_C_T  1202.21  4.5       6
+4    Pt1   1 HLA-A0201 KLVRQCNKG 1_3475988_G_A 26224.35 38.0       1
+5    Pt1   0 HLA-A0201 IETEIVPAI 1_6475064_C_T 11812.55 17.0       0
+6    Pt1   1 HLA-A0201 LQVRHRPKV 1_6555545_G_A 10977.03 16.0       1
+  peptide.ref affinity.ref rank.ref
+1   RLKDRDPEF     12982.86       19
+2   FFRSIDWDL     10060.95       15
+3   ELSRRPEEV      5357.03       10
+4   KLVRQCNEG     18711.00       26
+5   IETEIVPAM     17216.24       24
+6   LQVRHRPEV      4400.21        9
+> 
+> dim(mhciipan)
+[1] 248066     17
+> head(mhciipan)
+  sample seq    allele         peptide      identity pos      core core_rel
+1    Pt1   5 DRB1_1101 RASEHKDQLSLLKDR  1:957229:C:A   4 HKDQLSLLK    0.605
+2    Pt1   1 DRB1_1101 FSDIKSHAFFRSIDX 1:2175307:G:A   3 IKSHAFFRS    0.505
+3    Pt1   1 DRB1_1101 KKLCYVALEPEKELF 1:3022381:C:T   4 YVALEPEKE    0.590
+4    Pt1   1 DRB1_1101 RALKAISKLVRQCNK 1:3475988:G:A   2 LKAISKLVR    0.680
+5    Pt1   7 DRB1_1101 IETEIVPAIKKKSLG 1:6475064:C:T   4 IVPAIKKKS    0.795
+6    Pt1   4 DRB1_1101 HSGCLQVRHRPKVTL 1:6555545:G:A   4 LQVRHRPKV    0.465
+  affinity rank seq.ref     peptide.ref pos.ref  core.ref core_rel.ref
+1  4204.86 75.0       5 RASEHKDQLSRLKDR       5 KDQLSRLKD        0.425
+2   437.30 24.0      11 RSIDWDLLEKKQALP       4 WDLLEKKQA        0.815
+3   660.83 31.0       1 KKLCYVALEPEKELS       4 YVALEPEKE        0.595
+4    27.11  0.7       1 RALKAISKLVRQCNE       2 LKAISKLVR        0.745
+5    39.31  1.5       7 IETEIVPAMKKKSLG       4 IVPAMKKKS        0.765
+6   146.69  9.5       4 HSGCLQVRHRPEVTL       4 LQVRHRPEV        0.425
+  affinity.ref rank.ref
+1      3638.89     70.0
+2       303.84     18.0
+3       743.63     34.0
+4        28.84      0.8
+5        44.06      1.9
+6       687.07     32.0
+> 
+> #--------------------------------------------------------------------
+> # 2. compare reference and mutated peptides for HLA-I
+> #--------------------------------------------------------------------
+> 
+> rank.diff.cutoffs = c(seq(0.5, 5, by=0.5), seq(6, 20, by=1), seq(25, 50, by=5))
+> 
+> cts.tbl.mhci = matrix(NA, nrow=length(rank.diff.cutoffs), ncol=4)
+> 
+> for(i in 1:length(rank.diff.cutoffs)){
++   rc1 = rank.diff.cutoffs[i]
++   
++   if(i < length(rank.diff.cutoffs)){
++     rc2 = rank.diff.cutoffs[i+1]
++     wi = mhci$rank - mhci$rank.ref < -rc1
++     wi = wi & mhci$rank - mhci$rank.ref >= -rc2
++     cts.tbl.mhci[i,1] = sum(wi)
++     cts.tbl.mhci[i,3] = sum(wi & mhci$rank < 2)
++     
++     wi = mhci$rank.ref - mhci$rank < -rc1
++     wi = wi & mhci$rank.ref - mhci$rank >= -rc2
++     cts.tbl.mhci[i,2] = sum(wi)
++     cts.tbl.mhci[i,4] = sum(wi & mhci$rank.ref < 2)
++   }else{
++     wi = mhci$rank - mhci$rank.ref < -rc1
++     cts.tbl.mhci[i,1] = sum(wi)
++     cts.tbl.mhci[i,3] = sum(wi & mhci$rank < 2)
++     
++     wi = mhci$rank.ref - mhci$rank < -rc1
++     cts.tbl.mhci[i,2] = sum(wi)
++     cts.tbl.mhci[i,4] = sum(wi & mhci$rank.ref < 2)
++   }
++ }
+> 
+> df1.mhci = data.frame(cutoff = rank.diff.cutoffs, cts.tbl.mhci, 
++                       1-cts.tbl.mhci[,2]/cts.tbl.mhci[,1], 
++                       1-cts.tbl.mhci[,4]/cts.tbl.mhci[,3],
++                       stringsAsFactors = FALSE)
+> 
+> names(df1.mhci)[2:3] = c("mut.lower.rank", "ref.lower.rank")
+> names(df1.mhci)[4:5] = c("mut.lower.rank.cond2", "ref.lower.rank.cond2")
+> names(df1.mhci)[6:7] = c("TDR", "TDR.cond2")
+> 
+> options(width=150)
+> dim(df1.mhci)
+[1] 31  7
+> df1.mhci
+   cutoff mut.lower.rank ref.lower.rank mut.lower.rank.cond2 ref.lower.rank.cond2       TDR TDR.cond2
+1     0.5          12064          10571                 4267                 3657 0.1237566 0.1429576
+2     1.0           6516           5349                 2565                 2035 0.1790976 0.2066277
+3     1.5           7376           5942                 1675                 1339 0.1944143 0.2005970
+4     2.0           3883           2856                 1320                  922 0.2644862 0.3015152
+5     2.5           5037           3796                  931                  577 0.2463768 0.3802363
+6     3.0           2459           1665                  705                  411 0.3228955 0.4170213
+7     3.5           3705           2606                  542                  285 0.2966262 0.4741697
+8     4.0           1651           1024                  414                  225 0.3797698 0.4565217
+9     4.5           3112           2217                  315                  202 0.2875964 0.3587302
+10    5.0           3297           2197                  494                  288 0.3336366 0.4170040
+11    6.0           2700           1591                  340                  202 0.4107407 0.4058824
+12    7.0           2004           1232                  287                  171 0.3852295 0.4041812
+13    8.0           1707            967                  195                  129 0.4335091 0.3384615
+14    9.0           1493            918                  175                  111 0.3851306 0.3657143
+15   10.0           1111            617                  150                   81 0.4446445 0.4600000
+16   11.0            866            485                  110                   64 0.4399538 0.4181818
+17   12.0            791            364                   93                   48 0.5398230 0.4838710
+18   13.0            637            298                   71                   43 0.5321821 0.3943662
+19   14.0            694            297                   58                   30 0.5720461 0.4827586
+20   15.0            500            202                   44                   24 0.5960000 0.4545455
+21   16.0            388            164                   46                   22 0.5773196 0.5217391
+22   17.0            346            137                   55                   18 0.6040462 0.6727273
+23   18.0            331            100                   47                   24 0.6978852 0.4893617
+24   19.0            313            118                   42                   10 0.6230032 0.7619048
+25   20.0            858            320                  101                   21 0.6270396 0.7920792
+26   25.0            484            112                   45                    5 0.7685950 0.8888889
+27   30.0            274             47                   29                    2 0.8284672 0.9310345
+28   35.0            157             22                   15                    1 0.8598726 0.9333333
+29   40.0            105             15                   10                    2 0.8571429 0.8000000
+30   45.0             68              8                    2                    0 0.8823529 1.0000000
+31   50.0            101             10                    5                    0 0.9009901 1.0000000
+> 
+> #--------------------------------------------------------------------
+> # 3. compare reference and mutated peptides for HLA-II
+> #--------------------------------------------------------------------
+> 
+> cts.tbl.mhciipan = matrix(NA, nrow=length(rank.diff.cutoffs), ncol=4)
+> 
+> for(i in 1:length(rank.diff.cutoffs)){
++   rc1 = rank.diff.cutoffs[i]
++   
++   if(i < length(rank.diff.cutoffs)){
++     rc2 = rank.diff.cutoffs[i+1]
++     wi = mhciipan$rank - mhciipan$rank.ref < -rc1
++     wi = wi & mhciipan$rank - mhciipan$rank.ref >= -rc2
++     cts.tbl.mhciipan[i,1] = sum(wi)
++     cts.tbl.mhciipan[i,3] = sum(wi & mhciipan$rank < 2)
++     
++     wi = mhciipan$rank.ref - mhciipan$rank < -rc1
++     wi = wi & mhciipan$rank.ref - mhciipan$rank >= -rc2
++     cts.tbl.mhciipan[i,2] = sum(wi)
++     cts.tbl.mhciipan[i,4] = sum(wi & mhciipan$rank.ref < 2)
++   }else{
++     wi = mhciipan$rank - mhciipan$rank.ref < -rc1
++     cts.tbl.mhciipan[i,1] = sum(wi)
++     cts.tbl.mhciipan[i,3] = sum(wi & mhciipan$rank < 2)
++     
++     wi = mhciipan$rank.ref - mhciipan$rank < -rc1
++     cts.tbl.mhciipan[i,2] = sum(wi)
++     cts.tbl.mhciipan[i,3] = sum(wi & mhciipan$rank.ref < 2)
++   }
++ }
+> 
+> df1.mhciipan = data.frame(cutoff = rank.diff.cutoffs, cts.tbl.mhciipan, 
++                           1-cts.tbl.mhciipan[,2]/cts.tbl.mhciipan[,1], 
++                           1-cts.tbl.mhciipan[,4]/cts.tbl.mhciipan[,3], 
++                           stringsAsFactors = FALSE)
+> 
+> names(df1.mhciipan)[2:3] = c("mut.lower.rank", "ref.lower.rank")
+> names(df1.mhciipan)[4:5] = c("mut.lower.rank.cond2", "ref.lower.rank.cond2")
+> names(df1.mhciipan)[6:7] = c("TDR", "TDR.cond2")
+> 
+> dim(df1.mhciipan)
+[1] 31  7
+> df1.mhciipan
+   cutoff mut.lower.rank ref.lower.rank mut.lower.rank.cond2 ref.lower.rank.cond2       TDR TDR.cond2
+1     0.5          17288          13149                 1286                 1050 0.2394146 0.1835148
+2     1.0           3051           2098                  766                  568 0.3123566 0.2584856
+3     1.5          10403           7170                  492                  416 0.3107757 0.1544715
+4     2.0           1732           1305                  377                  305 0.2465358 0.1909814
+5     2.5           7457           4936                  332                  213 0.3380716 0.3584337
+6     3.0           1156            896                  216                  185 0.2249135 0.1435185
+7     3.5           5402           3576                  192                  135 0.3380230 0.2968750
+8     4.0            823            593                  140                   82 0.2794654 0.4142857
+9     4.5          15129           8567                  145                   66 0.4337365 0.5448276
+10    5.0           4441           2916                  215                  139 0.3433911 0.3534884
+11    6.0           3586           2342                  154                   85 0.3469046 0.4480519
+12    7.0           2972           1964                   96                   66 0.3391655 0.3125000
+13    8.0           2585           1592                   68                   38 0.3841393 0.4411765
+14    9.0           6368           3211                   70                   29 0.4957601 0.5857143
+15   10.0           2172           1256                   76                   28 0.4217311 0.6315789
+16   11.0           1812           1062                   55                   26 0.4139073 0.5272727
+17   12.0           1580            946                   34                   19 0.4012658 0.4411765
+18   13.0           1403            750                   41                   12 0.4654312 0.7073171
+19   14.0           3311           1473                   33                   17 0.5551193 0.4848485
+20   15.0           1229            628                   32                   13 0.4890155 0.5937500
+21   16.0           1062            596                   23                    5 0.4387947 0.7826087
+22   17.0           1021            478                   20                    7 0.5318315 0.6500000
+23   18.0            845            411                   17                   11 0.5136095 0.3529412
+24   19.0           1872            699                   14                    6 0.6266026 0.5714286
+25   20.0           3648           1577                   51                   18 0.5677083 0.6470588
+26   25.0           2332            865                   33                    8 0.6290738 0.7575758
+27   30.0           1365            458                   18                    5 0.6644689 0.7222222
+28   35.0            964            262                   17                    1 0.7282158 0.9411765
+29   40.0            535            138                   10                    0 0.7420561 1.0000000
+30   45.0            298             82                    4                    0 0.7248322 1.0000000
+31   50.0            396             42                    0                   NA 0.8939394        NA
+> 
+> #--------------------------------------------------------------------
+> # 4. fit the relation between cutoffs and TDR
+> #--------------------------------------------------------------------
+> 
+> pdf("figures/rank_diff_vs_rank_diff_cond_rank<2.pdf", width=6, height=3)
+> par(mfrow=c(1,2), mar=c(5,4,2,1), bty="n")
+> 
+> plot(rank.diff.cutoffs, df1.mhci$TDR, ylim=c(0,1), ylab="TDR", 
++      pch=20, col="darkgrey", main="MHC-I")
+> lines(rank.diff.cutoffs, df1.mhci$TDR, lwd=1, col="darkgrey")
+> points(rank.diff.cutoffs, df1.mhci$TDR.cond2, pch=20, col="purple")
+> lines(rank.diff.cutoffs, df1.mhci$TDR.cond2, lwd=1.5, col="purple")
+> legend("bottomright", legend=c("all", "rank < 2%"), pch=c(20,20), 
++        col=c("darkgrey", "purple"), bty="n")
+> 
+> 
+> plot(rank.diff.cutoffs, df1.mhciipan$TDR, ylim=c(0,1), ylab="TDR", 
++      pch=20, col="darkgrey", main="MHC-IIpan")
+> lines(rank.diff.cutoffs, df1.mhciipan$TDR, lwd=1, col="darkgrey")
+> points(rank.diff.cutoffs, df1.mhciipan$TDR.cond2, pch=20, col="purple")
+> lines(rank.diff.cutoffs, df1.mhciipan$TDR.cond2, lwd=1.5, col="purple")
+> legend("bottomright", legend=c("all", "rank < 2%"), pch=c(20,20), 
++        col=c("darkgrey", "purple"), bty="n")
+> 
+> dev.off()
+null device 
+          1 
+> 
+> pdf("figures/rank_diff_vs_TDR_lowess.pdf", width=6, height=3)
+> par(mfrow=c(1,2), mar=c(5,4,2,1), bty="n")
+> 
+> plot(rank.diff.cutoffs, df1.mhci$TDR, ylab="TDR", 
++      pch=20, col="darkred", main="MHC-I")
+> l1 = lowess(rank.diff.cutoffs, df1.mhci$TDR, f=1/3)
+> lines(l1, lwd=1.5, col="orange")
+> 
+> plot(rank.diff.cutoffs, df1.mhciipan$TDR, ylab="TDR", 
++        pch=20, col="darkblue", main="MHC-IIpan")
+> l2 = lowess(rank.diff.cutoffs, df1.mhciipan$TDR, f=1/3)
+> lines(l2, lwd=1.5, col="deepskyblue")
+> dev.off()
+null device 
+          1 
+> 
+> #--------------------------------------------------------------------
+> # 5. add weights
+> #--------------------------------------------------------------------
+> 
+> l1 = as.data.frame(l1)
+> l2 = as.data.frame(l2)
+> 
+> l1
+      x         y
+1   0.5 0.1375518
+2   1.0 0.1696815
+3   1.5 0.2012655
+4   2.0 0.2323019
+5   2.5 0.2626309
+6   3.0 0.2838965
+7   3.5 0.3000303
+8   4.0 0.3157601
+9   4.5 0.3325577
+10  5.0 0.3463867
+11  6.0 0.3713590
+12  7.0 0.3898294
+13  8.0 0.4083027
+14  9.0 0.4267923
+15 10.0 0.4513482
+16 11.0 0.4764376
+17 12.0 0.5034756
+18 13.0 0.5310710
+19 14.0 0.5561203
+20 15.0 0.5766670
+21 16.0 0.5913162
+22 17.0 0.6019396
+23 18.0 0.6125838
+24 19.0 0.6256671
+25 20.0 0.6514734
+26 25.0 0.7452667
+27 30.0 0.7990491
+28 35.0 0.8378417
+29 40.0 0.8617547
+30 45.0 0.8836702
+31 50.0 0.9040587
+> l2
+      x         y
+1   0.5 0.2727255
+2   1.0 0.2783869
+3   1.5 0.2841267
+4   2.0 0.2901918
+5   2.5 0.2954258
+6   3.0 0.3024443
+7   3.5 0.3126487
+8   4.0 0.3231617
+9   4.5 0.3315879
+10  5.0 0.3379653
+11  6.0 0.3508529
+12  7.0 0.3739675
+13  8.0 0.3901092
+14  9.0 0.4012599
+15 10.0 0.4153660
+16 11.0 0.4336681
+17 12.0 0.4479253
+18 13.0 0.4578862
+19 14.0 0.4707909
+20 15.0 0.4880852
+21 16.0 0.5073350
+22 17.0 0.5253053
+23 18.0 0.5428207
+24 19.0 0.5605813
+25 20.0 0.5711956
+26 25.0 0.6229712
+27 30.0 0.6704032
+28 35.0 0.7049236
+29 40.0 0.7523181
+30 45.0 0.7999241
+31 50.0 0.8472633
+> 
+> mhci$rank.diff = mhci$rank - mhci$rank.ref
+> mhci$weight = rep(0, nrow(mhci))
+> 
+> for(k in 1:nrow(l1)){
++   rc1 = l1$x[k]
++   
++   if(k < nrow(l1)){
++     rc2 = l1$x[k + 1]
++     w2update = which(mhci$rank.diff < -rc1 & mhci$rank.diff >= -rc2)
++     mhci$weight[w2update] = l1$y[k]
++   }else{
++     w2update = which(mhci$rank.diff < -rc1)
++     mhci$weight[w2update] = l1$y[k]
++   }
++ }
+> 
+> 
+> mhciipan$rank.diff = mhciipan$rank - mhciipan$rank.ref
+> mhciipan$weight = rep(0, nrow(mhciipan))
+> 
+> for(k in 1:nrow(l2)){
++   rc1 = l2$x[k]
++   
++   if(k < nrow(l2)){
++     rc2 = l2$x[k + 1]
++     w2update = which(mhciipan$rank.diff < -rc1 & mhciipan$rank.diff >= -rc2)
++     mhciipan$weight[w2update] = l2$y[k]
++   }else{
++     w2update = which(mhciipan$rank.diff < -rc1)
++     mhciipan$weight[w2update] = l2$y[k]
++   }
++ }
+> 
+> dim(mhci)
+[1] 154911     13
+> head(mhci)
+  sample pos       HLA   peptide      identity affinity rank pos.ref peptide.ref affinity.ref rank.ref rank.diff    weight
+1    Pt1   8 HLA-A0201 LLKDRDPEF  1_957229_C_A 12225.12 18.0       8   RLKDRDPEF     12982.86       19      -1.0 0.1375518
+2    Pt1   2 HLA-A0201 FFRSIDXDL 1_2175307_G_A 15786.65 22.0       2   FFRSIDWDL     10060.95       15       7.0 0.0000000
+3    Pt1   6 HLA-A0201 ELFRRPEEV 1_3022381_C_T  1202.21  4.5       6   ELSRRPEEV      5357.03       10      -5.5 0.3463867
+4    Pt1   1 HLA-A0201 KLVRQCNKG 1_3475988_G_A 26224.35 38.0       1   KLVRQCNEG     18711.00       26      12.0 0.0000000
+5    Pt1   0 HLA-A0201 IETEIVPAI 1_6475064_C_T 11812.55 17.0       0   IETEIVPAM     17216.24       24      -7.0 0.3713590
+6    Pt1   1 HLA-A0201 LQVRHRPKV 1_6555545_G_A 10977.03 16.0       1   LQVRHRPEV      4400.21        9       7.0 0.0000000
+> 
+> dim(mhciipan)
+[1] 248066     19
+> head(mhciipan)
+  sample seq    allele         peptide      identity pos      core core_rel affinity rank seq.ref     peptide.ref pos.ref  core.ref core_rel.ref
+1    Pt1   5 DRB1_1101 RASEHKDQLSLLKDR  1:957229:C:A   4 HKDQLSLLK    0.605  4204.86 75.0       5 RASEHKDQLSRLKDR       5 KDQLSRLKD        0.425
+2    Pt1   1 DRB1_1101 FSDIKSHAFFRSIDX 1:2175307:G:A   3 IKSHAFFRS    0.505   437.30 24.0      11 RSIDWDLLEKKQALP       4 WDLLEKKQA        0.815
+3    Pt1   1 DRB1_1101 KKLCYVALEPEKELF 1:3022381:C:T   4 YVALEPEKE    0.590   660.83 31.0       1 KKLCYVALEPEKELS       4 YVALEPEKE        0.595
+4    Pt1   1 DRB1_1101 RALKAISKLVRQCNK 1:3475988:G:A   2 LKAISKLVR    0.680    27.11  0.7       1 RALKAISKLVRQCNE       2 LKAISKLVR        0.745
+5    Pt1   7 DRB1_1101 IETEIVPAIKKKSLG 1:6475064:C:T   4 IVPAIKKKS    0.795    39.31  1.5       7 IETEIVPAMKKKSLG       4 IVPAMKKKS        0.765
+6    Pt1   4 DRB1_1101 HSGCLQVRHRPKVTL 1:6555545:G:A   4 LQVRHRPKV    0.465   146.69  9.5       4 HSGCLQVRHRPEVTL       4 LQVRHRPEV        0.425
+  affinity.ref rank.ref rank.diff    weight
+1      3638.89     70.0       5.0 0.0000000
+2       303.84     18.0       6.0 0.0000000
+3       743.63     34.0      -3.0 0.2954258
+4        28.84      0.8      -0.1 0.0000000
+5        44.06      1.9      -0.4 0.0000000
+6       687.07     32.0     -22.5 0.5711956
+> 
+> #--------------------------------------------------------------------
+> # 6. estimate neoAg burden
+> #--------------------------------------------------------------------
+> 
+> mhci = as.data.table(mhci)
+> mhciipan = as.data.table(mhciipan)
+> mhci
+          sample pos       HLA   peptide        identity affinity rank pos.ref peptide.ref affinity.ref rank.ref rank.diff    weight
+     1:      Pt1   8 HLA-A0201 LLKDRDPEF    1_957229_C_A 12225.12 18.0       8   RLKDRDPEF     12982.86     19.0      -1.0 0.1375518
+     2:      Pt1   2 HLA-A0201 FFRSIDXDL   1_2175307_G_A 15786.65 22.0       2   FFRSIDWDL     10060.95     15.0       7.0 0.0000000
+     3:      Pt1   6 HLA-A0201 ELFRRPEEV   1_3022381_C_T  1202.21  4.5       6   ELSRRPEEV      5357.03     10.0      -5.5 0.3463867
+     4:      Pt1   1 HLA-A0201 KLVRQCNKG   1_3475988_G_A 26224.35 38.0       1   KLVRQCNEG     18711.00     26.0      12.0 0.0000000
+     5:      Pt1   0 HLA-A0201 IETEIVPAI   1_6475064_C_T 11812.55 17.0       0   IETEIVPAM     17216.24     24.0      -7.0 0.3713590
+    ---                                                                                                                             
+154907: Vand_Pt8   0 HLA-C0303 YLVSSTLLI 17_GL000258v2_a  1940.32  2.0       2   VSSTLLTSL     13137.02      6.5      -4.5 0.3157601
+154908: Vand_Pt8   7 HLA-C0303 DVFAQVNPL 22_KI270879v1_a  1479.14  1.7       7   DAFAQVNPL        48.45      0.3       1.4 0.0000000
+154909: Vand_Pt8   8 HLA-C0303 FTVERPRWQ 15_KI270905v1_a  5185.66  3.5       0   YQTSKENED     16177.79      7.5      -4.0 0.3000303
+154910: Vand_Pt8   4 HLA-C0303 TSGGDGRSG 6_GL000253v2_al 27673.74 14.0       4   TSGGGGRSG     23439.74     11.0       3.0 0.0000000
+154911: Vand_Pt8   5 HLA-C0303 LIEKGDHRL 19_GL949753v2_a 21010.29 10.0       5   LIEEGDHRL     19299.46      9.0       1.0 0.0000000
+> mhciipan
+          sample seq                allele         peptide        identity pos      core core_rel affinity rank seq.ref     peptide.ref pos.ref
+     1:      Pt1   5             DRB1_1101 RASEHKDQLSLLKDR    1:957229:C:A   4 HKDQLSLLK    0.605  4204.86 75.0       5 RASEHKDQLSRLKDR       5
+     2:      Pt1   1             DRB1_1101 FSDIKSHAFFRSIDX   1:2175307:G:A   3 IKSHAFFRS    0.505   437.30 24.0      11 RSIDWDLLEKKQALP       4
+     3:      Pt1   1             DRB1_1101 KKLCYVALEPEKELF   1:3022381:C:T   4 YVALEPEKE    0.590   660.83 31.0       1 KKLCYVALEPEKELS       4
+     4:      Pt1   1             DRB1_1101 RALKAISKLVRQCNK   1:3475988:G:A   2 LKAISKLVR    0.680    27.11  0.7       1 RALKAISKLVRQCNE       2
+     5:      Pt1   7             DRB1_1101 IETEIVPAIKKKSLG   1:6475064:C:T   4 IVPAIKKKS    0.795    39.31  1.5       7 IETEIVPAMKKKSLG       4
+    ---                                                                                                                                        
+248062: Vand_Pt8  12 HLA-DPA10103-DPB10301 TLLISLAVAACRQEL 17_GL000258v2_a   3 ISLAVAACR    0.495   336.07  1.8      10 SSTLLTSLAVAACRQ       3
+248063: Vand_Pt8  11 HLA-DPA10103-DPB10301 HLSDVFAQVNPLKKV 22_KI270879v1_a   5 FAQVNPLKK    0.385  1206.27 12.0      11 HLSDAFAQVNPLKKV       5
+248064: Vand_Pt8   8 HLA-DPA10103-DPB10301 VRQRSRVFTVERPRW 15_KI270905v1_a   4 SRVFTVERP    0.305  1282.05 13.0       8 VRQRSRVSTVERPRW       3
+248065: Vand_Pt8   1 HLA-DPA10103-DPB10301 IWALALALNKTSGGD 6_GL000253v2_al   1 WALALALNK    0.475   881.46  8.0       1 IWALALALNKTSGGG       1
+248066: Vand_Pt8  15 HLA-DPA10103-DPB10301 KGDHRLSWTLNSHQH 19_GL949753v2_a   3 HRLSWTLNS    0.460  2143.34 23.0      15 EGDHRLSWTLNSHQH       3
+         core.ref core_rel.ref affinity.ref rank.ref rank.diff    weight
+     1: KDQLSRLKD        0.425      3638.89     70.0       5.0 0.0000000
+     2: WDLLEKKQA        0.815       303.84     18.0       6.0 0.0000000
+     3: YVALEPEKE        0.595       743.63     34.0      -3.0 0.2954258
+     4: LKAISKLVR        0.745        28.84      0.8      -0.1 0.0000000
+     5: IVPAMKKKS        0.765        44.06      1.9      -0.4 0.0000000
+    ---                                                                 
+248062: LLTSLAVAA        0.550       307.20      1.5       0.3 0.0000000
+248063: FAQVNPLKK        0.455      1247.16     13.0      -1.0 0.2727255
+248064: RSRVSTVER        0.260      2632.32     28.0     -15.0 0.4707909
+248065: WALALALNK        0.455       854.30      7.5       0.5 0.0000000
+248066: HRLSWTLNS        0.435      2598.98     28.0      -5.0 0.3315879
+> 
+> length(unique(mhci$sample))
+[1] 35
+> length(unique(mhciipan$sample))
+[1] 35
+> 
+> nb = list()
+> nb$mhci = mhci[rank < 2, .N, by=sample]
+> nb$mhci.lt.ref = mhci[rank < 2 & rank.diff < -0.5, .N, by=sample]
+> nb$mhci.lt.ref.weighted = mhci[rank < 2 & rank.diff < -0.5, sum(weight), 
++                                by=sample]
+> 
+> nb$mhciipan = mhciipan[rank < 2, .N, by=sample]
+> nb$mhciipan.lt.ref = mhciipan[rank < 2 & rank.diff < -0.5, .N, by=sample]
+> nb$mhciipan.lt.ref.weighted = mhciipan[rank < 2 & rank.diff < -0.5, sum(weight), 
++                                by=sample]
+> length(nb)
+[1] 6
+> 
+> samples = unique(mhci$sample)
+> nb.mx = matrix(0, nrow=length(samples), ncol=6)
+> rownames(nb.mx) = samples
+> 
+> for(i in 1:6){
++   w2update = match(nb[[i]]$sample, samples)
++   nb.mx[w2update,i] = unlist(nb[[i]][,2])
++ }
+> 
+> colnames(nb.mx) = names(nb)
+> dim(nb.mx)
+[1] 35  6
+> nb.mx[1:6,]
+     mhci mhci.lt.ref mhci.lt.ref.weighted mhciipan mhciipan.lt.ref mhciipan.lt.ref.weighted
+Pt1  3892        1634            398.15772     1400             489               156.197362
+Pt10  655         240             53.81913      137              38                11.944573
+Pt11  320         114             29.21233      118              44                13.754322
+Pt12  212          77             20.25461      109              26                 8.677967
+Pt14  259          92             20.76437       70              33                10.942498
+Pt16 2157         878            207.60933      780             288                93.789810
+> 
+> summary(nb.mx)
+      mhci          mhci.lt.ref     mhci.lt.ref.weighted    mhciipan      mhciipan.lt.ref  mhciipan.lt.ref.weighted
+ Min.   :   40.0   Min.   :  19.0   Min.   :   3.821     Min.   :  20.0   Min.   :   4.0   Min.   :  1.126         
+ 1st Qu.:  209.0   1st Qu.:  84.5   1st Qu.:  20.509     1st Qu.:  74.0   1st Qu.:  26.0   1st Qu.:  8.311         
+ Median :  475.0   Median : 192.0   Median :  42.460     Median : 227.0   Median :  80.0   Median : 25.590         
+ Mean   : 1147.0   Mean   : 432.8   Mean   : 102.853     Mean   : 432.0   Mean   : 143.8   Mean   : 45.614         
+ 3rd Qu.:  772.5   3rd Qu.: 329.5   3rd Qu.:  78.510     3rd Qu.: 374.5   3rd Qu.: 128.5   3rd Qu.: 41.781         
+ Max.   :15412.0   Max.   :5303.0   Max.   :1256.115     Max.   :5733.0   Max.   :1584.0   Max.   :491.935         
+> pairs(log10(nb.mx+1))
+> 
+> plot(log10(nb.mx[,"mhci.lt.ref"] + 1), 
++      log10(nb.mx[,"mhci.lt.ref.weighted"] + 1))
+> 
+> # check the weighted summation of mutaiton burdern for a few samples
+> 
+> wts.test1 = wts.test2 = rep(NA, length(samples))
+> for(i in 1:length(samples)){
++   sam1 = samples[i]
++   wsam = which(mhci$sample == sam1 & mhci$rank.diff < -0.5 & mhci$rank < 2)
++   wts.test1[i] = sum(mhci$weight[wsam])
++   
++   wsam = which(mhciipan$sample == sam1 & mhciipan$rank.diff < -0.5 & mhciipan$rank < 2)
++   wts.test2[i] = sum(mhciipan$weight[wsam])
++ }
+> 
+> summary(wts.test1 - nb.mx[,"mhci.lt.ref.weighted"])
+      Min.    1st Qu.     Median       Mean    3rd Qu.       Max. 
+-4.661e-11 -5.330e-15  0.000e+00 -1.380e-12  4.263e-14  4.832e-13 
+> summary(wts.test2 - nb.mx[,"mhciipan.lt.ref.weighted"])
+      Min.    1st Qu.     Median       Mean    3rd Qu.       Max. 
+-5.116e-12 -7.105e-15  8.880e-16 -1.242e-13  3.553e-15  3.411e-13 
+> 
+> #--------------------------------------------------------------------
+> # Step 7. Save datasets 
+> #--------------------------------------------------------------------
+> 
+> nb.df = data.frame(sample = rownames(nb.mx), nb.mx, stringsAsFactors = FALSE)
+> dim(nb.df)
+[1] 35  7
+> nb.df[1:6,]
+     sample mhci mhci.lt.ref mhci.lt.ref.weighted mhciipan mhciipan.lt.ref mhciipan.lt.ref.weighted
+Pt1     Pt1 3892        1634            398.15772     1400             489               156.197362
+Pt10   Pt10  655         240             53.81913      137              38                11.944573
+Pt11   Pt11  320         114             29.21233      118              44                13.754322
+Pt12   Pt12  212          77             20.25461      109              26                 8.677967
+Pt14   Pt14  259          92             20.76437       70              33                10.942498
+Pt16   Pt16 2157         878            207.60933      780             288                93.789810
+> 
+> write.table(nb.df, file = "output/neoAg_burden.txt", append = FALSE, 
++             quote = FALSE, sep = "\t", row.names = FALSE, 
++             col.names = TRUE)
+> 
+> sessionInfo()
+R version 3.6.1 (2019-07-05)
+Platform: x86_64-apple-darwin15.6.0 (64-bit)
+Running under: macOS High Sierra 10.13.6
+
+Matrix products: default
+BLAS:   /Library/Frameworks/R.framework/Versions/3.6/Resources/lib/libRblas.0.dylib
+LAPACK: /Library/Frameworks/R.framework/Versions/3.6/Resources/lib/libRlapack.dylib
+
+locale:
+[1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+
+attached base packages:
+[1] stats     graphics  grDevices utils     datasets  methods   base     
+
+other attached packages:
+[1] data.table_1.12.2
+
+loaded via a namespace (and not attached):
+[1] compiler_3.6.1
+> q(save="no")
+> proc.time()
+   user  system elapsed 
+  4.751   0.437   5.231 

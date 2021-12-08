@@ -1,0 +1,459 @@
+
+R version 3.6.1 (2019-07-05) -- "Action of the Toes"
+Copyright (C) 2019 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin15.6.0 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> 
+> library(openxlsx)
+> library(ggplot2)
+> library(gridExtra)
+> 
+> #--------------------------------------------------------------------
+> # Step 9: Neoantigen Burden Analysis - CR and PD only 
+>  # 1. compare nb of our anlaysis versus those reported in the paper
+>  # 2. associatoin nb with response
+>  # 3. Plots 
+>  # 4. Mulitnomial model 
+> #--------------------------------------------------------------------
+> 
+> #--------------------------------------------------------------------
+> # load mb/nb results and clinical information
+> #--------------------------------------------------------------------
+> 
+> sample_nb = read.table("output/neoAg_burden.txt", sep="\t", 
++                        header=TRUE, as.is=TRUE)
+> dim(sample_nb)
+[1] 35  7
+> colnames(sample_nb)[1] ="matchID"
+> sample_nb[1:2,]
+  matchID mhci mhci.lt.ref mhci.lt.ref.weighted mhciipan mhciipan.lt.ref
+1     Pt1 3892        1634            398.15772     1400             489
+2    Pt10  655         240             53.81913      137              38
+  mhciipan.lt.ref.weighted
+1                156.19736
+2                 11.94457
+> 
+> 
+> sample_mb = read.table(file = "hugo_patient_mb_info.txt", 
++                        header = TRUE, sep = " ")
+> dim(sample_mb)
+[1] 37  3
+> # remove Vand_Pt27_2 
+> sample_mb = sample_mb[which(sample_mb$sample!="Vand_Pt27_2"),]
+> #dim(sample_mb)
+> colnames(sample_mb)[1] ="matchID"
+> sample_mb[1:2,]
+  matchID total_mutations n_mutations_neoAg
+1     Pt1           18489              3565
+2    Pt10            2001               417
+> 
+> clinic = read.delim("patient_info_with_mutations.txt", sep="\t")
+> dim(clinic)
+[1]   36 3420
+> clinic[1:2,1:26]
+  matchID Patient.ID          irRECIST Study.site Gender Age Disease.Status
+1     Pt1        Pt4  Partial Response       UCLA      M  62            M1c
+2    Pt10       Pt13 Complete Response       UCLA      F  53            M1c
+  Overall.Survival Vital.Status Previous.MAPKi Anatomical.Location BRAF.x
+1              948        Alive              Y             Adrenal  L331F
+2              917        Alive              N      Lower back, SC   <NA>
+  NRAS.x  NF1.x     Treatment   Biopsy.Time WES RNAseq SRA.tumor.WES
+1      - S2597* Pembrolizumab pre-treatment   1      1    SRR3083837
+2      -      - Pembrolizumab pre-treatment   1      1    SRR3083855
+  SRA.normal.WES AccessionID.WES SRA.tumor.RNA accessionID.RNAseq   mb mb_SNV
+1     SRR3083838      SRP067938+    SRR3184281           GSE78220 3638   3614
+2     SRR3083856      SRP067938+    SRR3184289           GSE78220  426    420
+  mb_indel
+1       24
+2        6
+> 
+> #--------------------------------------------------------------------
+> # only consider the patients with mb information
+> # add mb data into clinic data
+> #--------------------------------------------------------------------
+> 
+> table(tolower(clinic$matchID) %in% tolower(sample_mb$matchID))
+
+FALSE  TRUE 
+    1    35 
+> 
+> patient = intersect(clinic$matchID, sample_mb$matchID)
+> length(patient)
+[1] 35
+> clinic[which(! clinic$matchID %in% patient),1:26]
+       matchID Patient.ID          irRECIST Study.site Gender Age
+26 Vand_Pt27_2       Pt27 Complete Response       UCLA      M  83
+   Disease.Status Overall.Survival Vital.Status Previous.MAPKi
+26            M1c              548        Alive              N
+   Anatomical.Location BRAF.x NRAS.x NF1.x     Treatment   Biopsy.Time WES
+26        R upper back      -   T50I     - Pembrolizumab pre-treatment  1^
+   RNAseq SRA.tumor.WES SRA.normal.WES AccessionID.WES SRA.tumor.RNA
+26      1    SRR4289726     SRR4289724       SRP090294    SRR3184299
+   accessionID.RNAseq  mb mb_SNV mb_indel
+26           GSE78220 780    764       16
+> 
+> clinic = clinic[match(patient, clinic$matchID),]
+> dim(clinic)
+[1]   35 3420
+> head(clinic[,1:26])
+  matchID Patient.ID            irRECIST Study.site Gender Age Disease.Status
+1     Pt1        Pt4    Partial Response       UCLA      M  62            M1c
+2    Pt10       Pt13   Complete Response       UCLA      F  53            M1c
+3    Pt11        Pt5    Partial Response       UCLA      M  61            M1c
+4    Pt12       Pt18    Partial Response       UCLA      M  64            M1c
+5    Pt14        Pt6    Partial Response       UCLA      M  51            M1c
+6    Pt16       Pt14 Progressive Disease       UCLA      F  27            M1c
+  Overall.Survival Vital.Status Previous.MAPKi Anatomical.Location BRAF.x
+1              948        Alive              Y             Adrenal  L331F
+2              917        Alive              N      Lower back, SC   <NA>
+3              439        Alive              N     L Chestwall, SC  V600E
+4             1081        Alive              N        R Axilla, LN  V600E
+5              882        Alive              Y       L forearm, SC  V600E
+6               54        Alive              N          R neck, SC  V600E
+  NRAS.x  NF1.x     Treatment   Biopsy.Time WES RNAseq SRA.tumor.WES
+1      - S2597* Pembrolizumab pre-treatment   1      1    SRR3083837
+2      -      - Pembrolizumab pre-treatment   1      1    SRR3083855
+3      -      - Pembrolizumab pre-treatment   1      1    SRR3083857
+4      -      - Pembrolizumab pre-treatment   1      0    SRR3083859
+5      -      - Pembrolizumab pre-treatment   1      1    SRR3083863
+6      - R2349C Pembrolizumab pre-treatment   1      1    SRR3083868
+  SRA.normal.WES AccessionID.WES SRA.tumor.RNA accessionID.RNAseq   mb mb_SNV
+1     SRR3083838      SRP067938+    SRR3184281           GSE78220 3638   3614
+2     SRR3083856      SRP067938+    SRR3184289           GSE78220  426    420
+3     SRR3083858      SRP067938+    SRR3184282           GSE78220  328    326
+4     SRR3083860      SRP067938+          <NA>               <NA>  214    211
+5     SRR3083864      SRP067938+    SRR3184283           GSE78220  199    198
+6     SRR3083869      SRP067938+    SRR3184290           GSE78220 1246   1238
+  mb_indel
+1       24
+2        6
+3        2
+4        3
+5        1
+6        8
+> 
+> mat= match(patient, sample_mb$matchID)
+> clinic[["mb.calc"]] = log10(sample_mb$n_mutations_neoAg[mat] + 1)
+> head(clinic[,c(1:26, 3421)])
+  matchID Patient.ID            irRECIST Study.site Gender Age Disease.Status
+1     Pt1        Pt4    Partial Response       UCLA      M  62            M1c
+2    Pt10       Pt13   Complete Response       UCLA      F  53            M1c
+3    Pt11        Pt5    Partial Response       UCLA      M  61            M1c
+4    Pt12       Pt18    Partial Response       UCLA      M  64            M1c
+5    Pt14        Pt6    Partial Response       UCLA      M  51            M1c
+6    Pt16       Pt14 Progressive Disease       UCLA      F  27            M1c
+  Overall.Survival Vital.Status Previous.MAPKi Anatomical.Location BRAF.x
+1              948        Alive              Y             Adrenal  L331F
+2              917        Alive              N      Lower back, SC   <NA>
+3              439        Alive              N     L Chestwall, SC  V600E
+4             1081        Alive              N        R Axilla, LN  V600E
+5              882        Alive              Y       L forearm, SC  V600E
+6               54        Alive              N          R neck, SC  V600E
+  NRAS.x  NF1.x     Treatment   Biopsy.Time WES RNAseq SRA.tumor.WES
+1      - S2597* Pembrolizumab pre-treatment   1      1    SRR3083837
+2      -      - Pembrolizumab pre-treatment   1      1    SRR3083855
+3      -      - Pembrolizumab pre-treatment   1      1    SRR3083857
+4      -      - Pembrolizumab pre-treatment   1      0    SRR3083859
+5      -      - Pembrolizumab pre-treatment   1      1    SRR3083863
+6      - R2349C Pembrolizumab pre-treatment   1      1    SRR3083868
+  SRA.normal.WES AccessionID.WES SRA.tumor.RNA accessionID.RNAseq   mb mb_SNV
+1     SRR3083838      SRP067938+    SRR3184281           GSE78220 3638   3614
+2     SRR3083856      SRP067938+    SRR3184289           GSE78220  426    420
+3     SRR3083858      SRP067938+    SRR3184282           GSE78220  328    326
+4     SRR3083860      SRP067938+          <NA>               <NA>  214    211
+5     SRR3083864      SRP067938+    SRR3184283           GSE78220  199    198
+6     SRR3083869      SRP067938+    SRR3184290           GSE78220 1246   1238
+  mb_indel  mb.calc
+1       24 3.552181
+2        6 2.621176
+3        2 2.506505
+4        3 2.320146
+5        1 2.294466
+6        8 3.088136
+> 
+> #--------------------------------------------------------------------
+> # merge clinic data and nb data
+> #--------------------------------------------------------------------
+> 
+> sample_nb[1:2,]
+  matchID mhci mhci.lt.ref mhci.lt.ref.weighted mhciipan mhciipan.lt.ref
+1     Pt1 3892        1634            398.15772     1400             489
+2    Pt10  655         240             53.81913      137              38
+  mhciipan.lt.ref.weighted
+1                156.19736
+2                 11.94457
+> for(i in 2:7){
++   sample_nb[,i] = log10(sample_nb[,i] + 1)
++ }
+> sample_nb[1:2,]
+  matchID     mhci mhci.lt.ref mhci.lt.ref.weighted mhciipan mhciipan.lt.ref
+1     Pt1 3.590284    3.213518             2.601145 3.146438        2.690196
+2    Pt10 2.816904    2.382017             1.738932 2.139879        1.591065
+  mhciipan.lt.ref.weighted
+1                 2.196445
+2                 1.112088
+> 
+> clinic = merge(clinic[,c(1:26,3421)], sample_nb, by="matchID", all.x = TRUE)
+> dim(clinic)
+[1] 35 33
+> clinic[1:2,]
+  matchID Patient.ID          irRECIST Study.site Gender Age Disease.Status
+1     Pt1        Pt4  Partial Response       UCLA      M  62            M1c
+2    Pt10       Pt13 Complete Response       UCLA      F  53            M1c
+  Overall.Survival Vital.Status Previous.MAPKi Anatomical.Location BRAF.x
+1              948        Alive              Y             Adrenal  L331F
+2              917        Alive              N      Lower back, SC   <NA>
+  NRAS.x  NF1.x     Treatment   Biopsy.Time WES RNAseq SRA.tumor.WES
+1      - S2597* Pembrolizumab pre-treatment   1      1    SRR3083837
+2      -      - Pembrolizumab pre-treatment   1      1    SRR3083855
+  SRA.normal.WES AccessionID.WES SRA.tumor.RNA accessionID.RNAseq   mb mb_SNV
+1     SRR3083838      SRP067938+    SRR3184281           GSE78220 3638   3614
+2     SRR3083856      SRP067938+    SRR3184289           GSE78220  426    420
+  mb_indel  mb.calc     mhci mhci.lt.ref mhci.lt.ref.weighted mhciipan
+1       24 3.552181 3.590284    3.213518             2.601145 3.146438
+2        6 2.621176 2.816904    2.382017             1.738932 2.139879
+  mhciipan.lt.ref mhciipan.lt.ref.weighted
+1        2.690196                 2.196445
+2        1.591065                 1.112088
+> 
+> 
+> #--------------------------------------------------------------------
+> # set nb to be 0 if mb is 0
+> #--------------------------------------------------------------------
+> 
+> table(is.na(clinic$mhci))
+
+FALSE 
+   35 
+> table(is.na(clinic$mb.calc))
+
+FALSE 
+   35 
+> 
+> summary(clinic$mb.calc[is.na(clinic$mhci)])
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+                                                
+> table(clinic$mb.calc == 0)
+
+FALSE 
+   35 
+> 
+> #--------------------------------------------------------------------
+> # compare the mb/nb of our anlaysis vs. prevous work
+> #--------------------------------------------------------------------
+> 
+> #clinic$Mutation.Load = log10(clinic$Mutation.Load + 1)
+> #clinic$`Neo-antigen.Load` = log10(clinic$`Neo-antigen.Load` + 1)
+> #clinic$`Neo-peptide.Load` = log10(clinic$`Neo-peptide.Load` + 1)
+> 
+> #pdf("figures/compare_mb_nb_hugo_vs_us.pdf", width=9, height=6)
+> #par(mfrow=c(2,3), mar=c(5,4,1,1), bty="n")
+> #plot(clinic$Mutation.Load, clinic$`Neo-antigen.Load`, 
+> #     xlab="hugo et al. MB", ylab="hugo et al. NeoAg")
+> #plot(clinic$Mutation.Load, clinic$`Neo-peptide.Load`, 
+> #     xlab="hugo et al. MB", ylab="hugo et al. Neo-pep")
+> #plot(clinic$`Neo-antigen.Load`, clinic$`Neo-peptide.Load`,
+> #     xlab="hugo et al. NeoAg", ylab="hugo et al. Neo-pep")
+> 
+> #plot(clinic$Mutation.Load, clinic$mb.pre, 
+> #     xlab="hugo et al. MB", ylab="our MB")
+> #abline(0, 1, col="brown")
+> #plot(clinic$`Neo-antigen.Load`, clinic$mhci,
+> #     xlab="hugo et al. NeoAg", ylab="our Neo-pep")
+> #abline(0, 1, col="brown")
+> #plot(clinic$`Neo-peptide.Load`, clinic$mhci,
+> #     xlab="hugo et al. Neo-pep", ylab="our Neo-pep")
+> #abline(0, 1, col="brown")
+> #dev.off()
+> 
+> #--------------------------------------------------------------------
+> # compare with response data
+> #--------------------------------------------------------------------
+> table(clinic$irRECIST)
+
+  Complete Response    Partial Response Progressive Disease 
+                  7                  12                  16 
+> #change 
+> clinic$irRECIST = as.character(clinic$irRECIST)
+> 
+> clinic$Response2 = clinic$irRECIST
+> clinic$Response2[which(clinic$irRECIST == "Progressive Disease")] = "PDSD"
+> clinic$Response2[which(clinic$irRECIST == "Complete Response")] = "PRCR"
+> clinic$Response2[which(clinic$irRECIST == "Partial Response")] = "PRCR"
+> 
+> # scatter plot of response
+> s3  = ggplot(clinic, aes(x=mhci.lt.ref.weighted, y=mhciipan.lt.ref.weighted, 
++                          color=Response2)) + geom_point()
+> #remove PR patients
+> clinic = clinic[which(clinic$irRECIST!="Partial Response"),]
+> 
+> table(clinic$irRECIST, clinic$Response2)
+                     
+                      PDSD PRCR
+  Complete Response      0    7
+  Progressive Disease   16    0
+> 
+> # scatter plot of response after removing PR
+> s2  = ggplot(clinic, aes(x=mhci.lt.ref.weighted, y=mhciipan.lt.ref.weighted, 
++                          color=Response2)) + geom_point()
+> 
+> s = mget(c("s3", "s2"))
+> ggsave("figures/scatter_2group_wPR_and_noPR.pdf", width=4.5, height=9, 
++        marrangeGrob(grobs = s, nrow=2, ncol=1))
+> 
+> anova(lm(clinic$mb ~ clinic$Response2))
+Analysis of Variance Table
+
+Response: clinic$mb
+                 Df    Sum Sq  Mean Sq F value Pr(>F)
+clinic$Response2  1  18280902 18280902  2.8382 0.1069
+Residuals        21 135260161  6440960               
+> 
+> anova(lm(clinic$mb.calc ~ clinic$Response2))
+Analysis of Variance Table
+
+Response: clinic$mb.calc
+                 Df Sum Sq Mean Sq F value  Pr(>F)  
+clinic$Response2  1 0.7311 0.73106  2.9917 0.09836 .
+Residuals        21 5.1316 0.24436                  
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+> 
+> anova(lm(clinic$mhci ~ clinic$Response2))
+Analysis of Variance Table
+
+Response: clinic$mhci
+                 Df Sum Sq Mean Sq F value  Pr(>F)  
+clinic$Response2  1 1.1553 1.15534  3.7155 0.06754 .
+Residuals        21 6.5299 0.31095                  
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+> anova(lm(clinic$mhci.lt.ref ~ clinic$Response2))
+Analysis of Variance Table
+
+Response: clinic$mhci.lt.ref
+                 Df Sum Sq Mean Sq F value  Pr(>F)  
+clinic$Response2  1 0.9461 0.94614  3.0654 0.09457 .
+Residuals        21 6.4817 0.30865                  
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+> anova(lm(clinic$mhci.lt.ref.weighted ~ clinic$Response2))
+Analysis of Variance Table
+
+Response: clinic$mhci.lt.ref.weighted
+                 Df Sum Sq Mean Sq F value Pr(>F)
+clinic$Response2  1 0.8747 0.87467  2.8816 0.1044
+Residuals        21 6.3744 0.30354               
+> 
+> anova(lm(clinic$mhciipan ~ clinic$Response2))
+Analysis of Variance Table
+
+Response: clinic$mhciipan
+                 Df Sum Sq Mean Sq F value  Pr(>F)  
+clinic$Response2  1 0.9701 0.97013  3.6193 0.07092 .
+Residuals        21 5.6289 0.26804                  
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+> anova(lm(clinic$mhciipan.lt.ref ~ clinic$Response2))
+Analysis of Variance Table
+
+Response: clinic$mhciipan.lt.ref
+                 Df Sum Sq Mean Sq F value  Pr(>F)  
+clinic$Response2  1 0.9389 0.93887  3.4022 0.07926 .
+Residuals        21 5.7951 0.27596                  
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+> anova(lm(clinic$mhciipan.lt.ref.weighted ~ clinic$Response2))
+Analysis of Variance Table
+
+Response: clinic$mhciipan.lt.ref.weighted
+                 Df Sum Sq Mean Sq F value  Pr(>F)  
+clinic$Response2  1 0.8509 0.85085  3.3936 0.07962 .
+Residuals        21 5.2651 0.25072                  
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+> 
+> 
+> x = clinic$mhci.lt.ref.weighted
+> y = clinic$mhciipan.lt.ref.weighted
+> z = x + y
+> anova(lm(z ~ clinic$Response2))
+Analysis of Variance Table
+
+Response: z
+                 Df  Sum Sq Mean Sq F value  Pr(>F)  
+clinic$Response2  1  3.4509  3.4509  3.2657 0.08509 .
+Residuals        21 22.1906  1.0567                  
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+> 
+> #--------------------------------------------------------------------
+> # check the way to combine MHC-I and MHC-II
+> #--------------------------------------------------------------------
+> 
+> g0 = ggplot(clinic, aes(x=mhci, y=mhciipan, 
++                         shape=Response2, color=Response2)) + geom_point()
+> 
+> g1 = ggplot(clinic, aes(x=mhci.lt.ref, y=mhciipan.lt.ref, 
++                         shape=Response2, color=Response2)) + geom_point()
+> 
+> g2 = ggplot(clinic, aes(x=mhci.lt.ref.weighted, y=mhciipan.lt.ref.weighted, 
++                    shape=Response2, color=Response2)) + geom_point()
+> 
+> ymin = 1
+> ymax = 2
+> x = clinic$mhci.lt.ref.weighted
+> y = clinic$mhciipan.lt.ref.weighted
+> length(x)
+[1] 23
+> length(y)
+[1] 23
+> 
+> w2kp = which(y > ymin & y < ymax)
+> length(w2kp)
+[1] 14
+> 
+> load("../../Riaz2017/final_anno_ds/riaz_model1.rda")
+> load("../../Riaz2017/final_anno_ds/riaz_medquant_model1.rda")
+> 
+> #lm1 = lm(y ~ -1 + x, subset=w2kp)
+> beta0 = 0
+> beta1 = lm1$coef[1]
+> beta1_med = med.fit$coef[1]
+> 
+> beta1 
+        x 
+0.8017399 
+> beta1_med
+       x 
+0.809573 
+> 
+> g2_lin = g2 + geom_segment(aes(x = (ymin-beta0)/beta1, y = ymin, 
++                            xend = (ymax-beta0)/beta1, yend = ymax), 
++                        col="black")
+> 
+> g2_med = g2 + geom_segment(aes(x = (ymin-beta0)/beta1_med, y = ymin, 
++                                xend = (ymax-beta0)/beta1_med, yend = ymax), 
++                            col="black")
+> 
+> xnew = x[which(y > ymin & y < ymax)]
+> yhat = predict(lm1, data.frame(x=xnew))
+> yhat_med = predict(med.fit, data.frame(x=xnew))
+Error in UseMethod("predict") : 
+  no applicable method for 'predict' applied to an object of class "rq"
+Calls: predict
+Execution halted

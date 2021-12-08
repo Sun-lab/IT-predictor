@@ -1,0 +1,215 @@
+
+R version 4.0.3 (2020-10-10) -- "Bunny-Wunnies Freak Out"
+Copyright (C) 2020 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin17.0 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> 
+> #--------------------------------------------------------------------
+> # Create somatic mutation chains 
+> # 1. Import data
+> # 2. extrac peptides that cover the mutated amino acid and is 17 or 
+> #    35 aa long. 17 aa long sequence is for HLA-I (9 aa peptide)
+> #    and 35 aa long sequence is for HLA-II (15 aa peptides + 
+> #    3aa context on either side)
+> # 3. save riaz_mutdata_sm.RData
+> #--------------------------------------------------------------------
+> 
+> library(stringr)
+> 
+> #--------------------------------------------------------------------
+> # Step 1: Import Data 
+> #--------------------------------------------------------------------
+> 
+> # input dataset with the reference seq
+> 
+> load("../data/riaz_mutdata_refaa.RData")
+> dim(riaz_mutdata_refaa)
+[1] 31303    16
+> riaz_mutdata_refaa[1,]
+       id seqnames     start       end REF ALT tumor_name normal_name W pos M
+1 Pt10_on     chr1 114716127 114716127   C   A SRR5134751  SRR5134829 G  12 C
+  Wseq seqpos Mseq      EnsembleID
+1    G     34    T ENST00000369535
+                                                                                                                                                                                        prot.seq
+1 MTEYKLVVVGAGGVGKSALTIQLIQNHFVDEYDPTIEDSYRKQVVIDGETCLLDILDTAGQEEYSAMRDQYMRTGEGFLCVFAINNSKSFADINLYREQIKRVKDSDDVPMVLVGNKCDLPTRTVDTKQAHELAKSYGIPFIETSAKTRQGVEDAFYTLVREIRQYRMKKLNSSDDGTQGCMGLPCVVM*
+> 
+> # check stop codons, and remove them
+> 
+> fun1 <- function(x){substr(x, nchar(x), nchar(x))}
+> last_aa = sapply(riaz_mutdata_refaa$prot.seq, fun1)
+> table(last_aa)
+last_aa
+    *     A     C     D     e     E     F     G     H     K     L     M     N 
+30977    35     4    23     2    20     4    13     5     8    19     2    24 
+    P     Q     R     S     T     V     Y 
+   35    11    57    48    11     2     3 
+> 
+> prot.seq.nostop = gsub("\\*.*", "", riaz_mutdata_refaa$prot.seq)
+> riaz_mutdata_refaa$prot.seq[1]
+[1] "MTEYKLVVVGAGGVGKSALTIQLIQNHFVDEYDPTIEDSYRKQVVIDGETCLLDILDTAGQEEYSAMRDQYMRTGEGFLCVFAINNSKSFADINLYREQIKRVKDSDDVPMVLVGNKCDLPTRTVDTKQAHELAKSYGIPFIETSAKTRQGVEDAFYTLVREIRQYRMKKLNSSDDGTQGCMGLPCVVM*"
+> prot.seq.nostop[1]
+[1] "MTEYKLVVVGAGGVGKSALTIQLIQNHFVDEYDPTIEDSYRKQVVIDGETCLLDILDTAGQEEYSAMRDQYMRTGEGFLCVFAINNSKSFADINLYREQIKRVKDSDDVPMVLVGNKCDLPTRTVDTKQAHELAKSYGIPFIETSAKTRQGVEDAFYTLVREIRQYRMKKLNSSDDGTQGCMGLPCVVM"
+> 
+> n0 = nchar(riaz_mutdata_refaa$prot.seq)
+> n1 = nchar(prot.seq.nostop)
+> table(n0 - n1)
+
+    0     1 
+  326 30977 
+> 
+> if(any(n0 - n1) > 1){ stop("stop condon in the middle of sequence\n") }
+> 
+> # it looks like those transcripts without stop codon are immunoglobulins
+> riaz_mutdata_refaa$prot.seq = prot.seq.nostop
+> riaz_mutdata_refaa[which(n0 - n1==0)[1:2],]
+          id seqnames    start      end REF ALT tumor_name normal_name W pos M
+116 Pt102_on     chr2 88886031 88886031   G   A SRR5134773  SRR5134896 E  81 K
+117 Pt102_on     chr2 89937576 89937576   G   A SRR5134773  SRR5134896 R  86 K
+    Wseq seqpos Mseq      EnsembleID
+116    G    241    A ENST00000390243
+117    G    257    A ENST00000474213
+                                                                                                                     prot.seq
+116 MVLQTQVFISLLLWISGAYGDIVMTQSPDSLAVSLGERATINCKSSQSVLYSSNNKNYLAWYQQKPGQPPKLLIYWASTRESGVPDRFSGSGSGTDFTLTISSLQAEDVAVYYCQQYYSTP
+117  MRLPAQLLGLLMLWVPGSSGDVVMTQSPLSLPVTLGQPASISCRSSQSLVYSDGNTYLNWFQQRPGQSPRRLIYKVSNWDSGVPDRFSGSGSGTDFTLKISRVEAEDVGVYYCMQGTHWP
+> 
+> #--------------------------------------------------------------------
+> # Step 2: Replace mutated AA and extract peptides for prediction
+> #--------------------------------------------------------------------
+> 
+> som_mut17  = som_mut17r = rep("", nrow(riaz_mutdata_refaa))
+> som_mut35  = som_mut35r = rep("", nrow(riaz_mutdata_refaa))
+> mut17_start = mut17_end = rep(NA, nrow(riaz_mutdata_refaa))
+> mut35_start = mut35_end = rep(NA, nrow(riaz_mutdata_refaa))
+> 
+> for(i in 1:nrow(riaz_mutdata_refaa)){
++   b = riaz_mutdata_refaa[i,]
++   
++   if(b$prot.seq == ""){ 
++     som_mut17[i] = som_mut17r[i] = "ENST not found"
++     som_mut35[i] = som_mut35r[i] = "ENST not found"
++   } else if (b$prot.seq=="Sequence unavailable"){
++     som_mut17[i] = som_mut17r[i] = "Sequence unavailable"
++     som_mut35[i] = som_mut35r[i] = "Sequence unavailable"
++   } else{
++ 
++     if(substr(b$prot.seq, b$pos, b$pos) != b$W){
++       stop("mismatch of amino acid for wild type allelel")
++     }
++     
++     # replace aa at position 'pos' with mutated aa
++     b$prot.seq.ref = b$prot.seq
++     substr(b$prot.seq, as.numeric(b$pos), as.numeric(b$pos)) = as.character(b$M)
++     
++     # extract aa of interest per somatic mutation
++     mut17_start[i] = max(as.numeric(b$pos)-8, 1)
++     mut17_end[i]   = min(as.numeric(b$pos)+8, nchar(b$prot.seq))
++     som_mut17[i]   = substr(b$prot.seq, mut17_start[i], mut17_end[i])
++     som_mut17r[i]  = substr(b$prot.seq.ref, mut17_start[i], mut17_end[i])
++     
++     mut35_start[i] = max(as.numeric(b$pos)-17, 1)
++     mut35_end[i]   = min(as.numeric(b$pos)+17, nchar(b$prot.seq))
++     som_mut35[i]   = substr(b$prot.seq, mut35_start[i], mut35_end[i])
++     som_mut35r[i]  = substr(b$prot.seq.ref, mut35_start[i], mut35_end[i])
++   }
++ }
+> 
+> riaz_mutdata_sm = data.frame(riaz_mutdata_refaa[,1:15], som_mut17, som_mut17r, 
++                          som_mut35, som_mut35r, mut17_start, mut17_end, 
++                          mut35_start, mut35_end, stringsAsFactors=FALSE)
+> dim(riaz_mutdata_sm)
+[1] 31303    23
+> riaz_mutdata_sm[1:2,]
+       id seqnames     start       end REF ALT tumor_name normal_name W pos M
+1 Pt10_on     chr1 114716127 114716127   C   A SRR5134751  SRR5134829 G  12 C
+2 Pt10_on     chr1 155024524 155024524   G   A SRR5134751  SRR5134829 R 564 W
+  Wseq seqpos Mseq      EnsembleID         som_mut17        som_mut17r
+1    G     34    T ENST00000369535 YKLVVVGACGVGKSALT YKLVVVGAGGVGKSALT
+2    C   1690    T ENST00000368424 AALHRSVRWRAADQGHR AALHRSVRRRAADQGHR
+                            som_mut35                          som_mut35r
+1       MTEYKLVVVGACGVGKSALTIQLIQNHFV       MTEYKLVVVGAGGVGKSALTIQLIQNHFV
+2 LLSRRTNLLAALHRSVRWRAADQGHRSAFLVLASR LLSRRTNLLAALHRSVRRRAADQGHRSAFLVLASR
+  mut17_start mut17_end mut35_start mut35_end
+1           4        20           1        29
+2         556       572         547       581
+> 
+> table(riaz_mutdata_sm$som_mut17 == "Sequence unavailable")
+
+FALSE  TRUE 
+31301     2 
+> table(riaz_mutdata_sm$som_mut17 == "ENST not found")
+
+FALSE 
+31303 
+> 
+> w1 = which(riaz_mutdata_sm$som_mut17 == "Sequence unavailable")
+> riaz_mutdata_sm[w1,]
+            id seqnames    start      end REF ALT tumor_name normal_name W pos
+20947 Pt65_pre    chr14 22505118 22505118   G   A SRR5134812  SRR5134825 W   3
+27674 Pt87_pre     chr2 88860602 88860602   G   A SRR5134875  SRR5134852 H   2
+      M Wseq seqpos Mseq      EnsembleID            som_mut17
+20947 X    G      9    A ENST00000614481 Sequence unavailable
+27674 Y    C      4    T ENST00000390238 Sequence unavailable
+                som_mut17r            som_mut35           som_mut35r
+20947 Sequence unavailable Sequence unavailable Sequence unavailable
+27674 Sequence unavailable Sequence unavailable Sequence unavailable
+      mut17_start mut17_end mut35_start mut35_end
+20947          NA        NA          NA        NA
+27674          NA        NA          NA        NA
+> 
+> riaz_mutdata_sm = riaz_mutdata_sm[-w1,]
+> dim(riaz_mutdata_sm)
+[1] 31301    23
+> riaz_mutdata_sm[1:2,]
+       id seqnames     start       end REF ALT tumor_name normal_name W pos M
+1 Pt10_on     chr1 114716127 114716127   C   A SRR5134751  SRR5134829 G  12 C
+2 Pt10_on     chr1 155024524 155024524   G   A SRR5134751  SRR5134829 R 564 W
+  Wseq seqpos Mseq      EnsembleID         som_mut17        som_mut17r
+1    G     34    T ENST00000369535 YKLVVVGACGVGKSALT YKLVVVGAGGVGKSALT
+2    C   1690    T ENST00000368424 AALHRSVRWRAADQGHR AALHRSVRRRAADQGHR
+                            som_mut35                          som_mut35r
+1       MTEYKLVVVGACGVGKSALTIQLIQNHFV       MTEYKLVVVGAGGVGKSALTIQLIQNHFV
+2 LLSRRTNLLAALHRSVRWRAADQGHRSAFLVLASR LLSRRTNLLAALHRSVRRRAADQGHRSAFLVLASR
+  mut17_start mut17_end mut35_start mut35_end
+1           4        20           1        29
+2         556       572         547       581
+> 
+> save(riaz_mutdata_sm, file = "../data/riaz_mutdata_sm.RData")
+> 
+> sessionInfo()
+R version 4.0.3 (2020-10-10)
+Platform: x86_64-apple-darwin17.0 (64-bit)
+Running under: macOS Big Sur 10.16
+
+Matrix products: default
+BLAS:   /Library/Frameworks/R.framework/Versions/4.0/Resources/lib/libRblas.dylib
+LAPACK: /Library/Frameworks/R.framework/Versions/4.0/Resources/lib/libRlapack.dylib
+
+locale:
+[1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+
+attached base packages:
+[1] stats     graphics  grDevices utils     datasets  methods   base     
+
+other attached packages:
+[1] stringr_1.4.0
+
+loaded via a namespace (and not attached):
+[1] compiler_4.0.3 magrittr_2.0.1 tools_4.0.3    stringi_1.5.3 
+> q(save="no")
+> proc.time()
+   user  system elapsed 
+  7.466   0.105   7.602 

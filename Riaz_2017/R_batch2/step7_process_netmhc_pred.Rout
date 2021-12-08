@@ -1,0 +1,879 @@
+
+R version 4.0.3 (2020-10-10) -- "Bunny-Wunnies Freak Out"
+Copyright (C) 2020 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin17.0 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> 
+> #--------------------------------------------------------------------
+> # Step 7: Process neoAg prediction
+> #--------------------------------------------------------------------
+> 
+> library(magrittr)
+> library(Biostrings)
+Loading required package: BiocGenerics
+Loading required package: parallel
+
+Attaching package: ‘BiocGenerics’
+
+The following objects are masked from ‘package:parallel’:
+
+    clusterApply, clusterApplyLB, clusterCall, clusterEvalQ,
+    clusterExport, clusterMap, parApply, parCapply, parLapply,
+    parLapplyLB, parRapply, parSapply, parSapplyLB
+
+The following objects are masked from ‘package:stats’:
+
+    IQR, mad, sd, var, xtabs
+
+The following objects are masked from ‘package:base’:
+
+    anyDuplicated, append, as.data.frame, basename, cbind, colnames,
+    dirname, do.call, duplicated, eval, evalq, Filter, Find, get, grep,
+    grepl, intersect, is.unsorted, lapply, Map, mapply, match, mget,
+    order, paste, pmax, pmax.int, pmin, pmin.int, Position, rank,
+    rbind, Reduce, rownames, sapply, setdiff, sort, table, tapply,
+    union, unique, unsplit, which.max, which.min
+
+Loading required package: S4Vectors
+Loading required package: stats4
+
+Attaching package: ‘S4Vectors’
+
+The following object is masked from ‘package:base’:
+
+    expand.grid
+
+Loading required package: IRanges
+Loading required package: XVector
+
+Attaching package: ‘Biostrings’
+
+The following object is masked from ‘package:base’:
+
+    strsplit
+
+> library(ggplot2)
+> library(plyr)
+
+Attaching package: ‘plyr’
+
+The following object is masked from ‘package:XVector’:
+
+    compact
+
+The following object is masked from ‘package:IRanges’:
+
+    desc
+
+The following object is masked from ‘package:S4Vectors’:
+
+    rename
+
+> library(data.table)
+
+Attaching package: ‘data.table’
+
+The following object is masked from ‘package:IRanges’:
+
+    shift
+
+The following objects are masked from ‘package:S4Vectors’:
+
+    first, second
+
+> library(tidyr)
+
+Attaching package: ‘tidyr’
+
+The following object is masked from ‘package:S4Vectors’:
+
+    expand
+
+The following object is masked from ‘package:magrittr’:
+
+    extract
+
+> library(ggpubr)
+
+Attaching package: ‘ggpubr’
+
+The following object is masked from ‘package:plyr’:
+
+    mutate
+
+> library(scales)
+> library(ggpointdensity)
+> 
+> theme_set(theme_classic())
+> 
+> #--------------------------------------------------------------------
+> # 1. Import MHC-I prediction
+> #--------------------------------------------------------------------
+> 
+> # check the relation between score and rank for one sample
+> 
+> hla_i = readRDS("../data/netMHCpan4_1_results.rds")
+> length(hla_i)
+[1] 180
+> 
+> dat = as.data.frame(hla_i[["Pt58_pre_hlai_mut"]])
+> dim(dat)
+[1] 6791   15
+> dat[1:2,]
+  Pos   Peptide            ID HLA-A03:01_EL-score HLA-A03:01_EL_Rank
+1   0 NFKVWLLEI 1_1197110_G_A               1e-04                 36
+2   1 FKVWLLEIN 1_1197110_G_A               0e+00                 95
+  HLA-B07:02_EL-score HLA-B07:02_EL_Rank HLA-B08:01_EL-score HLA-B08:01_EL_Rank
+1               3e-04            27.3333              0.0912              1.785
+2               0e+00            95.0000              0.0000             96.000
+  HLA-C07:01_EL-score HLA-C07:01_EL_Rank HLA-C07:02_EL-score HLA-C07:02_EL_Rank
+1              0.0023             5.0426               0.006              3.969
+2              0.0000            65.0000               0.000             70.000
+   Ave NB
+1 0.02  1
+2 0.00  0
+> 
+> dat_l1 = pivot_longer(dat[,c(1:3,seq(4,ncol(dat)-2,by=2))], 
++                       values_to="EL_score", cols=ends_with("_EL-score"))
+> 
+> dat_l2 = pivot_longer(dat[,c(1:3,seq(5,ncol(dat)-2,by=2))], 
++                       values_to="EL_rank", cols=ends_with("_EL_Rank"))
+> 
+> dim(dat_l1)
+[1] 33955     5
+> dat_l1[1:2,]
+# A tibble: 2 x 5
+    Pos Peptide   ID            name                EL_score
+  <int> <chr>     <chr>         <chr>                  <dbl>
+1     0 NFKVWLLEI 1_1197110_G_A HLA-A03:01_EL-score 0.0001  
+2     0 NFKVWLLEI 1_1197110_G_A HLA-B07:02_EL-score 0.000300
+> 
+> dim(dat_l2)
+[1] 33955     5
+> dat_l2[1:2,]
+# A tibble: 2 x 5
+    Pos Peptide   ID            name               EL_rank
+  <int> <chr>     <chr>         <chr>                <dbl>
+1     0 NFKVWLLEI 1_1197110_G_A HLA-A03:01_EL_Rank    36  
+2     0 NFKVWLLEI 1_1197110_G_A HLA-B07:02_EL_Rank    27.3
+> 
+> dat_l1$HLA = gsub("_EL-score", "", dat_l1$name)
+> dat_l2$HLA = gsub("_EL_Rank",  "", dat_l2$name)
+> 
+> table(dat_l1$Pos  == dat_l2$Pos)
+
+ TRUE 
+33955 
+> table(dat_l1$ID   == dat_l2$ID)
+
+ TRUE 
+33955 
+> table(dat_l1$name == dat_l2$name)
+
+FALSE 
+33955 
+> table(dat_l1$Peptide == dat_l2$Peptide)
+
+ TRUE 
+33955 
+> 
+> mhc_i = merge(dat_l1[,-4], dat_l2[,-4])
+> dim(mhc_i)
+[1] 33955     6
+> mhc_i[1:2,]
+  Pos   Peptide             ID        HLA EL_score EL_rank
+1   0 AAAAAAPPS 7_94663770_C_T HLA-A03:01    1e-04 37.5000
+2   0 AAAAAAPPS 7_94663770_C_T HLA-B07:02    9e-04 15.8667
+> 
+> table(mhc_i$EL_score == 0)
+
+FALSE  TRUE 
+21610 12345 
+> table(mhc_i$EL_score < 0.001)
+
+FALSE  TRUE 
+ 9478 24477 
+> table(mhc_i$EL_score < 0.002)
+
+FALSE  TRUE 
+ 7294 26661 
+> table(mhc_i$EL_score < 0.005)
+
+FALSE  TRUE 
+ 5019 28936 
+> 
+> summary(mhc_i$EL_score)
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+0.00000 0.00000 0.00010 0.01345 0.00130 0.99880 
+> summary(mhc_i$EL_rank)
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+  0.001  12.179  31.250  36.962  57.500 100.000 
+> summary(mhc_i$EL_rank[which(mhc_i$EL_score <= 0.001)])
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+  7.756  27.167  44.000  48.060  66.250 100.000 
+> summary(mhc_i$EL_rank[which(mhc_i$EL_score > 0.001)])
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+  0.001   2.579   5.727   6.859   9.752  24.181 
+> 
+> mhc_i = mhc_i[which(mhc_i$EL_score > 0.001),]
+> dim(mhc_i)
+[1] 9146    6
+> 
+> g1 = ggplot(mhc_i, aes(x=EL_score)) + 
++   geom_histogram(color="darkblue", fill="lightblue")
+> 
+> g2 = ggplot(mhc_i, aes(x=EL_rank)) + 
++   geom_histogram(color="darkblue", fill="lightblue")
+> 
+> g3 = ggplot(mhc_i, aes(x=EL_score, y=EL_rank, shape=HLA, color=HLA)) + 
++   geom_point() + 
++   scale_y_continuous(trans = log10_trans(), 
++                      breaks = trans_breaks("log10", function(x) 10^x),
++                      labels = trans_format("log10", math_format(10^.x)))
+> 
+> gg1 = ggarrange(
++   ggarrange(g1, g2, ncol = 2, labels = c("A", "B")), g3, 
++   nrow = 2, labels = c("", "C")
++ ) 
+`stat_bin()` using `bins = 30`. Pick better value with `binwidth`.
+`stat_bin()` using `bins = 30`. Pick better value with `binwidth`.
+> 
+> pdf("../figures/netMHCpan4.1_score_vs_rank_Pt58_pre.pdf", width=6, height=6)
+> gg1
+> dev.off()
+null device 
+          1 
+> 
+> #--------------------------------------------------------------------
+> # 2. Import MHC-II prediction
+> #--------------------------------------------------------------------
+> 
+> hla_ii = readRDS("../data/netMHCIIpan4_0_results.rds")
+> length(hla_ii)
+[1] 180
+> 
+> dat = as.data.frame(hla_ii[["Pt58_pre_hlaii_mut"]])
+> dim(dat)
+[1] 15565    26
+> dat[1:2,]
+  Pos         Peptide            ID Target DRB1_0301_Score DRB1_0301_Rank
+1   1 IGCDFLIDDNFKVWL 1:1197110:G:A     NA        0.145876           7.02
+2   2 GCDFLIDDNFKVWLL 1:1197110:G:A     NA        0.059720          13.61
+  DRB1_1501_Score DRB1_1501_Rank HLA-DPA10103-DPB10101_Score
+1        0.039516          15.49                    0.022676
+2        0.018607          23.41                    0.012007
+  HLA-DPA10103-DPB10101_Rank HLA-DPA10103-DPB10401_Score
+1                      70.11                    0.009720
+2                      82.62                    0.001975
+  HLA-DPA10103-DPB10401_Rank HLA-DPA10201-DPB10101_Score
+1                      32.69                    0.006713
+2                      67.07                    0.002734
+  HLA-DPA10201-DPB10101_Rank HLA-DPA10201-DPB10401_Score
+1                      37.32                    0.000876
+2                      61.27                    0.000323
+  HLA-DPA10201-DPB10401_Rank HLA-DQA10102-DQB10201_Score
+1                      30.97                    0.001733
+2                      59.40                    0.001061
+  HLA-DQA10102-DQB10201_Rank HLA-DQA10102-DQB10602_Score
+1                      55.71                    0.000278
+2                      71.50                    0.000251
+  HLA-DQA10102-DQB10602_Rank HLA-DQA10501-DQB10201_Score
+1                         95                    0.010302
+2                         95                    0.003688
+  HLA-DQA10501-DQB10201_Rank HLA-DQA10501-DQB10602_Score
+1                      47.65                    0.000351
+2                      65.79                    0.000847
+  HLA-DQA10501-DQB10602_Rank    Ave NB
+1                      95.00 0.0238  1
+2                      87.81 0.0101  0
+> 
+> table(dat$Target)
+< table of extent 0 >
+> 
+> dat_l1 = pivot_longer(dat[,c(1:3,seq(5,ncol(dat)-2,by=2))], 
++                       values_to="EL_score", cols=ends_with("_Score"))
+> 
+> dat_l2 = pivot_longer(dat[,c(1:3,seq(6,ncol(dat)-2,by=2))], 
++                       values_to="EL_rank", cols=ends_with("_Rank"))
+> 
+> dim(dat_l1)
+[1] 155650      5
+> dat_l1[1:2,]
+# A tibble: 2 x 5
+    Pos Peptide         ID            name            EL_score
+  <int> <chr>           <chr>         <chr>              <dbl>
+1     1 IGCDFLIDDNFKVWL 1:1197110:G:A DRB1_0301_Score   0.146 
+2     1 IGCDFLIDDNFKVWL 1:1197110:G:A DRB1_1501_Score   0.0395
+> 
+> dim(dat_l2)
+[1] 155650      5
+> dat_l2[1:2,]
+# A tibble: 2 x 5
+    Pos Peptide         ID            name           EL_rank
+  <int> <chr>           <chr>         <chr>            <dbl>
+1     1 IGCDFLIDDNFKVWL 1:1197110:G:A DRB1_0301_Rank    7.02
+2     1 IGCDFLIDDNFKVWL 1:1197110:G:A DRB1_1501_Rank   15.5 
+> 
+> dat_l1$HLA = gsub("_Score", "", dat_l1$name)
+> dat_l2$HLA = gsub("_Rank",  "", dat_l2$name)
+> 
+> table(dat_l1$Peptide == dat_l2$Peptide)
+
+  TRUE 
+155650 
+> table(dat_l1$Pos == dat_l2$Pos)
+
+  TRUE 
+155650 
+> table(dat_l1$ID  == dat_l2$ID)
+
+  TRUE 
+155650 
+> table(dat_l1$HLA == dat_l2$HLA)
+
+  TRUE 
+155650 
+> 
+> mhc_ii = merge(dat_l1[,-4], dat_l2[,-4])
+> dim(mhc_ii)
+[1] 155650      6
+> mhc_ii[1:2,]
+  Pos         Peptide             ID       HLA EL_score EL_rank
+1   1 AAAPRRGAQLRRPRH 9:21971122:G:A DRB1_0301 0.009335   39.04
+2   1 AAAPRRGAQLRRPRH 9:21971122:G:A DRB1_1501 0.000476   84.38
+> 
+> summary(mhc_ii$EL_score)
+    Min.  1st Qu.   Median     Mean  3rd Qu.     Max. 
+0.000001 0.000998 0.004417 0.034163 0.021636 0.994576 
+> summary(mhc_ii$EL_rank)
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+   0.00   23.53   51.58   50.67   78.60   95.00 
+> 
+> summary(mhc_ii$EL_rank[which(mhc_ii$EL_rank > 0)])
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+   0.01   23.56   51.62   50.69   78.61   95.00 
+> table(mhc_ii$EL_rank == 0)
+
+ FALSE   TRUE 
+155578     72 
+> mhc_ii$EL_rank[which(mhc_ii$EL_rank == 0)] = 0.001
+> 
+> 
+> table(mhc_ii$EL_score == 0)
+
+ FALSE 
+155650 
+> table(mhc_ii$EL_score < 0.001)
+
+ FALSE   TRUE 
+116710  38940 
+> table(mhc_ii$EL_score < 0.002)
+
+FALSE  TRUE 
+99048 56602 
+> table(mhc_ii$EL_score < 0.005)
+
+FALSE  TRUE 
+74467 81183 
+> summary(mhc_ii$EL_rank[which(mhc_ii$EL_score <= 0.001)])
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+  27.80   80.00   89.00   83.19   95.00   95.00 
+> 
+> mhc_ii = mhc_ii[which(mhc_ii$EL_score > 0.001),]
+> dim(mhc_ii)
+[1] 116684      6
+> mhc_ii[1:2,]
+  Pos         Peptide             ID                   HLA EL_score EL_rank
+1   1 AAAPRRGAQLRRPRH 9:21971122:G:A             DRB1_0301 0.009335   39.04
+3   1 AAAPRRGAQLRRPRH 9:21971122:G:A HLA-DPA10103-DPB10101 0.100027   25.73
+> 
+> g1 = ggplot(mhc_ii, aes(x=EL_score)) +
++   geom_histogram(color="darkblue", fill="lightblue")
+> 
+> g2 = ggplot(mhc_ii, aes(x=EL_rank)) +
++   geom_histogram(color="darkblue", fill="lightblue")
+> 
+> g3 = ggplot(mhc_ii, aes(x=EL_score, y=EL_rank, color=HLA)) + 
++   geom_point() + 
++   scale_y_continuous(trans = log10_trans(), 
++                      breaks = trans_breaks("log10", function(x) 10^x),
++                      labels = trans_format("log10", math_format(10^.x)))
+> 
+> gg1 = ggarrange(
++   ggarrange(g1, g2, ncol = 2, labels = c("A", "B")), g3, 
++   nrow = 2, labels = c("", "C")
++ ) 
+`stat_bin()` using `bins = 30`. Pick better value with `binwidth`.
+`stat_bin()` using `bins = 30`. Pick better value with `binwidth`.
+> 
+> pdf("../figures/netMHCIIpan4.0_score_vs_rank_Pt58_pre.pdf", width=6, height=6)
+> gg1
+> dev.off()
+null device 
+          1 
+> 
+> #--------------------------------------------------------------------
+> # 3. re-organize results for HLA-I
+> #--------------------------------------------------------------------
+> 
+> # first transform to the long format
+> hla_i_long = list()
+> 
+> for(k in names(hla_i)){
++   dat = as.data.frame(hla_i[[k]])
++ 
++   dat_l1 = pivot_longer(dat[,c(1:3,seq(4,ncol(dat)-2,by=2))], 
++                         values_to="EL_score", cols=ends_with("_EL-score"))
++   
++   dat_l2 = pivot_longer(dat[,c(1:3,seq(5,ncol(dat)-2,by=2))], 
++                         values_to="EL_rank", cols=ends_with("_EL_Rank"))
++   
++   dat_l1$HLA = gsub("_EL-score", "", dat_l1$name)
++   dat_l2$HLA = gsub("_EL_Rank",  "", dat_l2$name)
++   
++   dim(dat_l1)
++   dat_l1[1:2,]
++   
++   dim(dat_l2)
++   dat_l2[1:2,]
++   
++   stopifnot(all(dat_l1$Pos  == dat_l2$Pos))
++   stopifnot(all(dat_l1$ID   == dat_l2$ID))
++   stopifnot(all(dat_l1$HLA  == dat_l2$HLA))
++   stopifnot(all(dat_l1$Peptide  == dat_l2$Peptide))
++ 
++   mhc_i = merge(dat_l1[,-4], dat_l2[,-4])
++   hla_i_long[[k]] = mhc_i
++ }
+> 
+> length(hla_i_long)
+[1] 180
+> sapply(hla_i_long[1:5], dim)
+     Pt10_on_hlai_mut Pt10_on_hlai_ref Pt10_pre_hlai_mut Pt10_pre_hlai_ref
+[1,]             1975             1975              2065              2065
+[2,]                6                6                 6                 6
+     Pt102_on_hlai_mut
+[1,]             18840
+[2,]                 6
+> 
+> # next combine _mut and _ref
+> which.ref = grep("_ref", names(hla_i_long), fixed=TRUE)
+> nms.m = names(hla_i_long)[-which.ref]
+> nms.r = names(hla_i_long)[which.ref]
+> 
+> length(nms.m)
+[1] 90
+> length(nms.r)
+[1] 90
+> 
+> table(gsub("_ref", "", nms.r) == gsub("_mut", "", nms.m))
+
+TRUE 
+  90 
+> 
+> neoAg_mhc_i = NULL
+> cols2align = c("Pos", "ID", "HLA")
+> 
+> for(i in 1:length(nms.m)){
++   m1 = hla_i_long[[nms.m[i]]]
++   r1 = hla_i_long[[nms.r[i]]]
++   
++   # remove those with ID like "Un_GL000219v1_8"
++   w2rm = grep("^Un_", m1$ID)
++   if(length(w2rm) > 0){m1 = m1[-w2rm,]}
++   
++   w2rm = grep("^Un_", r1$ID)
++   if(length(w2rm) > 0){r1 = r1[-w2rm,]}
++   
++   sample = gsub("_mut", "", nms.m[i])
++   
++   if(nrow(m1) != nrow(r1)){ stop("nrow do not match\n") }
++   
++   stopifnot(setequal(apply(m1[,cols2align], 1, paste, collapse=":"), 
++                      apply(r1[,cols2align], 1, paste, collapse=":")))
++ 
++   df1 = merge(m1, r1, by = cols2align, 
++               suffixes = c("_mut", "_ref"))
++   stopifnot(nrow(df1) == nrow(m1))
++   
++   df1$sample = rep(sample, nrow(df1))
++   dim(df1)
++   df1[1:5,]
++   
++   neoAg_mhc_i = rbind(neoAg_mhc_i, df1)
++ }
+> 
+> dim(neoAg_mhc_i)
+[1] 1617468      10
+> head(neoAg_mhc_i)
+  Pos              ID        HLA Peptide_mut EL_score_mut EL_rank_mut
+1   0 1_114716127_C_A HLA-A02:01   YKLVVVGAC        0e+00     61.8750
+2   0 1_114716127_C_A HLA-A30:02   YKLVVVGAC        0e+00     83.0000
+3   0 1_114716127_C_A HLA-B18:01   YKLVVVGAC        1e-04     37.6667
+4   0 1_114716127_C_A HLA-B44:02   YKLVVVGAC        0e+00     52.0000
+5   0 1_114716127_C_A HLA-C05:01   YKLVVVGAC        0e+00     75.0000
+6   0 1_155024524_G_A HLA-A02:01   AALHRSVRW        5e-04     24.1875
+  Peptide_ref EL_score_ref EL_rank_ref       sample
+1   YKLVVVGAG        0e+00     95.0000 Pt10_on_hlai
+2   YKLVVVGAG        0e+00     90.0000 Pt10_on_hlai
+3   YKLVVVGAG        0e+00     60.0000 Pt10_on_hlai
+4   YKLVVVGAG        0e+00     63.3333 Pt10_on_hlai
+5   YKLVVVGAG        0e+00    100.0000 Pt10_on_hlai
+6   AALHRSVRR        5e-04     23.4545 Pt10_on_hlai
+> 
+> rank.diff = neoAg_mhc_i$EL_rank_mut - neoAg_mhc_i$EL_rank_ref
+> table(rank.diff == 0)
+
+  FALSE    TRUE 
+1521044   96424 
+> table(abs(rank.diff) > 1)
+
+  FALSE    TRUE 
+ 300730 1316738 
+> table(abs(rank.diff) > 5)
+
+ FALSE   TRUE 
+817302 800166 
+> table(abs(rank.diff) > 10)
+
+  FALSE    TRUE 
+1164059  453409 
+> 
+> table(rank.diff > 5 & rank.diff <= 10)
+
+  FALSE    TRUE 
+1445797  171671 
+> table(rank.diff < -5 & rank.diff >= -10)
+
+  FALSE    TRUE 
+1442382  175086 
+> 
+> table(rank.diff > 10)
+
+  FALSE    TRUE 
+1432538  184930 
+> table(rank.diff < -10)
+
+  FALSE    TRUE 
+1348989  268479 
+> 
+> pdf("../figures/compare_rank_mutation_vs_reference_mhc_i_hist1.pdf", 
++     width=3, height=3)
+> par(mar=c(5,4,1,1))
+> hist(rank.diff[rank.diff !=0 ], breaks=100, main="", 
++      xlab="rank.mutation - rank.reference", xlim=c(-20,20))
+> abline(v=0, lwd=1, col='red')
+> dev.off()
+null device 
+          1 
+> 
+> pdf("../figures/compare_rank_mutation_vs_reference_mhc_i_hist2.pdf", 
++     width=5, height=3)
+> par(mar=c(5,4,1,1))
+> hist(rank.diff[abs(rank.diff) > 10 ], breaks=100, main="", 
++      xlab="rank.mutation - rank.reference")
+> abline(v=0, lwd=1, col='red')
+> 
+> dev.off()
+null device 
+          1 
+> 
+> neoAg_mhc_i_sub = neoAg_mhc_i[which(neoAg_mhc_i$EL_rank_mut < 2),]
+> dim(neoAg_mhc_i_sub)
+[1] 79474    10
+> neoAg_mhc_i_sub[1:2,]
+   Pos              ID        HLA Peptide_mut EL_score_mut EL_rank_mut
+9    0 1_155024524_G_A HLA-B44:02   AALHRSVRW       0.0689      1.2649
+26   0 11_133929767_G_ HLA-A02:01   TVIGTSPHV       0.5425      0.3433
+   Peptide_ref EL_score_ref EL_rank_ref       sample
+9    AALHRSVRR       0.0002     20.1739 Pt10_on_hlai
+26   TVIGTSPHA       0.0681      2.4369 Pt10_on_hlai
+> 
+> min(neoAg_mhc_i_sub$EL_rank_mut)
+[1] 2e-04
+> min(neoAg_mhc_i_sub$EL_rank_ref)
+[1] 5e-04
+> 
+> 
+> gs1 = ggplot(neoAg_mhc_i_sub, aes(x = log10(EL_rank_ref), 
++                                  y = log10(EL_rank_mut))) +
++   geom_pointdensity(size = 0.6) + scale_color_viridis_c() +
++   labs(x = "log10(rank_reference)", y = "log10(rank_mutation)") + 
++   geom_abline(intercept = 0, slope = 1)
+> 
+> png("../figures/compare_rank_mutation_vs_reference_mhc_i.png", 
++     width=6, height=4, units="in", res=300)
+> gs1
+> dev.off()
+null device 
+          1 
+> 
+> #--------------------------------------------------------------------
+> # 4. re-organize results for HLA-II
+> #--------------------------------------------------------------------
+> 
+> # first transform to the long format
+> hla_ii_long = list()
+> 
+> for(k in names(hla_ii)){
++   dat = as.data.frame(hla_ii[[k]])
++   
++   dat_l1 = pivot_longer(dat[,c(1:3,seq(5,ncol(dat)-2,by=2))], 
++                         values_to="EL_score", cols=ends_with("_Score"))
++   
++   dat_l2 = pivot_longer(dat[,c(1:3,seq(6,ncol(dat)-2,by=2))], 
++                         values_to="EL_rank", cols=ends_with("_Rank"))
++   
++   dat_l1$HLA = gsub("_Score", "", dat_l1$name)
++   dat_l2$HLA = gsub("_Rank",  "", dat_l2$name)
++   
++   dim(dat_l1)
++   dat_l1[1:2,]
++   
++   dim(dat_l2)
++   dat_l2[1:2,]
++   
++   stopifnot(all(dat_l1$Pos  == dat_l2$Pos))
++   stopifnot(all(dat_l1$ID   == dat_l2$ID))
++   stopifnot(all(dat_l1$HLA  == dat_l2$HLA))
++   stopifnot(all(dat_l1$Peptide  == dat_l2$Peptide))
++   
++   mhc_ii = merge(dat_l1[,-4], dat_l2[,-4])
++   hla_ii_long[[k]] = mhc_ii
++ }
+> 
+> length(hla_ii_long)
+[1] 180
+> sapply(hla_ii_long[1:5], dim)
+     Pt10_on_hlaii_mut Pt10_on_hlaii_ref Pt10_pre_hlaii_mut Pt10_pre_hlaii_ref
+[1,]              7216              7216               7552               7552
+[2,]                 6                 6                  6                  6
+     Pt102_on_hlaii_mut
+[1,]              72490
+[2,]                  6
+> 
+> # next combine _mut and _ref
+> which.ref = grep("_ref", names(hla_ii_long), fixed=TRUE)
+> nms.m = names(hla_ii_long)[-which.ref]
+> nms.r = names(hla_ii_long)[which.ref]
+> 
+> length(nms.m)
+[1] 90
+> length(nms.r)
+[1] 90
+> 
+> table(gsub("_ref", "", nms.r) == gsub("_mut", "", nms.m))
+
+TRUE 
+  90 
+> 
+> neoAg_mhc_ii = NULL
+> cols2align = c("Pos", "ID", "HLA")
+> 
+> for(i in 1:length(nms.m)){
++   m1 = hla_ii_long[[nms.m[i]]]
++   r1 = hla_ii_long[[nms.r[i]]]
++   
++   # remove those with ID like "Un_GL000219v1_8"
++   w2rm = grep("^Un_", m1$ID)
++   if(length(w2rm) > 0){m1 = m1[-w2rm,]}
++   
++   w2rm = grep("^Un_", r1$ID)
++   if(length(w2rm) > 0){r1 = r1[-w2rm,]}
++   
++   sample = gsub("_mut", "", nms.m[i])
++   
++   if(nrow(m1) != nrow(r1)){ stop("nrow do not match\n") }
++   
++   stopifnot(setequal(apply(m1[,cols2align], 1, paste, collapse=":"), 
++                      apply(r1[,cols2align], 1, paste, collapse=":")))
++   
++   df1 = merge(m1, r1, by = cols2align, 
++               suffixes = c("_mut", "_ref"))
++   stopifnot(nrow(df1) == nrow(m1))
++   
++   df1$sample = rep(sample, nrow(df1))
++   dim(df1)
++   df1[1:5,]
++   
++   neoAg_mhc_ii = rbind(neoAg_mhc_ii, df1)
++ }
+> 
+> dim(neoAg_mhc_ii)
+[1] 4807391      10
+> head(neoAg_mhc_ii)
+  Pos              ID                   HLA     Peptide_mut EL_score_mut
+1   1 1:114716127:C:A             DRB1_0101 MTEYKLVVVGACGVG     0.246216
+2   1 1:114716127:C:A             DRB1_0301 MTEYKLVVVGACGVG     0.004851
+3   1 1:114716127:C:A HLA-DPA10103-DPB10202 MTEYKLVVVGACGVG     0.025733
+4   1 1:114716127:C:A HLA-DPA10103-DPB10401 MTEYKLVVVGACGVG     0.018005
+5   1 1:114716127:C:A HLA-DQA10101-DQB10201 MTEYKLVVVGACGVG     0.001179
+6   1 1:114716127:C:A HLA-DQA10101-DQB10501 MTEYKLVVVGACGVG     0.000985
+  EL_rank_mut     Peptide_ref EL_score_ref EL_rank_ref        sample
+1        4.92 MTEYKLVVVGAGGVG     0.242900        4.97 Pt10_on_hlaii
+2       51.18 MTEYKLVVVGAGGVG     0.016641       29.52 Pt10_on_hlaii
+3       26.69 MTEYKLVVVGAGGVG     0.022822       28.86 Pt10_on_hlaii
+4       21.42 MTEYKLVVVGAGGVG     0.028888       14.43 Pt10_on_hlaii
+5       44.33 MTEYKLVVVGAGGVG     0.002391       22.00 Pt10_on_hlaii
+6       43.22 MTEYKLVVVGAGGVG     0.001409       33.06 Pt10_on_hlaii
+> 
+> rank.diff = neoAg_mhc_ii$EL_rank_mut - neoAg_mhc_ii$EL_rank_ref
+> 
+> table(rank.diff == 0)
+
+  FALSE    TRUE 
+4516003  291388 
+> table(abs(rank.diff) > 1)
+
+  FALSE    TRUE 
+1183209 3624182 
+> table(abs(rank.diff) > 5)
+
+  FALSE    TRUE 
+2853203 1954188 
+> table(abs(rank.diff) > 10)
+
+  FALSE    TRUE 
+3736680 1070711 
+> 
+> table(rank.diff > 0)
+
+  FALSE    TRUE 
+2616285 2191106 
+> table(rank.diff > 5 & rank.diff <= 10)
+
+  FALSE    TRUE 
+4372486  434905 
+> table(rank.diff < -5 & rank.diff >= -10)
+
+  FALSE    TRUE 
+4358819  448572 
+> 
+> table(rank.diff > 10)
+
+  FALSE    TRUE 
+4265542  541849 
+> table(rank.diff < -10)
+
+  FALSE    TRUE 
+4278529  528862 
+> 
+> pdf("../figures/compare_rank_mutation_vs_reference_mhc_ii_hist1.pdf", 
++     width=3, height=3)
+> par(mar=c(5,4,1,1))
+> hist(rank.diff[rank.diff !=0 ], breaks=100, main="", 
++      xlab="rank.mutation - rank.reference", xlim=c(-20,20))
+> abline(v=0, lwd=1, col='red')
+> dev.off()
+null device 
+          1 
+> 
+> pdf("../figures/compare_rank_mutation_vs_reference_mhc_ii_hist2.pdf", 
++     width=5, height=3)
+> par(mar=c(5,4,1,1))
+> hist(rank.diff[abs(rank.diff) > 10 ], breaks=100, main="", 
++      xlab="rank.mutation - rank.reference")
+> abline(v=0, lwd=1, col='red')
+> 
+> dev.off()
+null device 
+          1 
+> 
+> neoAg_mhc_ii_sub = neoAg_mhc_ii[which(neoAg_mhc_ii$EL_rank_mut < 2),]
+> dim(neoAg_mhc_ii_sub)
+[1] 161944     10
+> neoAg_mhc_ii_sub[1:2,]
+    Pos              ID                   HLA     Peptide_mut EL_score_mut
+301   1   6:4042496:C:A HLA-DQA10101-DQB10201 SEGMKVEQESSSDDN     0.011681
+322   1 9:130351487:G:A             DRB1_0301 GGPHLQVQEDGQVLR     0.686695
+    EL_rank_mut     Peptide_ref EL_score_ref EL_rank_ref        sample
+301        1.99 SEGMKVEQESSSDDN     0.009061        3.17 Pt10_on_hlaii
+322        0.98 GGPHLQVQEDGQVLR     0.715555        0.86 Pt10_on_hlaii
+> 
+> min(neoAg_mhc_ii_sub$EL_rank_mut)
+[1] 0
+> min(neoAg_mhc_ii_sub$EL_rank_mut[neoAg_mhc_ii_sub$EL_rank_mut > 0])
+[1] 0.01
+> neoAg_mhc_ii_sub$EL_rank_mut[which(neoAg_mhc_ii_sub$EL_rank_mut < 1e-2)] = 5e-3
+> 
+> min(neoAg_mhc_ii_sub$EL_rank_ref)
+[1] 0
+> min(neoAg_mhc_ii_sub$EL_rank_ref[neoAg_mhc_ii_sub$EL_rank_ref > 0])
+[1] 0.01
+> neoAg_mhc_ii_sub$EL_rank_ref[which(neoAg_mhc_ii_sub$EL_rank_ref < 1e-2)] = 5e-3
+> 
+> gs1 = ggplot(neoAg_mhc_ii_sub, aes(x = log10(EL_rank_ref), 
++                                  y = log10(EL_rank_mut))) +
++   geom_pointdensity(size = 0.6) + scale_color_viridis_c() +
++   labs(x = "log10(rank_reference)", y = "log10(rank_mutation)") + 
++   geom_abline(intercept = 0, slope = 1)
+> 
+> png("../figures/compare_rank_mutation_vs_reference_mhc_ii.png", 
++     width=6, height=4, units="in", res=300)
+> gs1
+> dev.off()
+null device 
+          1 
+> 
+> #--------------------------------------------------------------------
+> # 5. save the neoAg
+> #--------------------------------------------------------------------
+> 
+> saveRDS(neoAg_mhc_i,  file="../data/neoAg_netMHCpan4_1.rds")
+> saveRDS(neoAg_mhc_ii, file="../data/neoAg_netMHCIIpan4_0.rds")
+> 
+> sessionInfo()
+R version 4.0.3 (2020-10-10)
+Platform: x86_64-apple-darwin17.0 (64-bit)
+Running under: macOS Big Sur 10.16
+
+Matrix products: default
+BLAS:   /Library/Frameworks/R.framework/Versions/4.0/Resources/lib/libRblas.dylib
+LAPACK: /Library/Frameworks/R.framework/Versions/4.0/Resources/lib/libRlapack.dylib
+
+locale:
+[1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+
+attached base packages:
+[1] stats4    parallel  stats     graphics  grDevices utils     datasets 
+[8] methods   base     
+
+other attached packages:
+ [1] ggpointdensity_0.1.0 scales_1.1.1         ggpubr_0.4.0        
+ [4] tidyr_1.1.2          data.table_1.13.6    plyr_1.8.6          
+ [7] ggplot2_3.3.3        Biostrings_2.58.0    XVector_0.30.0      
+[10] IRanges_2.24.1       S4Vectors_0.28.1     BiocGenerics_0.36.0 
+[13] magrittr_2.0.1      
+
+loaded via a namespace (and not attached):
+ [1] tidyselect_1.1.0  purrr_0.3.4       haven_2.3.1       carData_3.0-4    
+ [5] colorspace_2.0-0  vctrs_0.3.6       generics_0.1.0    viridisLite_0.3.0
+ [9] utf8_1.1.4        rlang_0.4.10      pillar_1.4.7      foreign_0.8-81   
+[13] glue_1.4.2        withr_2.3.0       readxl_1.3.1      lifecycle_0.2.0  
+[17] zlibbioc_1.36.0   munsell_0.5.0     ggsignif_0.6.0    gtable_0.3.0     
+[21] cellranger_1.1.0  zip_2.1.1         labeling_0.4.2    rio_0.5.16       
+[25] forcats_0.5.0     curl_4.3          fansi_0.4.1       broom_0.7.3      
+[29] Rcpp_1.0.5        backports_1.2.1   abind_1.4-5       farver_2.0.3     
+[33] hms_0.5.3         digest_0.6.27     stringi_1.5.3     openxlsx_4.2.3   
+[37] rstatix_0.6.0     dplyr_1.0.2       grid_4.0.3        cowplot_1.1.1    
+[41] cli_2.2.0         tools_4.0.3       tibble_3.0.4      crayon_1.3.4     
+[45] car_3.0-10        pkgconfig_2.0.3   ellipsis_0.3.1    assertthat_0.2.1 
+[49] R6_2.5.0          compiler_4.0.3   
+> q(save="no")
+> proc.time()
+    user   system  elapsed 
+1878.819   23.457 1905.370 

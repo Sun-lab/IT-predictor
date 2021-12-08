@@ -1,0 +1,698 @@
+
+R version 4.0.3 (2020-10-10) -- "Bunny-Wunnies Freak Out"
+Copyright (C) 2020 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin17.0 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> 
+> library(openxlsx)
+> library(ggplot2)
+> library(ggpubr)
+> library(quantreg)
+Loading required package: SparseM
+
+Attaching package: ‘SparseM’
+
+The following object is masked from ‘package:base’:
+
+    backsolve
+
+> 
+> theme_set(theme_bw())
+> 
+> #--------------------------------------------------------------------
+> # Step 9: Neoantigen Burden Analysis 
+>  # 1. compare nb of our anlaysis versus those reported in the paper
+>  # 2. associatoin nb with response
+>  # 3. Plots 
+>  # 4. Mulitnomial model 
+> #--------------------------------------------------------------------
+> 
+> #--------------------------------------------------------------------
+> # load mb/nb results and clinical information
+> #--------------------------------------------------------------------
+> 
+> sample_nb = read.table("../output/neoAg_burden.txt", sep="\t", 
++                        header=TRUE, as.is=TRUE)
+> dim(sample_nb)
+[1] 90  5
+> sample_nb[1:2,]
+    sample mhci_all mhci_max mhcii_all mhcii_max
+1  Pt10_on       33        1       111         1
+2 Pt10_pre       32        1        98         1
+> 
+> sample_mb = read.table(file = "../data/riaz_patient_mb_info.txt", 
++                        header = TRUE, sep = " ")
+> dim(sample_mb)
+[1] 104   3
+> sample_mb[1:2,]
+    sample total_mutations n_mutations_neoAg
+1  Pt10_on             112                44
+2 Pt10_pre             118                46
+> 
+> sample_nb$PreOn   = sub(".*_", "", sample_nb$sample)
+> sample_nb$Patient = sub("_.*", "", sample_nb$sample)
+> dim(sample_nb)
+[1] 90  7
+> sample_nb[1:2,]
+    sample mhci_all mhci_max mhcii_all mhcii_max PreOn Patient
+1  Pt10_on       33        1       111         1    on    Pt10
+2 Pt10_pre       32        1        98         1   pre    Pt10
+> 
+> sample_mb$PreOn   = sub(".*_", "", sample_mb$sample)
+> sample_mb$Patient = sub("_.*", "", sample_mb$sample)
+> dim(sample_mb)
+[1] 104   5
+> sample_mb[1:2,]
+    sample total_mutations n_mutations_neoAg PreOn Patient
+1  Pt10_on             112                44    on    Pt10
+2 Pt10_pre             118                46   pre    Pt10
+> 
+> clinic = read.xlsx("../data/_supp/mmc2.xlsx", startRow=2)
+> dim(clinic)
+[1] 73 12
+> clinic[1:2,]
+  Patient     Cohort Response Dead/Alive.(Dead.=.True) Time.to.Death.(weeks)
+1     Pt1  NIV3-PROG       PD                     TRUE              22.85714
+2    Pt10 NIV3-NAIVE       SD                     TRUE              36.57143
+    Subtype Mutational.Subtype M.Stage Mutation.Load Neo-antigen.Load
+1 CUTANEOUS               <NA>     M1C            NA               NA
+2 CUTANEOUS                NF1     M1A            75               33
+  Neo-peptide.Load Cytolytic.Score
+1               NA       977.86911
+2               56        65.84072
+> 
+> #--------------------------------------------------------------------
+> # only consider the patients with mb information
+> # add mb data into clinic data
+> #--------------------------------------------------------------------
+> 
+> table(clinic$Patient %in% sample_mb$Patient)
+
+FALSE  TRUE 
+    8    65 
+> table(tolower(clinic$Patient) %in% tolower(sample_mb$Patient))
+
+FALSE  TRUE 
+    8    65 
+> 
+> patient = intersect(clinic$Patient, sample_mb$Patient)
+> length(patient)
+[1] 65
+> clinic[which(! clinic$Patient %in% patient),]
+   Patient     Cohort Response Dead/Alive.(Dead.=.True) Time.to.Death.(weeks)
+1      Pt1  NIV3-PROG       PD                     TRUE              22.85714
+14     Pt2  NIV3-PROG       SD                     TRUE              39.28571
+24    Pt31 NIV3-NAIVE       PD                    FALSE             137.28571
+30    Pt39  NIV3-PROG       PD                     TRUE              23.71429
+45    Pt62 NIV3-NAIVE       PD                     TRUE              67.42857
+52    Pt71 NIV3-NAIVE       SD                    FALSE              35.14286
+58    Pt78  NIV3-PROG       PD                     TRUE              11.14286
+63    Pt84 NIV3-NAIVE       PD                     TRUE              21.57143
+        Subtype Mutational.Subtype M.Stage Mutation.Load Neo-antigen.Load
+1     CUTANEOUS               <NA>     M1C            NA               NA
+14        OTHER               <NA>     M1B            NA               NA
+24        OTHER           TripleWt     M1A           450              294
+30      MUCOSAL               <NA>     M1C            NA               NA
+45 OCULAR/UVEAL               <NA>     M1C            NA               NA
+52        OTHER           TripleWt     M1C             5                2
+58    CUTANEOUS               <NA>     M1C            NA               NA
+63        OTHER           TripleWt     M1C            11               10
+   Neo-peptide.Load Cytolytic.Score
+1                NA      977.869112
+14               NA      746.032841
+24              870      368.903781
+30               NA        6.928203
+45               NA       36.878178
+52                5              NA
+58               NA        4.582576
+63               41        9.380832
+> 
+> clinic = clinic[match(patient, clinic$Patient),]
+> dim(clinic)
+[1] 65 12
+> head(clinic)
+  Patient     Cohort Response Dead/Alive.(Dead.=.True) Time.to.Death.(weeks)
+2    Pt10 NIV3-NAIVE       SD                     TRUE              36.57143
+3   Pt100  NIV3-PROG       PD                     TRUE             120.00000
+4   Pt101  NIV3-PROG       PR                    FALSE             119.14286
+5   Pt102 NIV3-NAIVE       SD                    FALSE              90.85714
+6   Pt103  NIV3-PROG       PD                    FALSE              69.14286
+7   Pt104  NIV3-PROG       PR                    FALSE             116.85714
+    Subtype Mutational.Subtype M.Stage Mutation.Load Neo-antigen.Load
+2 CUTANEOUS                NF1     M1A            75               33
+3     OTHER           TripleWt     M1C             6                5
+4 CUTANEOUS           TripleWt     M1A            10                5
+5 CUTANEOUS                RAS    <NA>           393              248
+6 CUTANEOUS           TripleWt     M1B            21                5
+7     ACRAL           TripleWt    <NA>             5                4
+  Neo-peptide.Load Cytolytic.Score
+2               56        65.84072
+3                6              NA
+4                6      1392.14223
+5              770              NA
+6               11      1108.86203
+7                5              NA
+> 
+> sample_mb.pre = sample_mb[which(sample_mb$PreOn == "pre"),]
+> sample_mb.on  = sample_mb[which(sample_mb$PreOn == "on"),]
+> 
+> dim(sample_mb.pre)
+[1] 65  5
+> dim(sample_mb.on)
+[1] 39  5
+> 
+> mat.pre = match(patient, sample_mb.pre$Patient)
+> clinic[["mb.pre"]] = log10(sample_mb.pre$n_mutations_neoAg[mat.pre] + 1)
+> 
+> mat.on = match(patient, sample_mb.on$Patient)
+> clinic[["mb.on"]]  = log10(sample_mb.on$n_mutations_neoAg[mat.on] + 1)
+> 
+> #--------------------------------------------------------------------
+> # merge clinic data and nb data
+> #--------------------------------------------------------------------
+> 
+> sample_nb[1:2,]
+    sample mhci_all mhci_max mhcii_all mhcii_max PreOn Patient
+1  Pt10_on       33        1       111         1    on    Pt10
+2 Pt10_pre       32        1        98         1   pre    Pt10
+> col2rm = which(names(sample_nb) %in% c("sample", "PreOn"))
+> col2rm
+[1] 1 6
+> 
+> sample_nb.pre = sample_nb[which(sample_nb$PreOn == "pre"),-col2rm]
+> sample_nb.on  = sample_nb[which(sample_nb$PreOn == "on"),-col2rm]
+> 
+> dim(sample_nb.pre)
+[1] 59  5
+> dim(sample_nb.on)
+[1] 31  5
+> 
+> names(sample_nb.on)[-5] = paste0(names(sample_nb.on)[-5], ".on")
+> 
+> sample_nb.pre[1:2,]
+  mhci_all mhci_max mhcii_all mhcii_max Patient
+2       32        1        98         1    Pt10
+4      470       14      2053        30   Pt102
+> sample_nb.on[1:2,]
+  mhci_all.on mhci_max.on mhcii_all.on mhcii_max.on Patient
+1          33           1          111            1    Pt10
+3         481          15         2033           26   Pt102
+> 
+> sample_nb.pre[,1:4] = log10(sample_nb.pre[,1:4] + 1)
+> sample_nb.on[,1:4]  = log10(sample_nb.on[,1:4] + 1)
+> 
+> clinic = merge(clinic, sample_nb.pre, by="Patient", all.x = TRUE)
+> dim(clinic)
+[1] 65 18
+> clinic[1:2,]
+  Patient     Cohort Response Dead/Alive.(Dead.=.True) Time.to.Death.(weeks)
+1    Pt10 NIV3-NAIVE       SD                     TRUE              36.57143
+2   Pt100  NIV3-PROG       PD                     TRUE             120.00000
+    Subtype Mutational.Subtype M.Stage Mutation.Load Neo-antigen.Load
+1 CUTANEOUS                NF1     M1A            75               33
+2     OTHER           TripleWt     M1C             6                5
+  Neo-peptide.Load Cytolytic.Score   mb.pre    mb.on mhci_all mhci_max
+1               56        65.84072 1.672098 1.653213 1.518514  0.30103
+2                6              NA 0.000000 0.000000       NA       NA
+  mhcii_all mhcii_max
+1  1.995635   0.30103
+2        NA        NA
+> 
+> clinic = merge(clinic, sample_nb.on, by="Patient", all.x = TRUE)
+> dim(clinic)
+[1] 65 22
+> clinic[1:2,]
+  Patient     Cohort Response Dead/Alive.(Dead.=.True) Time.to.Death.(weeks)
+1    Pt10 NIV3-NAIVE       SD                     TRUE              36.57143
+2   Pt100  NIV3-PROG       PD                     TRUE             120.00000
+    Subtype Mutational.Subtype M.Stage Mutation.Load Neo-antigen.Load
+1 CUTANEOUS                NF1     M1A            75               33
+2     OTHER           TripleWt     M1C             6                5
+  Neo-peptide.Load Cytolytic.Score   mb.pre    mb.on mhci_all mhci_max
+1               56        65.84072 1.672098 1.653213 1.518514  0.30103
+2                6              NA 0.000000 0.000000       NA       NA
+  mhcii_all mhcii_max mhci_all.on mhci_max.on mhcii_all.on mhcii_max.on
+1  1.995635   0.30103    1.531479     0.30103     2.049218      0.30103
+2        NA        NA          NA          NA           NA           NA
+> 
+> #--------------------------------------------------------------------
+> # set nb to be 0 if mb is 0
+> #--------------------------------------------------------------------
+> 
+> table(is.na(clinic$mhci))
+< table of extent 0 >
+> table(is.na(clinic$mb.pre))
+
+FALSE 
+   65 
+> 
+> summary(clinic$mb.pre[is.na(clinic$mhci)])
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+                                                
+> table(clinic$mb.pre == 0)
+
+FALSE  TRUE 
+   59     6 
+> table(clinic$mb.on == 0)
+
+FALSE  TRUE 
+   31     8 
+> 
+> colSums(is.na(clinic))
+                 Patient                   Cohort                 Response 
+                       0                        0                        0 
+Dead/Alive.(Dead.=.True)    Time.to.Death.(weeks)                  Subtype 
+                       0                        0                        0 
+      Mutational.Subtype                  M.Stage            Mutation.Load 
+                       0                        7                        0 
+        Neo-antigen.Load         Neo-peptide.Load          Cytolytic.Score 
+                       0                        0                       21 
+                  mb.pre                    mb.on                 mhci_all 
+                       0                       26                        6 
+                mhci_max                mhcii_all                mhcii_max 
+                       6                        6                        6 
+             mhci_all.on              mhci_max.on             mhcii_all.on 
+                      34                       34                       34 
+            mhcii_max.on 
+                      34 
+> grep("^mhc", names(clinic))
+[1] 15 16 17 18 19 20 21 22
+> grep(".on$", names(clinic))
+[1] 14 19 20 21 22
+> 
+> clinic[which(clinic$mb.pre == 0),15:18] = 0
+> clinic[which(clinic$mb.on == 0),19:22]  = 0
+> 
+> table(clinic$mb.pre == 0, clinic$mb.on == 0)
+       
+        FALSE TRUE
+  FALSE    30    6
+  TRUE      1    2
+> 
+> table(clinic$mb.pre == clinic$mb.on)
+
+FALSE  TRUE 
+   34     5 
+> clinic[which(clinic$mb.pre == clinic$mb.on),]
+   Patient     Cohort Response Dead/Alive.(Dead.=.True) Time.to.Death.(weeks)
+2    Pt100  NIV3-PROG       PD                     TRUE            120.000000
+3    Pt101  NIV3-PROG       PR                    FALSE            119.142857
+10    Pt13 NIV3-NAIVE       PD                     TRUE             40.000000
+11    Pt17  NIV3-PROG       PD                     TRUE              8.142857
+34    Pt51  NIV3-PROG       PD                    FALSE              8.142857
+     Subtype Mutational.Subtype M.Stage Mutation.Load Neo-antigen.Load
+2      OTHER           TripleWt     M1C             6                5
+3  CUTANEOUS           TripleWt     M1A            10                5
+10 CUTANEOUS               BRAF    <NA>           171              102
+11 CUTANEOUS           TripleWt     M1C            20               13
+34 CUTANEOUS               BRAF     M1A           204               98
+   Neo-peptide.Load Cytolytic.Score    mb.pre     mb.on mhci_all mhci_max
+2                 6              NA 0.0000000 0.0000000 0.000000 0.000000
+3                 6      1392.14223 0.0000000 0.0000000 0.000000 0.000000
+10              235              NA 2.1760913 2.1760913 2.311754 1.041393
+11               32        20.90454 0.7781513 0.7781513 0.903090 0.301030
+34              168              NA 2.2695129 2.2695129 1.949390 0.845098
+   mhcii_all mhcii_max mhci_all.on mhci_max.on mhcii_all.on mhcii_max.on
+2   0.000000 0.0000000    0.000000    0.000000     0.000000    0.0000000
+3   0.000000 0.0000000    0.000000    0.000000     0.000000    0.0000000
+10  2.556303 0.9030900    2.301030    1.041393     2.555094    0.9030900
+11  1.000000 0.0000000    0.903090    0.301030     1.000000    0.0000000
+34  2.608526 0.7781513    1.954243    0.845098     2.595496    0.7781513
+> 
+> #--------------------------------------------------------------------
+> # compare the mb/nb of our anlaysis vs. prevous work
+> #--------------------------------------------------------------------
+> 
+> clinic$Mutation.Load = log10(clinic$Mutation.Load + 1)
+> clinic$`Neo-antigen.Load` = log10(clinic$`Neo-antigen.Load` + 1)
+> clinic$`Neo-peptide.Load` = log10(clinic$`Neo-peptide.Load` + 1)
+> 
+> pdf("../figures/step9_compare_mb_nb_Riaz_vs_us.pdf", width=9, height=6)
+> par(mfrow=c(2,3), mar=c(5,4,1,1), bty="n")
+> plot(clinic$Mutation.Load, clinic$`Neo-antigen.Load`, 
++      xlab="Riaz et al. MB", ylab="Riaz et al. NeoAg")
+> abline(0, 1, col="brown")
+> plot(clinic$Mutation.Load, clinic$`Neo-peptide.Load`, 
++      xlab="Riaz et al. MB", ylab="Riaz et al. Neo-pep")
+> abline(0, 1, col="brown")
+> plot(clinic$`Neo-antigen.Load`, clinic$`Neo-peptide.Load`,
++      xlab="Riaz et al. NeoAg", ylab="Riaz et al. Neo-pep")
+> abline(0, 1, col="brown")
+> 
+> plot(clinic$Mutation.Load, clinic$mb.pre, 
++      xlab="Riaz et al. MB", ylab="our MB")
+> abline(0, 1, col="brown")
+> plot(clinic$`Neo-antigen.Load`, clinic$mhci_all,
++      xlab="Riaz et al. NeoAg", ylab="our all peptides")
+> abline(0, 1, col="brown")
+> plot(clinic$`Neo-antigen.Load`, clinic$mhci_max,
++      xlab="Riaz et al. NeoAg", ylab="our neoantigens")
+> abline(0, 1, col="brown")
+> dev.off()
+null device 
+          1 
+> 
+> #--------------------------------------------------------------------
+> # compare with response data
+> #--------------------------------------------------------------------
+> 
+> clinic$Response_orig = clinic$Response
+> clinic$Response3 = clinic$Response
+> clinic$Response3[which(clinic$Response == "NE")] = "PD"
+> clinic$Response3[which(clinic$Response == "CR")] = "PRCR"
+> clinic$Response3[which(clinic$Response == "PR")] = "PRCR"
+> 
+> clinic$Response = clinic$Response3
+> clinic$Response[which(clinic$Response3 == "SD")] = "PDSD"
+> clinic$Response[which(clinic$Response3 == "PD")] = "PDSD"
+> 
+> table(clinic$Response, clinic$Response3)
+      
+       PD PRCR SD
+  PDSD 28    0 22
+  PRCR  0   15  0
+> table(clinic$Response, clinic$Response)
+      
+       PDSD PRCR
+  PDSD   50    0
+  PRCR    0   15
+> 
+> clinic$Cohort[which(clinic$Cohort == "NIV3-NAIVE")] = "Ipi naive"
+> clinic$Cohort[which(clinic$Cohort == "NIV3-PROG")] = "Ipi prog"
+> 
+> anova(lm(clinic$Mutation.Load ~ clinic$Response))
+Analysis of Variance Table
+
+Response: clinic$Mutation.Load
+                Df Sum Sq Mean Sq F value Pr(>F)
+clinic$Response  1  0.761 0.76064  1.4723 0.2295
+Residuals       63 32.547 0.51662               
+> anova(lm(clinic$`Neo-antigen.Load` ~ clinic$Response))
+Analysis of Variance Table
+
+Response: clinic$`Neo-antigen.Load`
+                Df Sum Sq Mean Sq F value Pr(>F)
+clinic$Response  1  0.958 0.95783  1.8438 0.1794
+Residuals       63 32.728 0.51949               
+> anova(lm(clinic$`Neo-peptide.Load` ~ clinic$Response))
+Analysis of Variance Table
+
+Response: clinic$`Neo-peptide.Load`
+                Df Sum Sq Mean Sq F value Pr(>F)
+clinic$Response  1  1.110 1.11004  1.6935 0.1979
+Residuals       63 41.295 0.65548               
+> 
+> anova(lm(clinic$mb.pre ~ clinic$Response))
+Analysis of Variance Table
+
+Response: clinic$mb.pre
+                Df Sum Sq Mean Sq F value Pr(>F)
+clinic$Response  1  0.582 0.58213  0.7081 0.4033
+Residuals       63 51.795 0.82214               
+> 
+> anova(lm(clinic$mhci_max ~ clinic$Response))
+Analysis of Variance Table
+
+Response: clinic$mhci_max
+                Df  Sum Sq Mean Sq F value Pr(>F)
+clinic$Response  1  0.5741 0.57411  1.4842 0.2277
+Residuals       63 24.3697 0.38682               
+> anova(lm(clinic$mhci_all ~ clinic$Response))
+Analysis of Variance Table
+
+Response: clinic$mhci_all
+                Df Sum Sq Mean Sq F value Pr(>F)
+clinic$Response  1  0.508 0.50837   0.595 0.4434
+Residuals       63 53.824 0.85436               
+> 
+> anova(lm(clinic$mhcii_max ~ clinic$Response))
+Analysis of Variance Table
+
+Response: clinic$mhcii_max
+                Df  Sum Sq Mean Sq F value  Pr(>F)  
+clinic$Response  1  1.0142 1.01425  2.8972 0.09367 .
+Residuals       63 22.0552 0.35008                  
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+> anova(lm(clinic$mhcii_all ~ clinic$Response))
+Analysis of Variance Table
+
+Response: clinic$mhcii_all
+                Df Sum Sq Mean Sq F value Pr(>F)
+clinic$Response  1  0.374 0.37409  0.3519 0.5552
+Residuals       63 66.970 1.06302               
+> 
+> clinic$mut_diff = clinic$mb.pre - clinic$mb.on
+> anova(lm(clinic$mut_diff ~ clinic$Response))
+Analysis of Variance Table
+
+Response: clinic$mut_diff
+                Df Sum Sq Mean Sq F value    Pr(>F)    
+clinic$Response  1 17.847 17.8471  29.489 3.709e-06 ***
+Residuals       37 22.393  0.6052                      
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+> 
+> #--------------------------------------------------------------------
+> # boxplot
+> #--------------------------------------------------------------------
+> 
+> p0 = ggplot(clinic, aes(x=Response, y=mb.pre)) + 
++   geom_boxplot() + 
++   geom_jitter(position=position_jitter(0.2), size=1) + 
++   labs(title="", x="Response", y = "log10(MB)") 
+> 
+> p1 = ggplot(clinic, aes(x=Response, y=mhci_max)) + 
++   geom_boxplot() + 
++   geom_jitter(position=position_jitter(0.2), size=1) + 
++   labs(title="", x="Response", y = "log10(MHC-I neoantigen)") 
+> 
+> p2 = ggplot(clinic, aes(x=Response, y=mhcii_max)) + 
++   geom_boxplot() + 
++   geom_jitter(position=position_jitter(0.2), size=1) + 
++   labs(title="", x="Response", y = "log10(MHC-II neoantigen)") 
+> 
+> p3 = ggplot(clinic, aes(x=Response, y=mb.pre - mb.on)) + 
++   geom_boxplot() + 
++   geom_jitter(position=position_jitter(0.2), size=1) + 
++   labs(title="", x="Response", y = "log10(MB) pre - on") 
+> 
+> pdf("../figures/step9_boxplot_nb_vs_response.pdf", width=6, height=6)
+> ggarrange(p0, p1, p2, p3, ncol = 2, nrow = 2)
+Warning messages:
+1: Removed 26 rows containing non-finite values (stat_boxplot). 
+2: Removed 26 rows containing missing values (geom_point). 
+> dev.off()
+null device 
+          1 
+> 
+> #--------------------------------------------------------------------
+> # check the way to combine MHC-I and MHC-II
+> #--------------------------------------------------------------------
+> 
+> g0 = ggplot(clinic, aes(x=mhci_all, y=mhci_max, color=Response)) + 
++   geom_point()
+> 
+> g1 = ggplot(clinic, aes(x=mhcii_all, y=mhcii_max, color=Response)) + 
++   geom_point()
+> 
+> g2 = ggplot(clinic, aes(x=mhci_all, y=mhcii_all, color=Response)) + 
++   geom_point()
+> 
+> g3 = ggplot(clinic, aes(x=mhci_max, y=mhcii_all, color=Response)) + 
++   geom_point()
+> 
+> pdf("../figures/step9_scatter_nb_vs_response.pdf", width=8, height=6)
+> ggarrange(g0, g1, g2, g3, ncol = 2, nrow = 2)
+> dev.off()
+null device 
+          1 
+> 
+> #----------------------------------------------------------------
+> # fit linear regression 
+> #----------------------------------------------------------------
+> 
+> x_min = 1
+> x_max = 3.5
+> 
+> x = clinic$mhci_all
+> y = clinic$mhcii_all
+> 
+> g2 = ggplot(clinic, aes(x=mhci_all, y=mhcii_all, color=Response)) + 
++   geom_point(size=1.2) + 
++   labs(x="HLA-I neoantigen burden", y = "HLA-II neoantigen burden") 
+> 
+> w2kp = which(x > x_min & x < x_max)
+> 
+> lm1  = lm(y ~ -1 + x, subset=w2kp)
+> summary(lm1)
+
+Call:
+lm(formula = y ~ -1 + x, subset = w2kp)
+
+Residuals:
+     Min       1Q   Median       3Q      Max 
+-0.50612 -0.11171  0.00168  0.15642  0.83603 
+
+Coefficients:
+  Estimate Std. Error t value Pr(>|t|)    
+x  1.21408    0.01466   82.83   <2e-16 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 0.2467 on 53 degrees of freedom
+Multiple R-squared:  0.9923,	Adjusted R-squared:  0.9922 
+F-statistic:  6861 on 1 and 53 DF,  p-value: < 2.2e-16
+
+> 
+> beta0 = 0
+> beta1 = lm1$coef[1]
+> beta1
+       x 
+1.214085 
+> 
+> g2_lin = g2 + 
++   geom_segment(aes(x = x_min, y = beta0 + beta1*x_min, 
++                    xend = x_max, yend = beta0 + beta1*x_max), 
++                        col="black")
+> 
+> #----------------------------------------------------------------
+> # fit median quantile regression 
+> #----------------------------------------------------------------
+> 
+> med.fit = rq(y ~ -1 + x, tau = .5, subset = w2kp)
+> summary(med.fit)
+
+Call: rq(formula = y ~ -1 + x, tau = 0.5, subset = w2kp)
+
+tau: [1] 0.5
+
+Coefficients:
+      x 
+1.20639 
+> 
+> med.beta0 = 0
+> med.beta1 = med.fit$coef[1]
+> med.beta1
+      x 
+1.20639 
+> 
+> g2_med = g2 + 
++   geom_segment(aes(x = x_min, y = med.beta0 + med.beta1*x_min, 
++                    xend = x_max, yend = med.beta0 + med.beta1*x_max), 
++                col="black")
+> 
+> #----------------------------------------------------------------
+> # Prediction
+> #----------------------------------------------------------------
+> 
+> xnew = x[w2kp]
+> 
+> #Linear Model 
+> yhat = predict(lm1, data.frame(x=xnew))
+> resid1 = abs(y[w2kp] - yhat)
+> 
+> df1 = data.frame(Absolute_Residual=resid1, Response=clinic$Response[w2kp], 
++                  Cohort=clinic$Cohort[w2kp])
+> 
+> g3_lin  = ggboxplot(df1, x = "Response", y = "Absolute_Residual", 
++                     color = "Response", add = "jitter",
++                     outlier.shape = NA, legend = "none") + 
++   stat_compare_means(label = "p.format")
+> 
+> g3_lin2 = ggboxplot(df1, x = "Cohort", y = "Absolute_Residual",
++                color = "Response", add = "jitter", 
++                outlier.shape = NA, legend = "none") + 
++   stat_compare_means(aes(group = Response), label = "p.format")
+> 
+> # Median quantile regression 
+> yhat_med = predict(med.fit, data.frame(x=xnew))
+> resid1_med = abs(y[w2kp] - yhat_med)
+> 
+> df1_med = data.frame(Absolute_Residual=resid1_med, 
++                      Response=clinic$Response[w2kp], 
++                      Cohort=clinic$Cohort[w2kp])
+> 
+> g3_med  = ggboxplot(df1_med, x = "Response", y = "Absolute_Residual", 
++                     color = "Response", add = "jitter", 
++                     outlier.shape = NA, legend = "none") + 
++   stat_compare_means(label = "p.format")
+> 
+> g3_med2 = ggboxplot(df1_med, x = "Cohort", y = "Absolute_Residual",
++                     color = "Response", add = "jitter", 
++                     outlier.shape = NA, legend = "none") + 
++   stat_compare_means(aes(group = Response), label = "p.format")
+> 
+> pdf("../figures/step9_boxplot_nb_res_vs_response_linear.pdf", 
++     width=9, height=3)
+> ggarrange(g2_lin, g3_lin, g3_lin2, ncol = 3, nrow = 1, widths=c(4,2,3), 
++           labels = c("A", "B", "C"))
+> dev.off()
+null device 
+          1 
+> 
+> pdf("../figures/step9_boxplot_nb_res_vs_response_medquant.pdf", 
++     width=9, height=3)
+> ggarrange(g2_med, g3_med, g3_med2, ncol = 3, nrow = 1, widths=c(4,2,3),
++           labels = c("A", "B", "C"))
+> dev.off()
+null device 
+          1 
+> 
+> #--------------------------------------------------------------------
+> # save updated clinical information
+> #--------------------------------------------------------------------
+> 
+> write.table(clinic, file = "../output/clinic_info.txt", append = FALSE, 
++             quote = FALSE, sep = "\t", row.names = FALSE, col.names = TRUE)
+> 
+> sessionInfo()
+R version 4.0.3 (2020-10-10)
+Platform: x86_64-apple-darwin17.0 (64-bit)
+Running under: macOS Big Sur 10.16
+
+Matrix products: default
+BLAS:   /Library/Frameworks/R.framework/Versions/4.0/Resources/lib/libRblas.dylib
+LAPACK: /Library/Frameworks/R.framework/Versions/4.0/Resources/lib/libRlapack.dylib
+
+locale:
+[1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+
+attached base packages:
+[1] stats     graphics  grDevices utils     datasets  methods   base     
+
+other attached packages:
+[1] quantreg_5.75  SparseM_1.78   ggpubr_0.4.0   ggplot2_3.3.3  openxlsx_4.2.3
+
+loaded via a namespace (and not attached):
+ [1] zip_2.1.1          Rcpp_1.0.5         cellranger_1.1.0   pillar_1.4.7      
+ [5] compiler_4.0.3     forcats_0.5.0      tools_4.0.3        digest_0.6.27     
+ [9] lattice_0.20-41    lifecycle_0.2.0    tibble_3.0.4       gtable_0.3.0      
+[13] pkgconfig_2.0.3    rlang_0.4.10       Matrix_1.3-0       curl_4.3          
+[17] haven_2.3.1        rio_0.5.16         withr_2.3.0        dplyr_1.0.2       
+[21] MatrixModels_0.4-1 hms_0.5.3          generics_0.1.0     vctrs_0.3.6       
+[25] cowplot_1.1.1      grid_4.0.3         tidyselect_1.1.0   glue_1.4.2        
+[29] data.table_1.13.6  R6_2.5.0           rstatix_0.6.0      readxl_1.3.1      
+[33] foreign_0.8-81     carData_3.0-4      farver_2.0.3       conquer_1.0.2     
+[37] purrr_0.3.4        tidyr_1.1.2        car_3.0-10         magrittr_2.0.1    
+[41] matrixStats_0.57.0 scales_1.1.1       backports_1.2.1    ellipsis_0.3.1    
+[45] abind_1.4-5        colorspace_2.0-0   ggsignif_0.6.0     labeling_0.4.2    
+[49] stringi_1.5.3      munsell_0.5.0      broom_0.7.3        crayon_1.3.4      
+> q(save="no")
+> proc.time()
+   user  system elapsed 
+  3.421   0.272   3.889 

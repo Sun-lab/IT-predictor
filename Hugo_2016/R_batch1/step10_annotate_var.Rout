@@ -1,0 +1,190 @@
+
+R version 3.4.2 (2017-09-28) -- "Short Summer"
+Copyright (C) 2017 The R Foundation for Statistical Computing
+Platform: x86_64-pc-linux-gnu (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> 
+> # ----------------------------------------------------------------------
+> # read in mutation calls
+> # ----------------------------------------------------------------------
+> 
+> setwd("/fh/fast/sun_w/research/Immuno/data/Hugo_2016")
+> 
+> snvs = read.table("snvs_by_strelka_and_Mutect.txt", header=TRUE, 
++                    sep="\t", as.is=TRUE)
+> dim(snvs)
+[1] 187186     73
+> snvs[1:2,]
+   id QSS TQSS  NT QSS_NT TQSS_NT    SGT SOMATIC seqnames  start    end REF ALT
+1 Pt1  56    1 ref     56       1 GG->GT    TRUE     chr1  16841  16841   G   T
+2 Pt1  36    1 ref     36       1 CC->CT    TRUE     chr1 135161 135161   C   T
+  nAltTumor nRefTumor nAltNormal nRefNormal rdNormalFiltered rdTumorFiltered
+1        15       274          0        150              150             289
+2        17       114          0         81               81             131
+  type   vafTumor vafNormal contig position context ref_allele alt_allele
+1  SNV 0.05190311         0   chr1    16841 CCAxAAC          G          T
+2  SNV 0.12977099         0   chr1   135161 GTCxGCT          C          T
+  tumor_name normal_name score   dbsnp_site covered power tumor_power
+1 SRR3083837  SRR3083838     0 DBSNP+COSMIC COVERED     1           1
+2 SRR3083837  SRR3083838     0        NOVEL COVERED     1           1
+  normal_power normal_power_nsp normal_power_wsp total_reads map_Q0_reads
+1            1                1                1         719          262
+2            1                1                1         268           18
+  init_t_lod t_lod_fstar t_lod_fstar_forward t_lod_fstar_reverse  tumor_f
+1  -32.73023    30.05081            24.42753             9.76257 0.051020
+2   32.05693    52.77566            39.02392            13.64194 0.132911
+  contaminant_fraction contaminant_lod t_q20_count t_ref_count t_alt_count
+1                 0.02        8.070755         293         279          15
+2                 0.02        5.581172         155         137          21
+  t_ref_sum t_alt_sum t_ref_max_mapq t_alt_max_mapq t_ins_count t_del_count
+1      9768       486             45             44           0           0
+2      4496       696             60             46           0           0
+  normal_best_gt init_n_lod normal_f n_q20_count n_ref_count n_alt_count
+1             GG   79.44342        0         163         264           0
+2             CC   29.47743        0          91          98           0
+  n_ref_sum n_alt_sum power_to_detect_positive_strand_artifact
+1      8872         0                                 0.930857
+2      3065         0                                 0.958413
+  power_to_detect_negative_strand_artifact strand_bias_counts
+1                                 0.999755      (229,79,12,5)
+2                                 0.999999      (114,26,16,5)
+  tumor_alt_fpir_median tumor_alt_fpir_mad tumor_alt_rpir_median
+1                    52                  9                    47
+2                    39                 23                    60
+  tumor_alt_rpir_mad observed_in_normals_count failure_reasons judgement
+1                  9                         0              NA      KEEP
+2                 23                         0              NA      KEEP
+> 
+> indels = read.table("indels_by_strelka.txt", header=TRUE, 
++                   sep="\t", as.is=TRUE)
+> dim(indels)
+[1] 1330   22
+> indels[1:2,]
+                         id QSS TQSS  NT QSS_NT TQSS_NT      SGT SOMATIC
+chr1:6678471_CAAATTAA/C Pt1 118    1 ref    105       1 ref->het    TRUE
+chr1:12938856_C/CG      Pt1 449    1 ref    217       1 ref->het    TRUE
+                        seqnames    start      end      REF ALT nAltTumor
+chr1:6678471_CAAATTAA/C     chr1  6678471  6678478 CAAATTAA   C        31
+chr1:12938856_C/CG          chr1 12938856 12938856        C  CG       160
+                        nRefTumor nAltNormal nRefNormal rdNormalFiltered
+chr1:6678471_CAAATTAA/C        46          0         84            96.70
+chr1:12938856_C/CG            273          0        317           365.99
+                        rdTumorFiltered  type  vafTumor vafNormal
+chr1:6678471_CAAATTAA/C          100.00 indel 0.4025974         0
+chr1:12938856_C/CG               497.78 indel 0.3695150         0
+> 
+> sort(table(snvs$id), decreasing=TRUE)[1:10]
+
+   Vand_Pt8         Pt1         Pt2        Pt15 Vand_Pt27_2   Vand_Pt27 
+      51499       21301       10983        9815        8090        7857 
+       Pt16        Pt17         Pt4         Pt3 
+       6353        6311        5596        4889 
+> sort(table(indels$id), decreasing=TRUE)[1:10]
+
+        Pt1         Pt2   Vand_Pt27 Vand_Pt27_2   Vand_Pt34         Pt5 
+        152          98          82          82          75          63 
+       Pt15        Pt17   Vand_Pt11        Pt16 
+         60          53          44          42 
+> 
+> cols = c("seqnames", "start", "end", "REF", "ALT", "id")
+> 
+> input = rbind(snvs[,cols], indels[,cols])
+> dim(input)
+[1] 188516      6
+> input[1:2,]
+  seqnames  start    end REF ALT  id
+1     chr1  16841  16841   G   T Pt1
+2     chr1 135161 135161   C   T Pt1
+> 
+> write.table(input, file = "snvs_indels_by_strelka_and_Mutect.avinput", 
++             append = FALSE, quote = FALSE, sep = "\t",eol = "\n", 
++             row.names = FALSE, col.names = FALSE)
+> 
+> # ----------------------------------------------------------------------
+> # run it 
+> # ----------------------------------------------------------------------
+> 
+> cmd = "/fh/fast/sun_w/bin/annovar/table_annovar.pl"
+> cmd = paste0(cmd, " snvs_indels_by_strelka_and_Mutect.avinput")
+> cmd = paste0(cmd, " /fh/fast/sun_w/bin/annovar/humandb/ -buildver hg38")
+> cmd = paste0(cmd, " -out snvs_indels_by_strelka_and_Mutect")
+> cmd = paste0(cmd, "  -remove -protocol ensGene,dbnsfp33a,exac03nontcga")
+> cmd = paste0(cmd, ",avsnp150,clinvar_20170905")
+> cmd = paste0(cmd, " -operation g,f,f,f,f -nastring .")
+> 
+> cmd
+[1] "/fh/fast/sun_w/bin/annovar/table_annovar.pl snvs_indels_by_strelka_and_Mutect.avinput /fh/fast/sun_w/bin/annovar/humandb/ -buildver hg38 -out snvs_indels_by_strelka_and_Mutect  -remove -protocol ensGene,dbnsfp33a,exac03nontcga,avsnp150,clinvar_20170905 -operation g,f,f,f,f -nastring ."
+> 
+> date()
+[1] "Mon Feb  5 00:49:43 2018"
+> system(cmd)
+-----------------------------------------------------------------
+NOTICE: Processing operation=g protocol=ensGene
+
+NOTICE: Running with system command <annotate_variation.pl -geneanno -buildver hg38 -dbtype ensGene -outfile snvs_indels_by_strelka_and_Mutect.ensGene -exonsort snvs_indels_by_strelka_and_Mutect.avinput /fh/fast/sun_w/bin/annovar/humandb/>
+NOTICE: Output files were written to snvs_indels_by_strelka_and_Mutect.ensGene.variant_function, snvs_indels_by_strelka_and_Mutect.ensGene.exonic_variant_function
+NOTICE: Reading gene annotation from /fh/fast/sun_w/bin/annovar/humandb/hg38_ensGene.txt ... Done with 89732 transcripts (including 28806 without coding sequence annotation) for 42087 unique genes
+NOTICE: Processing next batch with 188516 unique variants in 188516 input lines
+NOTICE: Reading FASTA sequences from /fh/fast/sun_w/bin/annovar/humandb/hg38_ensGeneMrna.fa ... Done with 39110 sequences
+WARNING: A total of 361 sequences will be ignored due to lack of correct ORF annotation
+-----------------------------------------------------------------
+NOTICE: Processing operation=f protocol=dbnsfp33a
+NOTICE: Finished reading 66 column headers for '-dbtype dbnsfp33a'
+
+NOTICE: Running system command <annotate_variation.pl -filter -dbtype dbnsfp33a -buildver hg38 -outfile snvs_indels_by_strelka_and_Mutect snvs_indels_by_strelka_and_Mutect.avinput /fh/fast/sun_w/bin/annovar/humandb/ -otherinfo>
+NOTICE: the --dbtype dbnsfp33a is assumed to be in generic ANNOVAR database format
+NOTICE: Variants matching filtering criteria are written to snvs_indels_by_strelka_and_Mutect.hg38_dbnsfp33a_dropped, other variants are written to snvs_indels_by_strelka_and_Mutect.hg38_dbnsfp33a_filtered
+NOTICE: Processing next batch with 178492 unique variants in 188516 input lines
+NOTICE: Database index loaded. Total number of bins is 552168 and the number of bins to be scanned is 76513
+NOTICE: Scanning filter database /fh/fast/sun_w/bin/annovar/humandb/hg38_dbnsfp33a.txt...Done
+-----------------------------------------------------------------
+NOTICE: Processing operation=f protocol=exac03nontcga
+NOTICE: Finished reading 8 column headers for '-dbtype exac03nontcga'
+
+NOTICE: Running system command <annotate_variation.pl -filter -dbtype exac03nontcga -buildver hg38 -outfile snvs_indels_by_strelka_and_Mutect snvs_indels_by_strelka_and_Mutect.avinput /fh/fast/sun_w/bin/annovar/humandb/ -otherinfo>
+NOTICE: the --dbtype exac03nontcga is assumed to be in generic ANNOVAR database format
+NOTICE: Variants matching filtering criteria are written to snvs_indels_by_strelka_and_Mutect.hg38_exac03nontcga_dropped, other variants are written to snvs_indels_by_strelka_and_Mutect.hg38_exac03nontcga_filtered
+NOTICE: Processing next batch with 178492 unique variants in 188516 input lines
+NOTICE: Database index loaded. Total number of bins is 744839 and the number of bins to be scanned is 96968
+NOTICE: Scanning filter database /fh/fast/sun_w/bin/annovar/humandb/hg38_exac03nontcga.txt...Done
+-----------------------------------------------------------------
+NOTICE: Processing operation=f protocol=avsnp150
+
+NOTICE: Running system command <annotate_variation.pl -filter -dbtype avsnp150 -buildver hg38 -outfile snvs_indels_by_strelka_and_Mutect snvs_indels_by_strelka_and_Mutect.avinput /fh/fast/sun_w/bin/annovar/humandb/>
+NOTICE: Variants matching filtering criteria are written to snvs_indels_by_strelka_and_Mutect.hg38_avsnp150_dropped, other variants are written to snvs_indels_by_strelka_and_Mutect.hg38_avsnp150_filtered
+NOTICE: Processing next batch with 178492 unique variants in 188516 input lines
+NOTICE: Database index loaded. Total number of bins is 28304406 and the number of bins to be scanned is 154896
+NOTICE: Scanning filter database /fh/fast/sun_w/bin/annovar/humandb/hg38_avsnp150.txt...Done
+-----------------------------------------------------------------
+NOTICE: Processing operation=f protocol=clinvar_20170905
+NOTICE: Finished reading 5 column headers for '-dbtype clinvar_20170905'
+
+NOTICE: Running system command <annotate_variation.pl -filter -dbtype clinvar_20170905 -buildver hg38 -outfile snvs_indels_by_strelka_and_Mutect snvs_indels_by_strelka_and_Mutect.avinput /fh/fast/sun_w/bin/annovar/humandb/ -otherinfo>
+NOTICE: the --dbtype clinvar_20170905 is assumed to be in generic ANNOVAR database format
+NOTICE: Variants matching filtering criteria are written to snvs_indels_by_strelka_and_Mutect.hg38_clinvar_20170905_dropped, other variants are written to snvs_indels_by_strelka_and_Mutect.hg38_clinvar_20170905_filtered
+NOTICE: Processing next batch with 178492 unique variants in 188516 input lines
+NOTICE: Database index loaded. Total number of bins is 40044 and the number of bins to be scanned is 16641
+NOTICE: Scanning filter database /fh/fast/sun_w/bin/annovar/humandb/hg38_clinvar_20170905.txt...Done
+-----------------------------------------------------------------
+NOTICE: Multianno output file is written to snvs_indels_by_strelka_and_Mutect.hg38_multianno.txt
+> date()
+[1] "Mon Feb  5 02:37:55 2018"
+> 
+> q(save="no")
+> proc.time()
+    user   system  elapsed 
+6238.209   30.779 6501.763 

@@ -1,0 +1,96 @@
+
+R version 4.0.3 (2020-10-10) -- "Bunny-Wunnies Freak Out"
+Copyright (C) 2020 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin17.0 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> 
+> library(stringr)
+> 
+> models = list.files("../../../PEPPRMINT/results/PEPPRMINT", pattern = ".h5")
+> 
+> models
+ [1] "MA_200_bs_32_lr_0.001_e_10_layer_1_dropout_0.5_new_pi_weight_0.5_decriter_2_split0_Aug5_iter10.h5"
+ [2] "MA_200_bs_32_lr_0.001_e_10_layer_1_dropout_0.5_new_pi_weight_0.5_decriter_2_split1_Aug5_iter10.h5"
+ [3] "MA_200_bs_32_lr_0.001_e_10_layer_1_dropout_0.5_new_pi_weight_0.5_decriter_2_split2_Aug5_iter10.h5"
+ [4] "MA_200_bs_32_lr_0.001_e_10_layer_1_dropout_0.5_new_pi_weight_0.5_decriter_2_split3_Aug5_iter10.h5"
+ [5] "MA_200_bs_32_lr_0.001_e_10_layer_1_dropout_0.5_new_pi_weight_0.5_decriter_2_split4_Aug5_iter10.h5"
+ [6] "MA_400_bs_32_lr_0.001_e_10_layer_1_dropout_0.5_new_pi_weight_0.5_decriter_2_split0_Aug5_iter10.h5"
+ [7] "MA_400_bs_32_lr_0.001_e_10_layer_1_dropout_0.5_new_pi_weight_0.5_decriter_2_split1_Aug5_iter10.h5"
+ [8] "MA_400_bs_32_lr_0.001_e_10_layer_1_dropout_0.5_new_pi_weight_0.5_decriter_2_split2_Aug5_iter10.h5"
+ [9] "MA_400_bs_32_lr_0.001_e_10_layer_1_dropout_0.5_new_pi_weight_0.5_decriter_2_split3_Aug5_iter10.h5"
+[10] "MA_400_bs_32_lr_0.001_e_10_layer_1_dropout_0.5_new_pi_weight_0.5_decriter_2_split4_Aug5_iter10.h5"
+[11] "MA_800_bs_32_lr_0.001_e_10_layer_1_dropout_0.5_new_pi_weight_0.5_decriter_2_split0_Aug2_iter10.h5"
+[12] "MA_800_bs_32_lr_0.001_e_10_layer_1_dropout_0.5_new_pi_weight_0.5_decriter_2_split1_Aug5_iter10.h5"
+[13] "MA_800_bs_32_lr_0.001_e_10_layer_1_dropout_0.5_new_pi_weight_0.5_decriter_2_split2_Aug5_iter10.h5"
+[14] "MA_800_bs_32_lr_0.001_e_10_layer_1_dropout_0.5_new_pi_weight_0.5_decriter_2_split3_Aug5_iter10.h5"
+[15] "MA_800_bs_32_lr_0.001_e_10_layer_1_dropout_0.5_new_pi_weight_0.5_decriter_2_split4_Aug5_iter10.h5"
+> 
+> n1 = as.numeric(str_extract(models, "(?<=MA_)\\d+"))
+> s1 = as.numeric(str_extract(models, "(?<=split)\\d+"))
+> 
+> n1
+ [1] 200 200 200 200 200 400 400 400 400 400 800 800 800 800 800
+> s1
+ [1] 0 1 2 3 4 0 1 2 3 4 0 1 2 3 4
+> 
+> fnm = "../../../PEPPRMINT/python/run_files/Riaz_2017_ref.sh"
+> cat("", file=fnm)
+> 
+> for(i in 1:length(models)){
++   m1 = models[i]
++   mtag = sprintf("%d_split%d", n1[i], s1[i])
++   log_file = sprintf("logfiles/PEPPRMINT_Riaz_2017_%s_ref.log", mtag)
++   
++   code = "python3 _prediction_PEPPRMINT.py \\\n"
++   code = paste0(code, "--input_test_pred riaz_peptide_ref.txt \\\n")
++   code = paste0(code, "--input_alist riaz_HLA_I_allele_list.txt \\\n")
++   code = paste0(code, "--test_data_name PEPPRMINT_Riaz_2017 \\\n")
++   code = paste0(code, "--data_dir ../data/Riaz_2017 \\\n")
++   code = paste0(code, "--results_dir ../results/Riaz_2017 \\\n")
++   code = paste0(code, "--test_data_name PEPPRMINT_Riaz_2017_ref \\\n")
++   code = paste0(code, "--m_tag ", mtag, " \\\n")
++   code = paste0(code, "--model ", m1, " \\\n")
++   code = paste0(code, "--neoantigen \\\n")
++   code = paste0(code, "> ", log_file, " \n\n")
++   cat(code, file = fnm, append = TRUE)
++ }
+> 
+> 
+> sessionInfo()
+R version 4.0.3 (2020-10-10)
+Platform: x86_64-apple-darwin17.0 (64-bit)
+Running under: macOS Big Sur 10.16
+
+Matrix products: default
+BLAS:   /Library/Frameworks/R.framework/Versions/4.0/Resources/lib/libRblas.dylib
+LAPACK: /Library/Frameworks/R.framework/Versions/4.0/Resources/lib/libRlapack.dylib
+
+locale:
+[1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+
+attached base packages:
+[1] stats     graphics  grDevices utils     datasets  methods   base     
+
+other attached packages:
+[1] stringr_1.4.0
+
+loaded via a namespace (and not attached):
+[1] compiler_4.0.3 magrittr_2.0.1 tools_4.0.3    stringi_1.5.3 
+> q(save="no")
+> proc.time()
+   user  system elapsed 
+  0.212   0.065   0.275 

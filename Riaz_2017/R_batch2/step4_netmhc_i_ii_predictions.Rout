@@ -1,0 +1,482 @@
+
+R version 4.0.3 (2020-10-10) -- "Bunny-Wunnies Freak Out"
+Copyright (C) 2020 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin17.0 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> 
+> #--------------------------------------------------------------------
+> # Preperation of NetMHC I and II data for prediction and manage 
+> #  predictions for RIAZ data 
+> # 1. Import data 
+> # 2. Output somatic mutations (sm) for NetMHC prediction
+> # 3. Output sbatch code (emlinating HLA not valid for netmhc)
+> # Note: Using NetMHCpan4.1 and NetMHCIIpan-4.0
+> #--------------------------------------------------------------------
+> 
+> library(magrittr)
+> library(Biostrings)
+Loading required package: BiocGenerics
+Loading required package: parallel
+
+Attaching package: ‘BiocGenerics’
+
+The following objects are masked from ‘package:parallel’:
+
+    clusterApply, clusterApplyLB, clusterCall, clusterEvalQ,
+    clusterExport, clusterMap, parApply, parCapply, parLapply,
+    parLapplyLB, parRapply, parSapply, parSapplyLB
+
+The following objects are masked from ‘package:stats’:
+
+    IQR, mad, sd, var, xtabs
+
+The following objects are masked from ‘package:base’:
+
+    anyDuplicated, append, as.data.frame, basename, cbind, colnames,
+    dirname, do.call, duplicated, eval, evalq, Filter, Find, get, grep,
+    grepl, intersect, is.unsorted, lapply, Map, mapply, match, mget,
+    order, paste, pmax, pmax.int, pmin, pmin.int, Position, rank,
+    rbind, Reduce, rownames, sapply, setdiff, sort, table, tapply,
+    union, unique, unsplit, which.max, which.min
+
+Loading required package: S4Vectors
+Loading required package: stats4
+
+Attaching package: ‘S4Vectors’
+
+The following object is masked from ‘package:base’:
+
+    expand.grid
+
+Loading required package: IRanges
+Loading required package: XVector
+
+Attaching package: ‘Biostrings’
+
+The following object is masked from ‘package:base’:
+
+    strsplit
+
+> library(data.table)
+
+Attaching package: ‘data.table’
+
+The following object is masked from ‘package:IRanges’:
+
+    shift
+
+The following objects are masked from ‘package:S4Vectors’:
+
+    first, second
+
+> 
+> #--------------------------------------------------------------------
+> # Step 1: Import Data 
+> #--------------------------------------------------------------------
+> 
+> # somatic mutation data 
+> 
+> load("../data/riaz_mutdata_sm.RData")
+> ls()
+[1] "riaz_mutdata_sm"
+> 
+> dim(riaz_mutdata_sm)
+[1] 31301    23
+> riaz_mutdata_sm[1:2,]
+       id seqnames     start       end REF ALT tumor_name normal_name W pos M
+1 Pt10_on     chr1 114716127 114716127   C   A SRR5134751  SRR5134829 G  12 C
+2 Pt10_on     chr1 155024524 155024524   G   A SRR5134751  SRR5134829 R 564 W
+  Wseq seqpos Mseq      EnsembleID         som_mut17        som_mut17r
+1    G     34    T ENST00000369535 YKLVVVGACGVGKSALT YKLVVVGAGGVGKSALT
+2    C   1690    T ENST00000368424 AALHRSVRWRAADQGHR AALHRSVRRRAADQGHR
+                            som_mut35                          som_mut35r
+1       MTEYKLVVVGACGVGKSALTIQLIQNHFV       MTEYKLVVVGAGGVGKSALTIQLIQNHFV
+2 LLSRRTNLLAALHRSVRWRAADQGHRSAFLVLASR LLSRRTNLLAALHRSVRRRAADQGHRSAFLVLASR
+  mut17_start mut17_end mut35_start mut35_end
+1           4        20           1        29
+2         556       572         547       581
+> 
+> #--------------------------------------------------------------------
+> # Step 2: Output somatic mutations for predictions
+> #--------------------------------------------------------------------
+> 
+> sum(riaz_mutdata_sm$som_mut17 == "ENST not found")
+[1] 0
+> sum(riaz_mutdata_sm$som_mut17 == "Sequence unavailable")
+[1] 0
+> 
+> head(riaz_mutdata_sm[riaz_mutdata_sm$som_mut17 == "ENST not found",])
+ [1] id          seqnames    start       end         REF         ALT        
+ [7] tumor_name  normal_name W           pos         M           Wseq       
+[13] seqpos      Mseq        EnsembleID  som_mut17   som_mut17r  som_mut35  
+[19] som_mut35r  mut17_start mut17_end   mut35_start mut35_end  
+<0 rows> (or 0-length row.names)
+> head(riaz_mutdata_sm[riaz_mutdata_sm$som_mut17 == "Sequence unavailable",])
+ [1] id          seqnames    start       end         REF         ALT        
+ [7] tumor_name  normal_name W           pos         M           Wseq       
+[13] seqpos      Mseq        EnsembleID  som_mut17   som_mut17r  som_mut35  
+[19] som_mut35r  mut17_start mut17_end   mut35_start mut35_end  
+<0 rows> (or 0-length row.names)
+> 
+> # remove observations with missing sequence 
+> w2rm = c("ENST not found", "Sequence unavailable")
+> riaz_sm1 = riaz_mutdata_sm[which(! riaz_mutdata_sm$som_mut17 %in% w2rm),]
+> dim(riaz_sm1)
+[1] 31301    23
+> riaz_sm1[1:2,]
+       id seqnames     start       end REF ALT tumor_name normal_name W pos M
+1 Pt10_on     chr1 114716127 114716127   C   A SRR5134751  SRR5134829 G  12 C
+2 Pt10_on     chr1 155024524 155024524   G   A SRR5134751  SRR5134829 R 564 W
+  Wseq seqpos Mseq      EnsembleID         som_mut17        som_mut17r
+1    G     34    T ENST00000369535 YKLVVVGACGVGKSALT YKLVVVGAGGVGKSALT
+2    C   1690    T ENST00000368424 AALHRSVRWRAADQGHR AALHRSVRRRAADQGHR
+                            som_mut35                          som_mut35r
+1       MTEYKLVVVGACGVGKSALTIQLIQNHFV       MTEYKLVVVGAGGVGKSALTIQLIQNHFV
+2 LLSRRTNLLAALHRSVRWRAADQGHRSAFLVLASR LLSRRTNLLAALHRSVRRRAADQGHRSAFLVLASR
+  mut17_start mut17_end mut35_start mut35_end
+1           4        20           1        29
+2         556       572         547       581
+> 
+> # calcualte the number of peptides per patient
+> 
+> tb1 = table(riaz_sm1$id)
+> sort(tb1)
+
+  Pt34_on  Pt36_pre   Pt67_on    Pt7_on Pt103_pre   Pt17_on  Pt17_pre  Pt67_pre 
+        1         1         1         1         4         5         5         5 
+Pt108_pre   Pt37_on  Pt37_pre  Pt98_pre  Pt103_on   Pt82_on  Pt77_pre  Pt82_pre 
+       16        16        17        17        21        25        27        27 
+  Pt5_pre  Pt28_pre   Pt28_on    Pt5_on  Pt48_pre  Pt74_pre   Pt10_on  Pt30_pre 
+       28        29        35        35        36        39        44        44 
+ Pt10_pre   Pt83_on  Pt53_pre  Pt25_pre   Pt8_pre    Pt8_on  Pt11_pre   Pt11_on 
+       46        49        58        76        79        82        87        92 
+  Pt26_on  Pt26_pre  Pt85_pre  Pt32_pre   Pt66_on  Pt66_pre  Pt46_pre  Pt90_pre 
+       96        98       106       109       116       117       121       134 
+  Pt13_on  Pt13_pre    Pt3_on   Pt3_pre  Pt27_pre   Pt27_on  Pt34_pre  Pt18_pre 
+      149       149       150       153       156       157       173       179 
+  Pt89_on  Pt89_pre   Pt51_on  Pt51_pre  Pt76_pre   Pt4_pre  Pt52_pre  Pt83_pre 
+      179       180       185       185       225       253       278       278 
+ Pt38_pre   Pt52_on  Pt44_pre   Pt70_on Pt102_pre  Pt102_on  Pt94_pre   Pt93_on 
+      286       296       328       336       344       352       353       364 
+ Pt59_pre   Pt9_pre  Pt29_pre    Pt9_on  Pt70_pre  Pt72_pre   Pt86_on  Pt86_pre 
+      365       367       368       371       387       427       458       479 
+ Pt79_pre  Pt23_pre   Pt92_on  Pt92_pre  Pt87_pre   Pt23_on Pt106_pre  Pt49_pre 
+      500       529       569       587       605       621       634       673 
+ Pt60_pre   Pt60_on  Pt58_pre  Pt68_pre  Pt47_pre   Pt47_on   Pt58_on   Pt7_pre 
+      686       733       764       846       887       899       957      1350 
+ Pt65_pre  Pt54_pre 
+     1883      6723 
+> 
+> riaz_obs_per_pt1 = data.frame(tb1, stringsAsFactors=FALSE)
+> names(riaz_obs_per_pt1) = c("matchID", "nMuts_with_peptides")
+> dim(riaz_obs_per_pt1)
+[1] 90  2
+> riaz_obs_per_pt1[1:2,]
+   matchID nMuts_with_peptides
+1  Pt10_on                  44
+2 Pt10_pre                  46
+> 
+> riaz_obs_per_pt1$matchID = as.character(riaz_obs_per_pt1$matchID)
+> 
+> write.table(riaz_obs_per_pt1, file = "../data/riaz_nMut_with_peptides.txt", 
++             quote=FALSE, col.names= TRUE, row.names = FALSE)
+> 
+> # write out fastq format input for netmhci-pan and netmhcii-pan
+> 
+> # if 'start' is numeric, the past function will add some space
+> riaz_sm1$start = as.character(riaz_sm1$start)
+> key.cols       = c("seqnames", "start", "REF", "ALT")
+> riaz_sm1$key   = apply(riaz_sm1[,key.cols], 1, paste, collapse=":")
+> riaz_sm1$start = as.numeric(riaz_sm1$start)
+> riaz_sm1$key   = gsub("^chr", "", riaz_sm1$key)
+> dim(riaz_sm1)
+[1] 31301    24
+> riaz_sm1[1:2,]
+       id seqnames     start       end REF ALT tumor_name normal_name W pos M
+1 Pt10_on     chr1 114716127 114716127   C   A SRR5134751  SRR5134829 G  12 C
+2 Pt10_on     chr1 155024524 155024524   G   A SRR5134751  SRR5134829 R 564 W
+  Wseq seqpos Mseq      EnsembleID         som_mut17        som_mut17r
+1    G     34    T ENST00000369535 YKLVVVGACGVGKSALT YKLVVVGAGGVGKSALT
+2    C   1690    T ENST00000368424 AALHRSVRWRAADQGHR AALHRSVRRRAADQGHR
+                            som_mut35                          som_mut35r
+1       MTEYKLVVVGACGVGKSALTIQLIQNHFV       MTEYKLVVVGAGGVGKSALTIQLIQNHFV
+2 LLSRRTNLLAALHRSVRWRAADQGHRSAFLVLASR LLSRRTNLLAALHRSVRRRAADQGHRSAFLVLASR
+  mut17_start mut17_end mut35_start mut35_end             key
+1           4        20           1        29 1:114716127:C:A
+2         556       572         547       581 1:155024524:G:A
+> 
+> # prepare fasta files
+> for( i in 1:nrow(riaz_obs_per_pt1)){
++   
++   match_id = riaz_obs_per_pt1$matchID[i]
++   pt       = riaz_sm1[which(riaz_sm1$id == match_id), ]
++   
++   # for HLA-I need to be at least length 9 
++   pt_i = pt[which(nchar(pt$som_mut17)>=9),]
++   
++   fnm1 = paste("../data/netmhci/", match_id, "_mut.txt", sep="")
++   cat("", file=fnm1)
++   
++   for(j in 1:nrow(pt_i)){
++     cat(paste(">", pt_i$key[j], "\n", pt_i$som_mut17[j], "\n", sep=""), 
++         file=fnm1, append=TRUE)
++   }
++ 
++   fnm1r = paste("../data/netmhci/", match_id, "_ref.txt", sep="")
++   cat("", file=fnm1r)
++   
++   for(j in 1:nrow(pt_i)){
++     cat(paste(">", pt_i$key[j], "\n", pt_i$som_mut17r[j],"\n", sep=""), 
++         file=fnm1r, append=TRUE)
++   }
++ 
++   # for HLA-II need to be at least length 21
++   pt_i = pt[which(nchar(pt$som_mut35)>=21),]
++   
++   fnm1 = paste("../data/netmhcii/", match_id, "_mut.txt", sep="")
++   cat("", file=fnm1)
++   
++   for(j in 1:nrow(pt_i)){
++     cat(paste(">", pt_i$key[j], "\n", pt_i$som_mut35[j],"\n", sep=""),
++         file=fnm1, append=TRUE)
++   }
++ 
++   fnm1r = paste("../data/netmhcii/", match_id, "_ref.txt", sep="")
++   cat("", file=fnm1r)
++   
++   for(j in 1:nrow(pt_i)){
++     cat(paste(">", pt_i$key[j], "\n", pt_i$som_mut35r[j],"\n", sep=""), 
++         file=fnm1r, append=TRUE)
++   }
++ }
+> 
+> #--------------------------------------------------------------------
+> # Step 3: Output sbatch code for terminal
+> #--------------------------------------------------------------------
+> 
+> # patient with HLA prediction
+> 
+> riaz_pt_with_hla = fread("../data/riaz_patientID_with_HLA.txt")
+> dim(riaz_pt_with_hla)
+[1] 109  22
+> riaz_pt_with_hla[1:2,]
+          Run    SRR_ref SampleName trt PtID ref_ind         A1         A2
+1: SRR5134784 SRR5134745    Pt86_on  on Pt86       0 HLA-A01:01 HLA-A11:01
+2: SRR5134851 SRR5134745   Pt86_pre pre Pt86       0 HLA-A01:01 HLA-A11:01
+           B1         B2         C1         C2     DRB11     DRB12    DQA11
+1: HLA-B08:01 HLA-B35:01 HLA-C04:01 HLA-C07:01 DRB1_0301 DRB1_0101 DQA10101
+2: HLA-B08:01 HLA-B35:01 HLA-C04:01 HLA-C07:01 DRB1_0301 DRB1_0101 DQA10101
+      DQB11    DQA12    DQB12    DPA11    DPB11    DPA12    DPB12
+1: DQB10501 DQA10501 DQB10201 DPA10103 DPB10401 DPA10103 DPB10401
+2: DQB10501 DQA10501 DQB10201 DPA10103 DPB10401 DPA10103 DPB10401
+> riaz_pt_with_hla = as.data.frame(riaz_pt_with_hla)
+>   
+> # valid hla alleles for netmhci and netmhcii
+> 
+> # HLA-i
+> valid_hlai = scan("../data/netMHC_pan_4.1_allele_names.txt", 
++                   what = character())
+Read 3584 items
+> length(valid_hlai)
+[1] 3584
+> valid_hlai[1:2]
+[1] "HLA-A01:01" "HLA-A01:02"
+> 
+> # HLA-ii
+> valid_hlaii = fread("../data/netMHC_II_pan_4.0_allele_names.list", 
++                     fill=TRUE)
+> dim(valid_hlaii)
+[1] 660   5
+> valid_hlaii[c(1:2, 101:102),]
+           DR   DP_alpha    DP_beta   DQ_alpha    DQ_beta
+1: DRB1*01:01 DPA1*01:03 DPB1*01:01 DQA1*01:01 DQB1*02:01
+2: DRB1*01:02 DPA1*01:04 DPB1*02:01 DQA1*01:02 DQB1*02:02
+3: DRB1*04:17            DPB1*72:01            DQB1*06:41
+4: DRB1*04:18            DPB1*73:01            DQB1*06:42
+> 
+> valid_hlaii$DR = gsub("[:]", "", valid_hlaii$DR)
+> valid_hlaii$DR = gsub("[\\*]", "_", valid_hlaii$DR)
+> 
+> for(i in 2:5){
++   valid_hlaii[[i]] = gsub("[:, \\*]", "", valid_hlaii[[i]])
++ }
+> dim(valid_hlaii)
+[1] 660   5
+> valid_hlaii[c(1:2, 101:102),]
+          DR DP_alpha  DP_beta DQ_alpha  DQ_beta
+1: DRB1_0101 DPA10103 DPB10101 DQA10101 DQB10201
+2: DRB1_0102 DPA10104 DPB10201 DQA10102 DQB10202
+3: DRB1_0417          DPB17201          DQB10641
+4: DRB1_0418          DPB17301          DQB10642
+> 
+> valid_hlaii = unlist(valid_hlaii)
+> length(valid_hlaii)
+[1] 3300
+> 
+> # HLA-I
+> # check how many HLA alleles can be predicted 
+> 
+> HLA1  = as.matrix(riaz_pt_with_hla[,7:12])
+> dim(HLA1)
+[1] 109   6
+> HLA1[1:2,]
+     A1           A2           B1           B2           C1          
+[1,] "HLA-A01:01" "HLA-A11:01" "HLA-B08:01" "HLA-B35:01" "HLA-C04:01"
+[2,] "HLA-A01:01" "HLA-A11:01" "HLA-B08:01" "HLA-B35:01" "HLA-C04:01"
+     C2          
+[1,] "HLA-C07:01"
+[2,] "HLA-C07:01"
+> 
+> avail = t(apply(HLA1, 1, function(v){ v %in% valid_hlai}))
+> dim(avail)
+[1] 109   6
+> avail[1:2,]
+     [,1] [,2] [,3] [,4] [,5] [,6]
+[1,] TRUE TRUE TRUE TRUE TRUE TRUE
+[2,] TRUE TRUE TRUE TRUE TRUE TRUE
+> 
+> sum(c(avail))/(6*nrow(avail))
+[1] 0.9969419
+> table(rowSums(avail))
+
+  5   6 
+  2 107 
+> 
+> # create shell script to submit jobs 
+> 
+> fnm = "step4_netMHC_pan_submit_jobs.sh"
+> cat("", file=fnm)
+> 
+> for(i in 1:nrow(riaz_obs_per_pt1)){
++   id = riaz_obs_per_pt1[i,1]
++   t0 = riaz_pt_with_hla[which(riaz_pt_with_hla$SampleName == id),7:12]
++   t0 = unique(unlist(t0))
++   t1 = sort(t0[t0 %in% valid_hlai])
++   t2 = paste(t1, collapse=",")
++   
++   cat(paste("./step4_run_NetMHCpan.sh", id, t2, "\n", sep=" "), 
++       file=fnm, append=TRUE)
++ }
+> 
+> # HLA-II
+> # check how many HLA alleles can be predicted 
+> 
+> HLA2  = as.matrix(riaz_pt_with_hla[,13:ncol(riaz_pt_with_hla)])
+> dim(HLA2)
+[1] 109  10
+> HLA2[1:2,]
+     DRB11       DRB12       DQA11      DQB11      DQA12      DQB12     
+[1,] "DRB1_0301" "DRB1_0101" "DQA10101" "DQB10501" "DQA10501" "DQB10201"
+[2,] "DRB1_0301" "DRB1_0101" "DQA10101" "DQB10501" "DQA10501" "DQB10201"
+     DPA11      DPB11      DPA12      DPB12     
+[1,] "DPA10103" "DPB10401" "DPA10103" "DPB10401"
+[2,] "DPA10103" "DPB10401" "DPA10103" "DPB10401"
+> 
+> avail = t(apply(HLA2, 1, function(v){ v %in% valid_hlaii }))
+> dim(avail)
+[1] 109  10
+> avail[1:2,]
+     [,1] [,2] [,3] [,4] [,5] [,6] [,7] [,8] [,9] [,10]
+[1,] TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE  TRUE
+[2,] TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE  TRUE
+> 
+> sum(c(avail))/(10*nrow(avail))
+[1] 0.987156
+> table(rowSums(avail))
+
+ 8  9 10 
+ 2 10 97 
+> 
+> #../netMHCIIpan -f example.fsa -a DRB1_0101 > example.fsa.myout
+> 
+> # create shell script to submit jobs 
+> # one job per 15 samples
+> 
+> jobid = 1
+> 
+> for(i in 1:nrow(riaz_obs_per_pt1)){
++   
++   if(i %% 15 == 1){
++     fnm = sprintf("step4_netMHC_II_pan_submit_job_%d.sh", jobid)
++     cat("", file=fnm)
++     jobid = jobid + 1
++   }
++   
++   id = riaz_obs_per_pt1[i,1]
++   wi = which(riaz_pt_with_hla$SampleName == id)
++   t0 = riaz_pt_with_hla[wi,13:ncol(riaz_pt_with_hla)]
++   
++   t1 = list()
++   t1[["DRB1"]] = sort(unique(c(t0$DRB11, t0$DRB12)))
++   t1[["DPA1"]] = sort(unique(c(t0$DPA11, t0$DPA12)))
++   t1[["DPB1"]] = sort(unique(c(t0$DPB11, t0$DPB12)))
++   t1[["DQA1"]] = sort(unique(c(t0$DQA11, t0$DQA12)))
++   t1[["DQB1"]] = sort(unique(c(t0$DQB11, t0$DQB12)))
++   
++   for(i in 1:length(t1)){
++     t1[[i]] = intersect(t1[[i]], valid_hlaii)
++   }
++   
++   tR = paste(t1[["DRB1"]], collapse=",")
++   tP = tQ = NULL
++   
++   for(alpha in t1[["DPA1"]]){
++     for(beta in t1[["DPB1"]]){
++       tP = c(tP, paste("HLA", alpha, beta, sep="-"))
++     }
++   }
++   
++   for(alpha in t1[["DQA1"]]){
++     for(beta in t1[["DQB1"]]){
++       tQ = c(tQ, paste("HLA", alpha, beta, sep="-"))
++     }
++   }
++   
++   hlaII = paste(c(tR, tP, tQ), collapse=",")
++  
++   cat(paste("./step4_run_NetMHCIIpan.sh", id , hlaII, "\n", sep=" "),
++       file=fnm, append=TRUE)
++   
++ }
+> 
+> sessionInfo()
+R version 4.0.3 (2020-10-10)
+Platform: x86_64-apple-darwin17.0 (64-bit)
+Running under: macOS Big Sur 10.16
+
+Matrix products: default
+BLAS:   /Library/Frameworks/R.framework/Versions/4.0/Resources/lib/libRblas.dylib
+LAPACK: /Library/Frameworks/R.framework/Versions/4.0/Resources/lib/libRlapack.dylib
+
+locale:
+[1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+
+attached base packages:
+[1] stats4    parallel  stats     graphics  grDevices utils     datasets 
+[8] methods   base     
+
+other attached packages:
+[1] data.table_1.13.6   Biostrings_2.58.0   XVector_0.30.0     
+[4] IRanges_2.24.1      S4Vectors_0.28.1    BiocGenerics_0.36.0
+[7] magrittr_2.0.1     
+
+loaded via a namespace (and not attached):
+[1] zlibbioc_1.36.0 compiler_4.0.3  tools_4.0.3     crayon_1.3.4   
+> q(save="no")
+> proc.time()
+   user  system elapsed 
+ 28.405  13.390  42.493 

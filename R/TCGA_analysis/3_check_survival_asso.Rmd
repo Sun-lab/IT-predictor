@@ -1,0 +1,126 @@
+---
+title: "Prepare Data for CARseq analysis"
+output:
+  html_document:
+    df_print: paged
+---
+
+# Load required library
+```{r warning=FALSE, echo = TRUE, results = 'hide', warning = FALSE, message = FALSE}
+library(data.table)
+library(ggpubr)
+library(ggcorrplot)
+library(readxl)
+library(survival)
+library(survminer)
+```
+
+# Read in cell type composition. 
+
+A few individuals have duplicated samples, keep the one with smaller RMSE.  
+
+```{r}
+CBST_folder = "./CIBERSORT/CIBERSORTx_output"
+
+cb_SF2018  = fread(file.path(CBST_folder, "CIBERSORTx_SF2018_Adjusted.txt"))
+
+dim(cb_SF2018)
+cb_SF2018[1:2,c(1:2,12:15)]
+cb_SF2018$patient = substr(cb_SF2018$Mixture, 1, 12)
+cb_SF2018$patient = gsub(".", "-", cb_SF2018$patient, fixed = TRUE)
+dim(cb_SF2018)
+cb_SF2018[1:2,c(1:2,12:16)]
+
+length(unique(cb_SF2018$patient))
+cb_SF2018 = cb_SF2018[order(patient, RMSE)]
+dup = which(duplicated(cb_SF2018, by="patient"))
+
+cb_SF2018[sort(c(dup-1, dup)),c(1:2,12:16)]
+cb_SF2018 = unique(cb_SF2018, by="patient")
+dim(cb_SF2018)
+cb_SF2018[c(dup[1]-1, dup[1]),c(1:2,12:16)]
+
+cb_SF2018$CD8T = cb_SF2018$CD8T_B + cb_SF2018$CD8T_G
+cb_SF2018$NK   = rowSums(cb_SF2018[,c("NK1", "NK2", "NK3")])
+
+```
+
+# Read in clinical data 
+```{r}
+cdat = read_excel("pan_cancer_data/TCGA-CDR-SupplementalTableS1.xlsx", 
+                  sheet = "TCGA-CDR", na="#NA", guess_max=2000)
+dim(cdat)
+cdat[1:2,1:5]
+names(cdat)
+table(cb_SF2018$patient %in% cdat$bcr_patient_barcode)
+
+cdat = cdat[match(cb_SF2018$patient,cdat$bcr_patient_barcode),]
+dim(cdat)
+cdat[1:2,]
+
+table(cdat$gender, useNA="ifany")
+table(cdat$ajcc_pathologic_tumor_stage)
+table(cdat$vital_status, cdat$OS, useNA="ifany")
+
+table(is.na(cdat$OS), is.na(cdat$OS.time), useNA="ifany")
+table(is.na(cdat$DSS), is.na(cdat$DSS.time), useNA="ifany")
+
+summary(cdat$OS.time)
+summary(cdat$DSS.time)
+
+df_ct_clinical = cbind(cb_SF2018, cdat)
+dim(df_ct_clinical)
+df_ct_clinical[1:2,]
+```
+
+
+Generate plots of survival curves with respect to cell type fractions of each cell type.
+
+```{r warning = FALSE, message = FALSE, fig.height=5, fig.width=5}
+
+cell_types = c(names(df_ct_clinical)[2:12], "CD8T", "NK")
+
+for(ctype1 in cell_types){
+  ab = rep("Low", nrow(df_ct_clinical))
+  ab[which(df_ct_clinical[[ctype1]] > median(df_ct_clinical[[ctype1]]))] = "High"
+  
+  fit1 = survfit(Surv(DSS.time, DSS) ~ ab, data=df_ct_clinical)
+  g1 = ggsurvplot(fit1, data = df_ct_clinical, risk.table = TRUE, 
+                  pval=TRUE, pval.method=TRUE, 
+                  title=ctype1)
+  
+  print(g1)
+}
+```
+
+Check the ration between CD8_G vs. CD8_B
+
+```{r warning = FALSE, message = FALSE, fig.height=6, fig.width=5}
+summary(df_ct_clinical$CD8T_B)
+summary(df_ct_clinical$CD8T_G)
+summary(df_ct_clinical$CD8T)
+table(df_ct_clinical$CD8T == 0)
+sort(df_ct_clinical$CD8T)[1:20]
+table(df_ct_clinical$CD8T < 0.05)
+
+CD8_G_prop = df_ct_clinical$CD8T_G/df_ct_clinical$CD8T
+summary(CD8_G_prop)
+grp = rep(NA, nrow(df_ct_clinical))
+wLow_CD8T = which(df_ct_clinical$CD8T < 0.05)
+
+grp[which(CD8_G_prop <= median(CD8_G_prop[-wLow_CD8T]))] = "low_CD8_G"
+grp[which(CD8_G_prop >  median(CD8_G_prop[-wLow_CD8T]))] = "high_CD8_G"
+grp[wLow_CD8T] = "low_CD8T"
+table(grp)
+
+fit1 = survfit(Surv(DSS.time, DSS) ~ grp, data=df_ct_clinical)
+g1 = ggsurvplot(fit1, data = df_ct_clinical, risk.table = TRUE, 
+                pval=TRUE, pval.method=TRUE, 
+                title="CD8_G groups")
+g1
+```
+
+```{r}
+gc()
+sessionInfo()
+```

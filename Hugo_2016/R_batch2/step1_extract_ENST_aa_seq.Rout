@@ -1,0 +1,252 @@
+
+R version 3.6.1 (2019-07-05) -- "Action of the Toes"
+Copyright (C) 2019 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin15.6.0 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> #--------------------------------------------------------------------
+> # Extract amino acid (aa) sequence using ENST 
+> # Steps: 
+>   #1. Import data
+>   #2. Extract aa reference sequence using biomaRt
+>   #3. Save mutdata_refaa.RData
+> #--------------------------------------------------------------------
+> 
+> library("biomaRt")
+> library("Biostrings")
+Loading required package: BiocGenerics
+Loading required package: parallel
+
+Attaching package: ‘BiocGenerics’
+
+The following objects are masked from ‘package:parallel’:
+
+    clusterApply, clusterApplyLB, clusterCall, clusterEvalQ,
+    clusterExport, clusterMap, parApply, parCapply, parLapply,
+    parLapplyLB, parRapply, parSapply, parSapplyLB
+
+The following objects are masked from ‘package:stats’:
+
+    IQR, mad, sd, var, xtabs
+
+The following objects are masked from ‘package:base’:
+
+    anyDuplicated, append, as.data.frame, basename, cbind, colnames,
+    dirname, do.call, duplicated, eval, evalq, Filter, Find, get, grep,
+    grepl, intersect, is.unsorted, lapply, Map, mapply, match, mget,
+    order, paste, pmax, pmax.int, pmin, pmin.int, Position, rank,
+    rbind, Reduce, rownames, sapply, setdiff, sort, table, tapply,
+    union, unique, unsplit, which, which.max, which.min
+
+Loading required package: S4Vectors
+Loading required package: stats4
+
+Attaching package: ‘S4Vectors’
+
+The following object is masked from ‘package:base’:
+
+    expand.grid
+
+Loading required package: IRanges
+Loading required package: XVector
+
+Attaching package: ‘Biostrings’
+
+The following object is masked from ‘package:base’:
+
+    strsplit
+
+> library("GenomicRanges")
+Loading required package: GenomeInfoDb
+> library("stringr")
+> library("plyr")
+
+Attaching package: ‘plyr’
+
+The following object is masked from ‘package:XVector’:
+
+    compact
+
+The following object is masked from ‘package:IRanges’:
+
+    desc
+
+The following object is masked from ‘package:S4Vectors’:
+
+    rename
+
+> 
+> #--------------------------------------------------------------------
+> # Step 1: Import Data and calculate start position of aa
+> #--------------------------------------------------------------------
+> 
+> load("hugo_mutdata3.RData")
+> ls()
+[1] "hugo_mutdata3"
+> 
+> dim(hugo_mutdata3)
+[1] 34475   104
+> hugo_mutdata3[1:2,c(1:10,97:104)]
+   id QSS TQSS  NT QSS_NT TQSS_NT    SGT SOMATIC seqnames   start nonSynonymous
+1 Pt1  72    1 ref     72       1 CC->AC    TRUE     chr1  957229          TRUE
+2 Pt1  90    1 ref     88       1 GG->AG    TRUE     chr1 2175307          TRUE
+  W pos M Wseq seqpos Mseq      EnsembleID
+1 R  75 L    G    224    T ENST00000327044
+2 W 340 X    G   1020    A ENST00000400921
+> 
+> #--------------------------------------------------------------------
+> # Step 2. Get aa sequence based on ENST
+> #--------------------------------------------------------------------
+> 
+> # first try to get all the sequences in one batch
+> 
+> ensembl = useMart("ensembl", dataset="hsapiens_gene_ensembl")
+> 
+> uniq.EnsembleID = unique(hugo_mutdata3$EnsembleID)
+> length(hugo_mutdata3$EnsembleID)
+[1] 34475
+> length(uniq.EnsembleID)
+[1] 14297
+> 
+> date()
+[1] "Fri Oct 11 13:58:36 2019"
+> seq.prot0 = getSequence(id=uniq.EnsembleID, 
++                             type="ensembl_transcript_id", 
++                             seqType="peptide", 
++                             mart=ensembl)
+> date()
+[1] "Fri Oct 11 14:04:44 2019"
+> 
+> dim(seq.prot0)
+[1] 14167     2
+> seq.prot0[1:2,]
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         peptide
+1                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               MADERKDEAKAPHWTSAPLTEASAHSHPPEIKDQGGAGEGLVRSANGFPYREDEEGAFGEHGSQGTYSNTKENGINGELTSADRETAEEVSARIVQVVTAEAVAVLKGEQEKEAQHKDQTAALPLAAEETANLPPSPPPSPASEQTVTVEEAAGGESALAPSVFKQAKDKVSNSTLSKIPALQGSTKSPRYSSACPSTTKRATFSDSLLIQPTSAGSTDRLPYSKSGNKDGVTKSPEKRSSLPRPSSILPPRRGVSGDRDENSFSLNSSISSSARRTTRSEPIRRAGKSGTSTPTTPGSTAITPGTPPSYSSRTPGTPGTPSYPRTPHTPGTPKSAILVPSEKKVAIIRTPPKSPATPKQLRLINQPLPDLKNVKSKIGSTDNIKYQPKGGQVRILNKKIDFSKVQSRCGSKDNIKHSAGGGNVQIVTKKIDLSHVTSKCGSLKNIRHRPGGGRVKIESVKLDFKEKAQAKVGSLDNAHHVPGGGNVKIDSQKLNFREHAKARVDHGAEIITQSPGRSSVASPRRLSNVSSSGSINLLESPQLATLAEDVTAALAKQGL*
+2 MADDEDYEEVVEYYTEEVVYEEVPGETITKIYETTTTRTSDYEQSETSKPALAQPALAQPASAKPVERRKVIRKKVDPSKFMTPYIAHSQKMQDLFSPNKYKEKFEKTKGQPYASTTDTPELRRIKKVQDQLSEVKYRMDGDVAKTICHVDEKAKDIEHAKKVSQQVSKVLYKQNWEDTKDKYLLPPDAPELVQAVKNTAMFSKKLYTEDWEADKSLFYPYNDSPELRRVAQAQKALSDVAYKKGLAEQQAQFTPLADPPDIEFAKKVTNQVSKQKYKEDYENKIKGKWSETPCFEVANARMNADNISTRKYQEDFENMKDQIYFMQTETPEYKMNKKAGVAASKVKYKEDYEKNKGKADYNVLPASENPQLRQLKAAGDALSDKLYKENYEKTKAKSINYCETPKFKLDTVLQNFSSDKKYKDSYLKDILGHYVGSFEDPYHSHCMKVTAQNSDKNYKAEYEEDRGKGFFPQTITQEYEAIKKLDQCKDHTYKVHPDKTKFTQVTDSPVLLQAQVNSKQLSDLNYKAKHESEKFKCHIPPDTPAFIQHKVNAYNLSDNLYKQDWEKSKAKKFDIKVDAIPLLAAKANTKNTSDVMYKKDYEKNKGKMIGVLSINDDPKMLHSLKVAKNQSDRLYKENYEKTKAKSMNYCETPKYQLDTQLKNFSEARYKDLYVKDVLGHYVGSMEDPYHTHCMKVAAQNSDKSYKAEYEEDKGKCYFPQTITQEYEAIKKLDQCKDHTYKVHPDKTKFTAVTDSPVLLQAQLNTKQLSDLNYKAKHEGEKFKCHIPADAPQFIQHRVNAYNLSDNVYKQDWEKSKAKKFDIKVDAIPLLAAKANTKNTSDVMYKKDYEKSKGKMIGALSINDDPKMLHSLKTAKNQSDREYRKDYEKSKTIYTAPLDMLQVTQAKKSQAIASDVDYKHILHSYSYPPDSINVDLAKKAYALQSDVEYKADYNSWMKGCGWVPFGSLEMEKAKRASDILNEKKYRQHPDTLKFTSIEDAPITVQSKINQAQRSDIAYKAKGEEIIHKYNLPPDLPQFIQAKVNAYNISENMYKADLKDLSKKGYDLRTDAIPIRAAKAARQAASDVQYKKDYEKAKGKMVGFQSLQDDPKLVHYMNVAKIQSDREYKKDYEKTKSKYNTPHDMFNVVAAKKAQDVVSNVNYKHSLHHYTYLPDAMDLELSKNMMQIQSDNVYKEDYNNWMKGIGWIPIGSLDVEKVKKAGDALNEKKYRQHPDTLKFTSIVDSPVMVQAKQNTKQVSDILYKAKGEDVKHKYTMSPDLPQFLQAKCNAYNISDVCYKRDWYDLIAKGNNVLGDAIPITAAKASRNIASDYKYKEAYEKSKGKHVGFRSLQDDPKLVHYMNVAKLQSDREYKKNYENTKTSYHTPGDMVSITAAKMAQDVATNVNYKQPLHHYTYLPDAMSLEHTRNVNQIQSDNVYKDEYNSFLKGIGWIPIGSLEVEKVKKAGDALNERKYRQHPDTVKFTSVPDSMGMVLAQHNTKQLSDLNYKVEGEKLKHKYTIDPELPQFIQAKVNALNMSDAHYKADWKKTIAKGYDLRPDAIPIVAAKSSRNIASDCKYKEAYEKAKGKQVGFLSLQDDPKLVHYMNVAKIQSDREYKKGYEASKTKYHTPLDMVSVTAAKKSQEVATNANYRQSYHHYTLLPDALNVEHSRNAMQIQSDNLYKSDFTNWMKGIGWVPIESLEVEKAKKAGEILSEKKYRQHPEKLKFTYAMDTMEQALNKSNKLNMDKRLYTEKWNKDKTTIHVMPDTPDILLSRVNQITMSDKLYKAGWEEEKKKGYDLRPDAIAIKAARASRDIASDYKYKKAYEQAKGKHIGFRSLEDDPKLVHFMQVAKMQSDREYKKGYEKSKTSFHTPVDMLSVVAAKKSQEVATNANYRNVIHTYNMLPDAMSFELAKNMMQIQSDNQYKADYADFMKGIGWLPLGSLEAEKNKKAMEIISEKKYRQHPDTLKYSTLMDSMNMVLAQNNAKIMNEHLYKQAWEADKTKVHIMPDIPQIILAKANAINMSDKLYKLSLEESKKKGYDLRPDAIPIKAAKASRDIASDYKYKYNYEKGKGKMVGFRSLEDDPKLVHSMQVAKMQSDREYKKNYENTKTSYHTPADMLSVTAAKDAQANITNTNYKHLIHKYILLPDAMNIELTRNMNRIQSDNEYKQDYNEWYKGLGWSPAGSLEVEKAKKATEYASDQKYRQHPSNFQFKKLTDSMDMVLAKQNAHTMNKHLYTIDWNKDKTKIHVMPDTPDILQAKQNQTLYSQKLYKLGWEEALKKGYDLPVDAISVQLAKASRDIASDYKYKQGYRKQLGHHVGFRSLQDDPKLVLSMNVAKMQSEREYKKDFEKWKTKFSSPVDMLGVVLAKKCQELVSDVDYKNYLHQWTCLPDQNDVVQAKKVYELQSENLYKSDLEWLRGIGWSPLGSLEAEKNKRASEIISEKKYRQPPDRNKFTSIPDAMDIVLAKTNAKNRSDRLYREAWDKDKTQIHIMPDTPDIVLAKANLINTSDKLYRMGYEELKRKGYDLPVDAIPIKAAKASREIASEYKYKEGFRKQLGHHIGARNIEDDPKMMWSMHVAKIQSDREYKKDFEKWKTKFSSPVDMLGVVLAKKCQTLVSDVDYKNYLHQWTCLPDQSDVIHARQAYDLQSDNLYKSDLQWLKGIGWMTSGSLEDEKNKRATQILSDHVYRQHPDQFKFSSLMDSIPMVLAKNNAITMNHRLYTEAWDKDKTTVHIMPDTPEVLLAKQNKVNYSEKLYKLGLEEAKRKGYDMRVDAIPIKAAKASRDIASEFKYKEGYRKQLGHHIGARAIRDDPKMMWSMHVAKIQSDREYKKDFEKWKTKFSSPVDMLGVVLAKKCQTLVSDVDYKNYLHQWTCLPDQSDVIHARQAYDLQSDNMYKSDLQWMRGIGWVSIGSLDVEKCKRATEILSDKIYRQPPDRFKFTSVTDSLEQVLAKNNAITMNKRLYTEAWDKDKTQIHIMPDTPEIMLARQNKINYSETLYKLANEEAKKKGYDLRSDAIPIVAAKASRDVISDYKYKDGYRKQLGHHIGARNIEDDPKMMWSMHVAKIQSDREYKKDFEKWKTKFSSPVDMLGVVLAKKCQTLVSDVDYKNYLHEWTCLPDQNDVIHARQAYDLQSDNIYKSDLQWLRGIGWVPIGSMDVVKCKRAAEILSDNIYRQPPDKLKFTSVTDSLEQVLAKNNALNMNKRLYTEAWDKDKTQVHIMPDTPEIMLARQNKINYSESLYRQAMEEAKKEGYDLRSDAIPIVAAKASRDIASDYKYKEAYRKQLGHHIGARAVHDDPKIMWSLHIAKVQSDREYKKDFEKYKTRYSSPVDMLGIVLAKKCQTLVSDVDYKHPLHEWICLPDQNDIIHARKAYDLQSDNLYKSDLEWMKGIGWVPIDSLEVVRAKRAGELLSDTIYRQRPETLKFTSITDTPEQVLAKNNALNMNKRLYTEAWDNDKKTIHVMPDTPEIMLAKLNRINYSDKLYKLALEESKKEGYDLRLDAIPIQAAKASRDIASDYKYKEGYRKQLGHHIGARNIKDDPKMMWSIHVAKIQSDREYKKEFEKWKTKFSSPVDMLGVVLAKKCQILVSDIDYKHPLHEWTCLPDQNDVIQARKAYDLQSDAIYKSDLEWLRGIGWVPIGSVEVEKVKRAGEILSDRKYRQPADQLKFTCITDTPEIVLAKNNALTMSKHLYTEAWDADKTSIHVMPDTPDILLAKSNSANISQKLYTKGWDESKMKDYDLRADAISIKSAKASRDIASDYKYKEAYEKQKGHHIGAQSIEDDPKIMCAIHAGKIQSEREYKKEFQKWKTKFSSPVDMLSILLAKKCQTLVTDIDYRNYLHEWTCMPDQNDIIQAKKAYDLQSDALYKADLEWLRGIGWMPQGSPEVLRVKNAQNIFCDSVYRTPVVNLKYTSIVDTPEVVLAKSNAENISIPKYREVWDKDKTSIHIMPDTPEINLARANALNVSNKLYREGWDEMKAGCDVRLDAIPIQAAKASREIASDYKYKLDHEKQKGHYVGTLTARDDNKIRWALIADKLQNEREYRLDWAKWKAKIQSPVDMLSILHSKNSQALVSDMDYRNYLHQWTCMPDQNDVIQAKKAYELQSDNVYKADLEWLRGIGWMPNDSVSVNHAKHAADIFSEKKYRTKIETLNFTPVDDRVDYVTAKQSGEILDDIKYRKDWNATKSKYTLTETPLLHTAQEAARILDQYLYKEGWERQKATGYILPPDAVPFVHAHHCNDVQSELKYKAEHVKQKGHYVGVPTMRDDPKLVWFEHAGQIQNERLYKEDYHKTKAKINIPADMVSVLAAKQGQTLVSDIDYRNYLHQWMCHPDQNDVIQARKAYDLQSDNVYRADLEWLRGIGWIPLDSVDHVRVTKNQEMMSQIKYKKNALENYPNFRSVVDPPEIVLAKINSVNQSDVKYKETFNKAKGKYTFSPDTPHISHSKDMGKLYSTILYKGAWEGTKAYGYTLDERYIPIVGAKHADLVNSELKYKETYEKQKGHYLAGKVIGEFPGVVHCLDFQKMRSALNYRKHYEDTKANVHIPNDMMNHVLAKRCQYILSDLEYRHYFHQWTSLLEEPNVIRVRNAQEILSDNVYKDDLNWLKGIGCYVWDTPQILHAKKSYDLQSQLQYTAAGKENLQNYNLVTDTPLYVTAVQSGINASEVKYKENYHQIKDKYTTVLETVDYDRTRNLKNLYSSNLYKEAWDRVKATSYILPSSTLSLTHAKNQKHLASHIKYREEYEKFKALYTLPRSVDDDPNTARCLRVGKLNIDRLYRSVYEKNKMKIHIVPDMVEMVTAKDSQKKVSEIDYRLRLHEWICHPDLQVNDHVRKVTDQISDIVYKDDLNWLKGIGCYVWDTPEILHAKHAYDLRDDIKYKAHMLKTRNDYKLVTDTPVYVQAVKSGKQLSDAVYHYDYVHSVRGKVAPTTKTVDLDRALHAYKLQSSNLYKTSLRTLPTGYRLPGDTPHFKHIKDTRYMSSYFKYKEAYEHTKAYGYTLGPKDVPFVHVRRVNNVTSERLYRELYHKLKDKIHTTPDTPEIRQVKKTQEAVSELIYKSDFFKMQGHMISLPYTPQVIHCRYVGDITSDIKYKEDLQVLKGFGCFLYDTPDMVRSRHLRKLWSNYLYTDKARKMRDKYKVVLDTPEYRKVQELKTHLSELVYRAAGKKQKSIFTSVPDTPDLLRAKRGQKLQSQYLYVELATKERPHHHAGNQTTALKHAKDVKDMVSEKKYKIQYEKMKDKYTPVPDTPILIRAKRAYWNASDLRYKETFQKTKGKYHTVKDALDIVYHRKVTDDISKIKYKENYMSQLGIWRSIPDRPEHFHHRAVTDTVSDVKYKEDLTWLKGIGCYAYDTPDFTLAEKNKTLYSKYKYKEVFERTKSDFKYVADSPINRHFKYATQLMNEKKYRADYEQRKDKYHLVVDEPRHLLAKTAGDQISQIKYRKNYEKSKDKFTSIVDTPEHLRTTKVNKQISDILYKLEYNKAKPRGYTTIHDTPMLLHVRKVKDEVSDLKYKEVYQRNKSNCTIEPDAVHIKAAKDAYKVNTNLDYKKQYEANKAHWKWTPDRPDFLQAAKSSLQQSDFEYKLDREFLKGCKLSVTDDKNTVLALRNTLIESDLKYKEKHVKERGTCHAVPDTPQILLAKTVSNLVSENKYKDHVKKHLAQGSYTTLPETRDTVHVKEVTKHVSDTNYKKKFVKEKGKSNYSIMLEPPEVKHAMEVAKKQSDVAYRKDAKENLHYTTVADRPDIKKATQAAKQASEVEYRAKHRKEGSHGLSMLGRPDIEMAKKAAKLSSQVKYRENFDKEKGKTPKYNPKDSQLYKVMKDANNLASEVKYKADLKKLHKPVTDMKESLIMNHVLNTSQLASSYQYKKKYEKSKGHYHTIPDNLEQLHLKEATELQSIVKYKEKYEKERGKPMLDFETPTYITAKESQQMQSGKEYRKDYEESIKGRNLTGLEVTPALLHVKYATKIASEKEYRKDLEESIRGKGLTEMEDTPDMLRAKNATQILNEKEYKRDLELEVKGRGLNAMANETPDFMRARNATDIASQIKYKQSAEMEKANFTSVVDTPEIIHAQQVKNLSSQKKYKEDAEKSMSYYETVLDTPEIQRVRENQKNFSLLQYQCDLKNSKGKITVVQDTPEILRVKENQKNFSSVLYKEDVSPGTAIGKTPEMMRVKQTQDHISSVKYKEAIGQGTPIPDLPEVKRVKETQKHISSVMYKENLGTGIPTTVTPEIERVKRNQENFSSVLYKENLGKGIPTPITPEMERVKRNQENFSSVLYKENMGKGTPLAVTPEMERVKHNQENISSVLYKENVGKATATPVTPEMQRVKRNQENISSVLYKENLGKATPTPFTPEMERVKRNQENFSSVLYKENMRKATPTPVTPEMERAKRNQENISSVLYSDSFRKQIQGKAAYVLDTPEMRRVRETQRHISTVKYHEDFEKHKGCFTPVVTDPITERVKKNMQDFSDINYRGIQRKVVEMEQKRNDQDQETITGLRVWRTNPGSVFDYDPAEDNIQSRSLHMINVQAQRRSREQSRSASALSISGGEEKSEHSEAPDHHLSTYSDGGVFAVSTAYKHAKTTELPQQRSSSVATQQTTVSSIPSHPSTAGKIFRAMYDYMAADADEVSFKDGDAIINVQAIDEGWMYGTVQRTGRTGMLPANYVEAI*
+  ensembl_transcript_id
+1       ENST00000199940
+2       ENST00000172853
+> table(table(seq.prot0$peptide))
+
+    1     2     3    43 
+14112     3     2     1 
+> 
+> table(seq.prot0$peptide=="Sequence unavailable")
+
+FALSE  TRUE 
+14124    43 
+> 
+> table(seq.prot0$ensembl_transcript_id %in% uniq.EnsembleID)
+
+ TRUE 
+14167 
+> missing.ens = setdiff(uniq.EnsembleID, seq.prot0$ensembl_transcript_id)
+> length(missing.ens)
+[1] 130
+> 
+> # next try to get the sequences one by one for thos missing ones
+> 
+> seq.prot1 = list()
+> 
+> for(i in 1:length(missing.ens)){
++   seq.prot1[[i]] = getSequence(id=missing.ens[i],
++                               type="ensembl_transcript_id",
++                               seqType="peptide", 
++                               mart=ensembl)
++ }
+> 
+> table(sapply(seq.prot1, nrow))
+
+  0 
+130 
+> 
+> #--------------------------------------------------------------------
+> # Step 3. Save dataset
+> #--------------------------------------------------------------------
+> 
+> hugo_mutdata3_refaa = hugo_mutdata3[,c(1, 9:13, 28:29, 98:104)] 
+> hugo_mutdata3_refaa$prot.seq = rep("", nrow(hugo_mutdata3_refaa))
+> 
+> mat1 = match(hugo_mutdata3_refaa$EnsembleID, seq.prot0$ensembl_transcript_id)
+> table(is.na(mat1))
+
+FALSE  TRUE 
+34122   353 
+> w2update = which(!is.na(mat1))
+> table(hugo_mutdata3_refaa$EnsembleID[w2update] == seq.prot0$ensembl_transcript_id[mat1[w2update]])
+
+ TRUE 
+34122 
+> hugo_mutdata3_refaa$prot.seq[w2update] = seq.prot0$peptide[mat1[w2update]]
+> 
+> dim(hugo_mutdata3_refaa)
+[1] 34475    16
+> hugo_mutdata3_refaa[1:2,]
+   id seqnames   start     end REF ALT tumor_name normal_name W pos M Wseq
+1 Pt1     chr1  957229  957229   C   A SRR3083837  SRR3083838 R  75 L    G
+2 Pt1     chr1 2175307 2175307   G   A SRR3083837  SRR3083838 W 340 X    G
+  seqpos Mseq      EnsembleID
+1    224    T ENST00000327044
+2   1020    A ENST00000400921
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        prot.seq
+1 MAAAGSRKRRLAELTVDEFLASGFDSESESESENSPQAETREAREAARSPDKPGGSPSASRRKGRASEHKDQLSRLKDRDPEFYKFLQENDQSLLNFSDSDSSEEEEGPFHSLPDVLEEASEEEDGAEEGEDGDRVPRGLKGKKNSVPVTVAMVERWKQAAKQRLTPKLFHEVVQAFRAAVATTRGDQESAEANKFQVTDSAAFNALVTFCIRDLIGCLQKLLFGKVAKDSSRMLQPSSSPLWGKLRVDIKAYLGSAIQLVSCLSETTVLAAVLRHISVLVPCFLTFPKQCRMLLKRMVIVWSTGEESLRVLAFLVLSRVCRHKKDTFLGPVLKQMYITYVRNCKFTSPGALPFISFMQWTLTELLALEPGVAYQHAFLYIRQLAIHLRNAMTTRKKETYQSVYNWQYVHCLFLWCRVLSTAGPSEALQPLVYPLAQVIIGCIKLIPTARFYPLRMHCIRALTLLSGSSGAFIPVLPFILEMFQQVDFNRKPGRMSSKPINFSVILKLSNVNLQEKAYRDGLVEQLYDLTLEYLHSQAHCIGFPELVLPVVLQLKSFLRECKVANYCRQVQQLLGKVQENSAYICSRRQRVSFGVSEQQAVEAWEKLTREEGTPLTLYYSHWRKLRDREIQLEISGKERLEDLNFPEIKRRKMADRKDEDRKQFKDLFDLNSSEEDDTEGFSERGILRPLSTRHGVEDDEEDEEEGEEDSSNSEDGDPDAEAGLAPGELQQLAQGPEDELEDLQLSEDD*
+2                                                                                                                                                                                                                                                                                                                                                     MDSVMPSQEPPVDDKNEDADLPSEETDGIAYISSSRKHDSIKDDSEDLKPVIDGMDGIKISQGLGLQDFDLIRVIGRGSYAKVLLVRLKKNDQIYAMKVVKKELVHDDEDIDWVQTEKHVFEQASSNPFLVGLHSCFQTTSRLFLVIEYVNGGDLMFHMQRQRKLPEEHARFYAAEICIALNFLHERGIIYRDLKLDNVLLDADGHIKLTDYGMCKEGLGPGDTTSTFCGTPNYIAPEILRGEEYGFSVDWWALGVLMFEMMAGRSPFDIITDNPDMNTEDYLFQVILEKPIRIPRFLSVKASHVLKGFLNKDPKERLGCRPQTGFSDIKSHAFFRSIDWDLLEKKQALPPFQPQITDDYGLDNFDTQFTSEPVQLTPDDEDAIKRIDQSEFEGFEYINPLLLSTEESV*
+> table(hugo_mutdata3_refaa$prot.seq == "")
+
+FALSE  TRUE 
+34122   353 
+> 
+> save(hugo_mutdata3_refaa, file = "hugo_mutdata3_refaa.RData")
+> 
+> sessionInfo()
+R version 3.6.1 (2019-07-05)
+Platform: x86_64-apple-darwin15.6.0 (64-bit)
+Running under: macOS High Sierra 10.13.6
+
+Matrix products: default
+BLAS:   /Library/Frameworks/R.framework/Versions/3.6/Resources/lib/libRblas.0.dylib
+LAPACK: /Library/Frameworks/R.framework/Versions/3.6/Resources/lib/libRlapack.dylib
+
+locale:
+[1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+
+attached base packages:
+[1] stats4    parallel  stats     graphics  grDevices utils     datasets 
+[8] methods   base     
+
+other attached packages:
+ [1] plyr_1.8.4           stringr_1.4.0        GenomicRanges_1.36.0
+ [4] GenomeInfoDb_1.20.0  Biostrings_2.52.0    XVector_0.24.0      
+ [7] IRanges_2.18.1       S4Vectors_0.22.0     BiocGenerics_0.30.0 
+[10] biomaRt_2.40.3      
+
+loaded via a namespace (and not attached):
+ [1] Rcpp_1.0.2             pillar_1.4.2           compiler_3.6.1        
+ [4] prettyunits_1.0.2      bitops_1.0-6           tools_3.6.1           
+ [7] progress_1.2.2         zlibbioc_1.30.0        zeallot_0.1.0         
+[10] digest_0.6.20          bit_1.1-14             RSQLite_2.1.2         
+[13] memoise_1.1.0          tibble_2.1.3           pkgconfig_2.0.2       
+[16] rlang_0.4.0            DBI_1.0.0              curl_4.0              
+[19] GenomeInfoDbData_1.2.1 httr_1.4.1             vctrs_0.2.0           
+[22] hms_0.5.0              bit64_0.9-7            Biobase_2.44.0        
+[25] R6_2.4.0               AnnotationDbi_1.46.0   XML_3.98-1.20         
+[28] blob_1.2.0             magrittr_1.5           backports_1.1.4       
+[31] assertthat_0.2.1       stringi_1.4.3          RCurl_1.95-4.12       
+[34] crayon_1.3.4          
+> q(save="no")
+> proc.time()
+   user  system elapsed 
+  8.191   0.536 525.903 

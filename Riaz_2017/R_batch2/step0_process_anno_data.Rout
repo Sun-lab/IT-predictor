@@ -1,0 +1,471 @@
+
+R version 4.0.3 (2020-10-10) -- "Bunny-Wunnies Freak Out"
+Copyright (C) 2020 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin17.0 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> 
+> #--------------------------------------------------------------------
+> # Process annotated Riaz data to extract sequences for making peptides 
+> # for somatic mutatins
+> #
+> # Data: snvs_indels_by_strelka_and_Mutect_with_anno_filtered.txt
+> # Steps: 
+>   #1. Import data
+>   #2. Filter dataset
+>   #3. Extract the mutation data on the amino acid and DNA level
+>   #4. Extract ensembletrans id
+>   #5. save dataset as riaz_mutdata.RData
+> #--------------------------------------------------------------------
+> 
+> aas = c('A', 'R', 'N', 'D', 'C', 'Q', 'E', 'G', 'H', 'I', 
++         'L', 'K', 'M', 'F', 'P', 'S', 'T', 'W', 'Y', 'V')
+> 
+> #--------------------------------------------------------------------
+> # Step 1: Import Data
+> #--------------------------------------------------------------------
+> 
+> library(data.table)
+> library(stringr)
+> 
+> input = "../data/snvs_indels_by_strelka_and_Mutect_with_anno_filtered.txt"
+> riaz_mutdata = fread(input)
+> 
+> dim(riaz_mutdata)
+[1] 85917    97
+> names(riaz_mutdata)
+ [1] "id"                                      
+ [2] "QSS"                                     
+ [3] "TQSS"                                    
+ [4] "NT"                                      
+ [5] "QSS_NT"                                  
+ [6] "TQSS_NT"                                 
+ [7] "SGT"                                     
+ [8] "SOMATIC"                                 
+ [9] "seqnames"                                
+[10] "start"                                   
+[11] "end"                                     
+[12] "REF"                                     
+[13] "ALT"                                     
+[14] "nAltTumor"                               
+[15] "nRefTumor"                               
+[16] "nAltNormal"                              
+[17] "nRefNormal"                              
+[18] "rdNormalFiltered"                        
+[19] "rdTumorFiltered"                         
+[20] "type"                                    
+[21] "vafTumor"                                
+[22] "vafNormal"                               
+[23] "contig"                                  
+[24] "position"                                
+[25] "context"                                 
+[26] "ref_allele"                              
+[27] "alt_allele"                              
+[28] "tumor_name"                              
+[29] "normal_name"                             
+[30] "score"                                   
+[31] "dbsnp_site"                              
+[32] "covered"                                 
+[33] "power"                                   
+[34] "tumor_power"                             
+[35] "normal_power"                            
+[36] "normal_power_nsp"                        
+[37] "normal_power_wsp"                        
+[38] "total_reads"                             
+[39] "map_Q0_reads"                            
+[40] "init_t_lod"                              
+[41] "t_lod_fstar"                             
+[42] "t_lod_fstar_forward"                     
+[43] "t_lod_fstar_reverse"                     
+[44] "tumor_f"                                 
+[45] "contaminant_fraction"                    
+[46] "contaminant_lod"                         
+[47] "t_q20_count"                             
+[48] "t_ref_count"                             
+[49] "t_alt_count"                             
+[50] "t_ref_sum"                               
+[51] "t_alt_sum"                               
+[52] "t_ref_max_mapq"                          
+[53] "t_alt_max_mapq"                          
+[54] "t_ins_count"                             
+[55] "t_del_count"                             
+[56] "normal_best_gt"                          
+[57] "init_n_lod"                              
+[58] "normal_f"                                
+[59] "n_q20_count"                             
+[60] "n_ref_count"                             
+[61] "n_alt_count"                             
+[62] "n_ref_sum"                               
+[63] "n_alt_sum"                               
+[64] "power_to_detect_positive_strand_artifact"
+[65] "power_to_detect_negative_strand_artifact"
+[66] "strand_bias_counts"                      
+[67] "tumor_alt_fpir_median"                   
+[68] "tumor_alt_fpir_mad"                      
+[69] "tumor_alt_rpir_median"                   
+[70] "tumor_alt_rpir_mad"                      
+[71] "observed_in_normals_count"               
+[72] "failure_reasons"                         
+[73] "judgement"                               
+[74] "Func.ensGene"                            
+[75] "Gene.ensGene"                            
+[76] "GeneDetail.ensGene"                      
+[77] "ExonicFunc.ensGene"                      
+[78] "AAChange.ensGene"                        
+[79] "SIFT_score"                              
+[80] "SIFT_converted_rankscore"                
+[81] "SIFT_pred"                               
+[82] "MutationTaster_pred"                     
+[83] "MutationAssessor_pred"                   
+[84] "FATHMM_pred"                             
+[85] "PROVEAN_pred"                            
+[86] "MetaSVM_pred"                            
+[87] "MetaLR_pred"                             
+[88] "GTEx_V6_gene"                            
+[89] "GTEx_V6_tissue"                          
+[90] "ExAC_nontcga_ALL"                        
+[91] "avsnp150"                                
+[92] "CLINSIG"                                 
+[93] "CLNDBN"                                  
+[94] "CLNACC"                                  
+[95] "CLNDSDB"                                 
+[96] "CLNDSDBID"                               
+[97] "nonSynonymous"                           
+> 
+> riaz_mutdata[1:10, 1:5]
+         id QSS TQSS  NT QSS_NT
+ 1: Pt10_on 216    1 ref     95
+ 2: Pt10_on  24    1 ref     24
+ 3: Pt10_on  68    1 ref     68
+ 4: Pt10_on 729    1 ref    155
+ 5: Pt10_on  25    1 ref     25
+ 6: Pt10_on  24    1 ref     24
+ 7: Pt10_on  56    1 ref     56
+ 8: Pt10_on  22    1 ref     22
+ 9: Pt10_on 142    1 ref     90
+10: Pt10_on  62    1 ref     61
+> riaz_mutdata[1:10, c(1,2,78,97)]
+         id QSS                                 AAChange.ensGene nonSynonymous
+ 1: Pt10_on 216                                             <NA>         FALSE
+ 2: Pt10_on  24                                             <NA>         FALSE
+ 3: Pt10_on  68                                             <NA>         FALSE
+ 4: Pt10_on 729       NRAS:ENST00000369535.4:exon2:c.G34T:p.G12C          TRUE
+ 5: Pt10_on  25  DCST2:ENST00000368424.3:exon11:c.C1690T:p.R564W          TRUE
+ 6: Pt10_on  24                                             <NA>         FALSE
+ 7: Pt10_on  56 CEP350:ENST00000367607.7:exon12:c.C2902A:p.Q968K          TRUE
+ 8: Pt10_on  22                                             <NA>         FALSE
+ 9: Pt10_on 142    CFHR4:ENST00000367416.6:exon6:c.G855T:p.T285T         FALSE
+10: Pt10_on  62                                             <NA>         FALSE
+> 
+> length(unique(riaz_mutdata$id))
+[1] 104
+> tb1 = table(riaz_mutdata$id)
+> length(tb1)
+[1] 104
+> sort(tb1)
+
+Pt101_pre   Pt18_on  Pt24_pre   Pt30_on   Pt48_on Pt104_pre   Pt34_on   Pt44_on 
+        3         3         3         3         3         4         4         4 
+  Pt67_on  Pt93_pre  Pt73_pre  Pt101_on  Pt36_pre  Pt100_on   Pt59_on Pt100_pre 
+        4         4         5         6         6         7         7         8 
+   Pt7_on   Pt53_on Pt103_pre  Pt67_pre  Pt17_pre   Pt17_on  Pt98_pre Pt108_pre 
+        8        10        15        17        18        21        33        39 
+  Pt37_on   Pt82_on  Pt37_pre  Pt103_on  Pt82_pre   Pt5_pre  Pt77_pre  Pt28_pre 
+       46        54        55        64        64        65        70        77 
+  Pt28_on    Pt5_on  Pt48_pre   Pt10_on  Pt30_pre  Pt10_pre  Pt53_pre  Pt74_pre 
+       82        87       106       112       116       118       145       145 
+  Pt83_on  Pt25_pre   Pt8_pre  Pt11_pre   Pt11_on  Pt46_pre    Pt8_on  Pt26_pre 
+      150       175       218       220       252       262       266       299 
+ Pt32_pre   Pt26_on  Pt90_pre  Pt85_pre  Pt13_pre   Pt13_on  Pt66_pre    Pt3_on 
+      306       309       312       355       395       396       407       411 
+ Pt34_pre   Pt27_on   Pt66_on  Pt27_pre   Pt3_pre  Pt89_pre   Pt89_on  Pt51_pre 
+      412       422       422       427       434       448       455       459 
+ Pt18_pre   Pt51_on  Pt76_pre  Pt52_pre   Pt4_pre   Pt52_on  Pt83_pre   Pt70_on 
+      469       484       581       648       668       694       793       858 
+ Pt38_pre  Pt59_pre  Pt44_pre  Pt94_pre  Pt29_pre  Pt102_on Pt102_pre   Pt9_pre 
+      867       913       918       948       955      1065      1067      1131 
+ Pt70_pre    Pt9_on   Pt86_on   Pt93_on  Pt72_pre  Pt23_pre  Pt86_pre   Pt92_on 
+     1159      1197      1210      1227      1303      1358      1380      1490 
+ Pt87_pre  Pt79_pre  Pt92_pre   Pt23_on  Pt60_pre  Pt49_pre Pt106_pre  Pt58_pre 
+     1578      1646      1648      1708      1765      1799      1815      1984 
+  Pt60_on  Pt68_pre  Pt47_pre   Pt58_on   Pt47_on   Pt7_pre  Pt65_pre  Pt54_pre 
+     1987      2277      2329      2346      2426      3965      4546     18862 
+> 
+> patient_info = data.frame(tb1)
+> names(patient_info) = c("sample", "total_mutations")
+> dim(patient_info)
+[1] 104   2
+> patient_info[1:2,]
+    sample total_mutations
+1  Pt10_on             112
+2 Pt10_pre             118
+> 
+> #--------------------------------------------------------------------
+> # Step 2: Filter dataset 
+> #--------------------------------------------------------------------
+> 
+> # chose nonsynomous mutations
+> riaz_mutdata0 = riaz_mutdata[which(riaz_mutdata$nonSynonymous==TRUE), ]
+> dim(riaz_mutdata0)
+[1] 31988    97
+> 
+> riaz_mutdata0[1:2, c(1,2,78,97)]
+        id QSS                                AAChange.ensGene nonSynonymous
+1: Pt10_on 729      NRAS:ENST00000369535.4:exon2:c.G34T:p.G12C          TRUE
+2: Pt10_on  25 DCST2:ENST00000368424.3:exon11:c.C1690T:p.R564W          TRUE
+> 
+> # check NA in AAChange.ensGene
+> table(is.na(riaz_mutdata0$AAChange.ensGene))
+
+FALSE  TRUE 
+31551   437 
+> 
+> # observe that these are the cases where Func.ensGene == "splicing"
+> table(riaz_mutdata0$Func.ensGene[is.na(riaz_mutdata0$AAChange.ensGene)])
+
+ncRNA_exonic;splicing              splicing 
+                    1                   436 
+> 
+> riaz_mutdata1 = riaz_mutdata0[!is.na(riaz_mutdata0$AAChange.ensGene),]
+> dim(riaz_mutdata1)
+[1] 31551    97
+> 
+> riaz_mutdata1[1:2, c(1,2,78,97)]
+        id QSS                                AAChange.ensGene nonSynonymous
+1: Pt10_on 729      NRAS:ENST00000369535.4:exon2:c.G34T:p.G12C          TRUE
+2: Pt10_on  25 DCST2:ENST00000368424.3:exon11:c.C1690T:p.R564W          TRUE
+> riaz_mutdata1 = as.data.frame(riaz_mutdata1)
+> 
+> table(riaz_mutdata1$id)
+
+  Pt10_on  Pt10_pre  Pt102_on Pt102_pre  Pt103_on Pt103_pre Pt106_pre Pt108_pre 
+       46        48       355       347        23         4       643        18 
+  Pt11_on  Pt11_pre   Pt13_on  Pt13_pre   Pt17_on  Pt17_pre  Pt18_pre   Pt23_on 
+       92        87       150       151         6         6       180       621 
+ Pt23_pre  Pt25_pre   Pt26_on  Pt26_pre   Pt27_on  Pt27_pre   Pt28_on  Pt28_pre 
+      529        77        96        98       160       160        36        31 
+ Pt29_pre    Pt3_on   Pt3_pre  Pt30_pre  Pt32_pre   Pt34_on  Pt34_pre  Pt36_pre 
+      370       151       154        49       110         1       175         1 
+  Pt37_on  Pt37_pre  Pt38_pre   Pt4_pre  Pt44_pre  Pt46_pre   Pt47_on  Pt47_pre 
+       19        21       291       257       333       122       903       890 
+ Pt48_pre  Pt49_pre    Pt5_on   Pt5_pre   Pt51_on  Pt51_pre   Pt52_on  Pt52_pre 
+       36       675        38        30       191       192       297       279 
+ Pt53_pre  Pt54_pre   Pt58_on  Pt58_pre  Pt59_pre   Pt60_on  Pt60_pre  Pt65_pre 
+       61      6740       961       770       367       740       689      1886 
+  Pt66_on  Pt66_pre   Pt67_on  Pt67_pre  Pt68_pre    Pt7_on   Pt7_pre   Pt70_on 
+      117       118         1         5       849         1      1361       338 
+ Pt70_pre  Pt72_pre  Pt74_pre  Pt76_pre  Pt77_pre  Pt79_pre    Pt8_on   Pt8_pre 
+      390       432        42       233        27       506        83        79 
+  Pt82_on  Pt82_pre   Pt83_on  Pt83_pre  Pt85_pre   Pt86_on  Pt86_pre  Pt87_pre 
+       28        32        49       283       109       460       482       613 
+  Pt89_on  Pt89_pre    Pt9_on   Pt9_pre  Pt90_pre   Pt92_on  Pt92_pre   Pt93_on 
+      182       183       372       368       136       572       592       373 
+ Pt94_pre  Pt98_pre 
+      355        17 
+> 
+> #--------------------------------------------------------------------
+> # Step 3: Extract mutation data 
+> #--------------------------------------------------------------------
+> 
+> # get the wildtype amino acid, mutation position, variant amino acid
+> # by default of str_match, get the first match only
+> mutamino = str_match(riaz_mutdata1$AAChange.ensGene, "(p.)([A-Z])(\\d+)([A-Z])")
+> mutseq   = str_match(riaz_mutdata1$AAChange.ensGene, "(c.)([A-Z])(\\d+)([A-Z])")
+> mut = cbind(mutamino, mutseq)
+> mut = as.data.frame(mut)
+> dim(mut)
+[1] 31551    10
+> mut[1:5,]
+        V1 V2 V3   V4 V5       V6 V7 V8   V9 V10
+1   p.G12C p.  G   12  C   c.G34T c.  G   34   T
+2  p.R564W p.  R  564  W c.C1690T c.  C 1690   T
+3  p.Q968K p.  Q  968  K c.C2902A c.  C 2902   A
+4 p.E1882Q p.  E 1882  Q c.G5644C c.  G 5644   C
+5   p.G95V p.  G   95  V  c.G284T c.  G  284   T
+> 
+> table(is.na(mut$V1))
+
+FALSE  TRUE 
+31305   246 
+> table(is.na(mut$V6))
+
+FALSE  TRUE 
+31305   246 
+> 
+> # the amino acid changes were not annotated for indels
+> # this is default of ANNOVA, thoug there is a way around it. check 
+> # http://annovar.openbioinformatics.org/en/latest/user-guide/gene/
+> table(is.na(mut$V1), riaz_mutdata1$type, useNA="ifany")
+       
+        indel   SNV
+  FALSE     0 31305
+  TRUE    246     0
+> 
+> mut           = mut[,c(3,4,5,8,9,10)]
+> colnames(mut) = c("W", "pos", "M", "Wseq", "seqpos", "Mseq")
+> mut$pos       = as.numeric(as.character(mut$pos))
+> mut$seqpos    = as.numeric(as.character(mut$seqpos))
+> riaz_mutdata2 = cbind(riaz_mutdata1, mut)
+> riaz_mutdata2 = riaz_mutdata2[which(riaz_mutdata1$type == "SNV"),]
+> dim(riaz_mutdata2)
+[1] 31305   103
+> riaz_mutdata2[1:2, c(1,2,97:103)]
+       id QSS nonSynonymous W pos M Wseq seqpos Mseq
+1 Pt10_on 729          TRUE G  12 C    G     34    T
+2 Pt10_on  25          TRUE R 564 W    C   1690    T
+> 
+> #--------------------------------------------------------------------
+> # Step 4: Extract ENST
+> #--------------------------------------------------------------------
+> 
+> mutensembl = str_match(riaz_mutdata2$AAChange.ensGene, "(ENST)(\\d+)")
+> mutensembl = mutensembl[,1]
+> mutensembl = data.frame(EnsembleID=mutensembl, stringsAsFactors=FALSE)
+> riaz_mutdata = cbind(riaz_mutdata2, mutensembl)
+> 
+> dim(riaz_mutdata)
+[1] 31305   104
+> riaz_mutdata[1:2, c(1,2,78,97:104)]
+       id QSS                                AAChange.ensGene nonSynonymous W
+1 Pt10_on 729      NRAS:ENST00000369535.4:exon2:c.G34T:p.G12C          TRUE G
+2 Pt10_on  25 DCST2:ENST00000368424.3:exon11:c.C1690T:p.R564W          TRUE R
+  pos M Wseq seqpos Mseq      EnsembleID
+1  12 C    G     34    T ENST00000369535
+2 564 W    C   1690    T ENST00000368424
+> 
+> #--------------------------------------------------------------------
+> # Step 5: check amino acid annoation, remove those 
+> # where the whild type amino acid is "X"
+> #--------------------------------------------------------------------
+> 
+> table(riaz_mutdata$W %in% aas)
+
+FALSE  TRUE 
+    2 31303 
+> table(riaz_mutdata$M %in% aas)
+
+FALSE  TRUE 
+ 1889 29416 
+> table(riaz_mutdata$M[!riaz_mutdata$M %in% aas])
+
+   X 
+1889 
+> 
+> riaz_mutdata[! riaz_mutdata$W %in% aas, c(1,9:13,78,97:104)]
+            id seqnames     start       end REF ALT
+9787  Pt54_pre     chr1 120793825 120793825   T   G
+25151 Pt72_pre    chr19  54866731  54866731   G   T
+                                                                                       AAChange.ensGene
+9787                                                     NBPF26:ENST00000624419.1:exon6:c.T709G:p.X237E
+25151 KIR3DL2:ENST00000270442.5:exon8:c.G1317T:p.X439Y,KIR3DL2:ENST00000326321.7:exon9:c.G1368T:p.X456Y
+      nonSynonymous W pos M Wseq seqpos Mseq      EnsembleID
+9787           TRUE X 237 E    T    709    G ENST00000624419
+25151          TRUE X 439 Y    G   1317    T ENST00000270442
+> riaz_mutdata[! riaz_mutdata$M %in% aas, c(1,9:13,78,97:104)][1:2,]
+          id seqnames     start       end REF ALT
+98  Pt102_on     chr1 112698332 112698332   G   T
+154 Pt102_on     chr3 108399170 108399170   C   A
+                                                                                                                                                                                   AAChange.ensGene
+98  MOV10:ENST00000357443.2:exon15:c.G2362T:p.E788X,MOV10:ENST00000369645.5:exon16:c.G2362T:p.E788X,MOV10:ENST00000413052.6:exon16:c.G2362T:p.E788X,MOV10:ENST00000369644.5:exon17:c.G2194T:p.E732X
+154                                                                                                                                                MYH15:ENST00000273353.3:exon35:c.G4894T:p.E1632X
+    nonSynonymous W  pos M Wseq seqpos Mseq      EnsembleID
+98           TRUE E  788 X    G   2362    T ENST00000357443
+154          TRUE E 1632 X    G   4894    T ENST00000273353
+> 
+> riaz_mutdata = riaz_mutdata[which(riaz_mutdata$W %in% aas),]
+> dim(riaz_mutdata)
+[1] 31303   104
+> 
+> #--------------------------------------------------------------------
+> # Step 6. Save RData 
+> #--------------------------------------------------------------------
+> 
+> length(unique(riaz_mutdata$id))
+[1] 90
+> tb2 = table(riaz_mutdata$id)
+> length(tb2)
+[1] 90
+> sort(tb2)
+
+  Pt34_on  Pt36_pre   Pt67_on    Pt7_on Pt103_pre   Pt17_on  Pt17_pre  Pt67_pre 
+        1         1         1         1         4         5         5         5 
+Pt108_pre   Pt37_on  Pt37_pre  Pt98_pre  Pt103_on   Pt82_on  Pt77_pre  Pt82_pre 
+       16        16        17        17        21        25        27        27 
+  Pt5_pre  Pt28_pre   Pt28_on    Pt5_on  Pt48_pre  Pt74_pre   Pt10_on  Pt30_pre 
+       28        29        35        35        36        39        44        44 
+ Pt10_pre   Pt83_on  Pt53_pre  Pt25_pre   Pt8_pre    Pt8_on  Pt11_pre   Pt11_on 
+       46        49        58        76        79        82        87        92 
+  Pt26_on  Pt26_pre  Pt85_pre  Pt32_pre   Pt66_on  Pt66_pre  Pt46_pre  Pt90_pre 
+       96        98       106       109       116       117       121       134 
+  Pt13_on  Pt13_pre    Pt3_on   Pt3_pre  Pt27_pre   Pt27_on  Pt34_pre  Pt18_pre 
+      149       149       150       153       156       157       173       179 
+  Pt89_on  Pt89_pre   Pt51_on  Pt51_pre  Pt76_pre   Pt4_pre  Pt52_pre  Pt83_pre 
+      179       180       185       185       225       253       278       278 
+ Pt38_pre   Pt52_on  Pt44_pre   Pt70_on Pt102_pre  Pt102_on  Pt94_pre   Pt93_on 
+      286       296       328       336       344       352       353       364 
+ Pt59_pre   Pt9_pre  Pt29_pre    Pt9_on  Pt70_pre  Pt72_pre   Pt86_on  Pt86_pre 
+      365       367       368       371       387       427       458       479 
+ Pt79_pre  Pt23_pre   Pt92_on  Pt92_pre  Pt87_pre   Pt23_on Pt106_pre  Pt49_pre 
+      500       529       569       587       606       621       634       673 
+ Pt60_pre   Pt60_on  Pt58_pre  Pt68_pre  Pt47_pre   Pt47_on   Pt58_on   Pt7_pre 
+      686       733       764       846       887       899       957      1350 
+ Pt65_pre  Pt54_pre 
+     1884      6723 
+> 
+> patient_info$n_mutations_neoAg = rep(0, nrow(patient_info))
+> match1 = match(names(tb2), patient_info$sample)
+> table(is.na(match1))
+
+FALSE 
+   90 
+> 
+> patient_info$n_mutations_neoAg[match1] = tb2
+> dim(patient_info)
+[1] 104   3
+> patient_info[1:2,]
+    sample total_mutations n_mutations_neoAg
+1  Pt10_on             112                44
+2 Pt10_pre             118                46
+> 
+> write.table(patient_info, file = "../data/riaz_patient_mb_info.txt", 
++             quote=FALSE, col.names= TRUE, row.names = FALSE)
+> 
+> save(riaz_mutdata, file="../data/riaz_mutdata.RData")
+> 
+> sessionInfo()
+R version 4.0.3 (2020-10-10)
+Platform: x86_64-apple-darwin17.0 (64-bit)
+Running under: macOS Big Sur 10.16
+
+Matrix products: default
+BLAS:   /Library/Frameworks/R.framework/Versions/4.0/Resources/lib/libRblas.dylib
+LAPACK: /Library/Frameworks/R.framework/Versions/4.0/Resources/lib/libRlapack.dylib
+
+locale:
+[1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+
+attached base packages:
+[1] stats     graphics  grDevices utils     datasets  methods   base     
+
+other attached packages:
+[1] stringr_1.4.0     data.table_1.13.6
+
+loaded via a namespace (and not attached):
+[1] compiler_4.0.3 magrittr_2.0.1 tools_4.0.3    stringi_1.5.3 
+> q(save="no")
+> proc.time()
+   user  system elapsed 
+  2.231   0.215   2.835 

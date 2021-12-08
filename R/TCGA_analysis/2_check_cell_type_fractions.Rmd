@@ -1,0 +1,202 @@
+---
+title: "Check the cell type composition estimates"
+output:
+  html_document:
+    df_print: paged
+---
+
+# Load required library
+```{r warning=FALSE, echo = TRUE, results = 'hide', warning = FALSE, message = FALSE}
+library(data.table)
+library(R.utils)
+library(ICeDT)
+library(ggcorrplot)
+```
+
+# CIBERSORT Results
+
+Read CIBERSORT cell fraction estimates.
+
+```{r}
+CBST_folder = "./CIBERSORT/CIBERSORTx_output"
+
+cb_LM22    = fread(file.path(CBST_folder, "CIBERSORTx_LM22_Adjusted.txt"))
+cb_SF2018  = fread(file.path(CBST_folder, "CIBERSORTx_SF2018_Adjusted.txt"))
+
+pancan_file = "pan_cancer_data/TCGA.Kallisto.fullIDs.cibersort.relative.tsv"
+cb_panCan   = fread(pancan_file)
+
+dim(cb_LM22)
+cb_LM22[1:2,c(1:2,23:26)]
+
+dim(cb_SF2018)
+cb_SF2018[1:2,c(1:2,12:15)]
+
+table(cb_panCan$Mixture == cb_SF2018$Mixture)
+
+dim(cb_panCan)
+cb_panCan[1:2,c(1:2,12:15)]
+
+cb_panCan$Mixture = substr(cb_panCan$SampleID, 1, 16)
+table(cb_LM22$Mixture %in% cb_panCan$Mixture)
+cb_panCan = cb_panCan[match(cb_LM22$Mixture, cb_panCan$Mixture),]
+
+dim(cb_panCan)
+cb_panCan[1:2,c(1:4,24:28)]
+```
+
+Boxplot of cell fraction for each cell type inferred using LM22 signature matrix by CIBERSORTx
+```{r asp=0.5}
+par(mar=c(10,3,1,0.8), mgp=c(1.5,0.5,0), cex.axis=0.8, bty="n")
+boxplot(cb_LM22[,2:23],las=2, 
+        main="CIBERSORT cell proportion, LM22 signature matrix")
+```
+
+Boxplot of cell fraction for each cell type inferred using SF2018 signature matrix by CIBERSORTx
+```{r asp=0.5}
+par(mar=c(8,3,1,0.8), mgp=c(1.5,0.5,0), cex.axis=0.8, bty="n")
+boxplot(cb_SF2018[,2:12], las=2, 
+        main="CIBERSORT cell proportion, SF2018 signature matrix")
+```
+
+
+Correlation plot compare cell fractions inferred using LM22 signature matrix and SF2018 signature matrix in CIBERSORTx            
+- For most of the cell types, we see the fractions inferred using different signature matrix correlated
+- Fractions of dendritic cell inferred using the 2 types of signature matrices have small correlation
+- The fractions three types of NK cells also showed some dubious correlation: such as correlation between NK1 and Macrophages.M0. 
+```{r}
+table(cb_LM22$Mixture == cb_SF2018$Mixture)
+cb_LM22_mtrx   = data.matrix(cb_LM22[,2:23])
+cb_SF2018_mtrx = data.matrix(cb_SF2018[,2:12])
+cb_PanCan_mtrx = data.matrix(cb_panCan[,3:24])
+
+summary(rowSums(cb_LM22_mtrx))
+summary(rowSums(cb_SF2018_mtrx))
+summary(rowSums(cb_PanCan_mtrx))
+
+cormat_LM22_PanCan = cor(cb_LM22_mtrx, cb_PanCan_mtrx, 
+                         method = "spearman")
+summary(c(cormat_LM22_PanCan))
+summary(diag(cormat_LM22_PanCan))
+ggcorrplot(t(cormat_LM22_PanCan), tl.cex = 6) 
+
+cormat_PanCan_SF2018 = cor(cb_PanCan_mtrx, cb_SF2018_mtrx, 
+                         method = "spearman")
+
+summary(c(cormat_PanCan_SF2018))
+
+ggcorrplot(t(cormat_PanCan_SF2018), tl.cex = 6) + 
+  scale_fill_gradient2(limit = c(-0.8, 0.8), low = "blue", 
+                       high =  "red", mid = "white") 
+
+cormat_LM22_SF2018 = cor(cb_LM22_mtrx, cb_SF2018_mtrx, 
+                         method = "spearman")
+
+summary(c(cormat_LM22_SF2018))
+
+ggcorrplot(t(cormat_LM22_SF2018), tl.cex = 6) + 
+  scale_fill_gradient2(limit = c(-0.8, 0.8), low = "blue", 
+                       high =  "red", mid = "white") 
+
+round(cormat_LM22_SF2018,2)
+```
+
+
+```{r}
+par(mar=c(3,3,1,0.8), mgp=c(1.5,0.5,0), cex.axis=0.85, cex.lab=0.85, cex.main=0.85)
+layout(matrix(c(1,2,3,4),nrow=2, ncol = 2,byrow = TRUE))
+
+plot(cb_SF2018$CD8T_B, cb_LM22$T.cells.CD8, cex=0.6, 
+     xlab = "SF2018 CD8 B cell", ylab = "LM22 CD8 T cell")
+
+plot(cb_SF2018$CD8T_G, cb_LM22$T.cells.CD8, cex=0.6, 
+     xlab = "SF2018 CD8 G cell", ylab = "LM22 CD8 T cell")
+
+plot(cb_SF2018$CD8T_B, cb_SF2018$CD8T_G, cex=0.6, 
+     xlab = "SF2018 CD8 B cell", ylab = "SF2018 CD8 G cell")
+```
+
+
+# ICeD-T Results
+
+Read ICeD-T cell fraction estimates.
+
+```{r}
+ic_SF2018_res  = readRDS("ICeDT/SKCM_ICeDT_SF2018.rds")
+ic_LM22_res    = readRDS("ICeDT/SKCM_ICeDT_LM22.rds")
+
+lapply(ic_SF2018_res, dim)
+ic_SF2018 = t(ic_SF2018_res$rho)
+ic_SF2018[1:2,c(1:2,11:12)]
+
+lapply(ic_LM22_res, dim)
+ic_LM22 = t(ic_LM22_res$rho)
+ic_LM22[1:2,c(1:2,22:23)]
+
+summary(ic_LM22[,"tumor"])
+summary(ic_SF2018[,"tumor"])
+
+summary(rowSums(ic_LM22))
+summary(rowSums(ic_SF2018))
+
+ic_LM22_mtrx   = data.matrix(ic_LM22[,2:23]/(1 - ic_LM22[,1]))
+ic_SF2018_mtrx = data.matrix(ic_SF2018[,2:12]/(1 - ic_SF2018[,1]))
+```
+
+Boxplot of cell fraction for each cell type inferred using LM22 signature matrix by ICeD-T
+```{r}
+par(mar=c(10,3,1,0.8), mgp=c(1.5,0.5,0), cex.axis=0.8, bty="n")
+boxplot(ic_LM22[,2:23],las=2, 
+        main="ICeD-T cell proportion, LM22 signature matrix")
+```
+
+Normalilze the proportion of non-tumor cells so that they add up to be 1.
+```{r}
+par(mar=c(10,3,1,0.8), mgp=c(1.5,0.5,0), cex.axis=0.8, bty="n")
+boxplot(ic_LM22_mtrx, las=2, 
+        main="ICeD-T cell proportion, LM22 signature matrix")
+```
+
+Boxplot of cell fraction for each cell type inferred using SF2018 signature matrix by ICeD-T
+```{r fig.height=5}
+par(mar=c(8,3,1,0.8), mgp=c(1.5,0.5,0), cex.axis=0.8, bty="n")
+boxplot(ic_SF2018[,2:12], las=2, 
+        main="ICeD-T cell proportion, SF2018 signature matrix")
+
+boxplot(ic_SF2018_mtrx, las=2, 
+        main="ICeD-T cell proportion, SF2018 signature matrix")
+```
+
+```{r fig.height=5, fig.width=8, warning=FALSE, message = FALSE}
+table(rownames(ic_LM22) == rownames(ic_SF2018))
+cormat_LM22_SF2018 = cor(ic_LM22_mtrx, ic_SF2018_mtrx, 
+                         method = "spearman")
+
+summary(c(cormat_LM22_SF2018))
+
+ggcorrplot(t(cormat_LM22_SF2018), tl.cex = 6)
+
+round(cormat_LM22_SF2018,2)
+```
+
+
+
+```{r}
+par(mar=c(3,3,1,0.8), mgp=c(1.5,0.5,0), cex.axis=0.85, cex.lab=0.85, cex.main=0.85)
+layout(matrix(c(1,2,3,4),nrow=2, ncol = 2,byrow = TRUE))
+
+plot(ic_SF2018[,"CD8T_B"], ic_LM22[,"T.cells.CD8"], cex=0.6, 
+     xlab = "SF2018 CD8 B cell", ylab = "LM22 CD8 T cell")
+
+plot(ic_SF2018[,"CD8T_G"], ic_LM22[,"T.cells.CD8"], cex=0.6, 
+     xlab = "SF2018 CD8 G cell", ylab = "LM22 CD8 T cell")
+
+plot(ic_SF2018[,"CD8T_B"], ic_SF2018[,"CD8T_G"], cex=0.6, 
+     xlab = "SF2018 CD8 B cell", ylab = "SF2018 CD8 G cell")
+```
+
+
+```{r}
+gc()
+sessionInfo()
+```

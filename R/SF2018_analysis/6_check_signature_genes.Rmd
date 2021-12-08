@@ -1,0 +1,189 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r warning=FALSE, echo = TRUE, results = 'hide', message = FALSE}
+library(data.table)
+library(R.utils)
+library(stringr)
+library(ggcorrplot)
+theme_set(theme_bw())
+```
+
+# Processing data
+
+```{r}
+fnm1 = "GSE120575_Sade_Feldman_melanoma_single_cells_nolabel_1.txt.gz"
+fnm2 = "GSE120575_Sade_Feldman_melanoma_single_cells_2.txt.gz"
+
+sf_tpm1 = fread(paste0("../../scRNAseq/Sade_Feldman_2018/", fnm1), 
+                fill = TRUE, header = TRUE)
+
+sf_tpm2 = fread(paste0("../../scRNAseq/Sade_Feldman_2018/", fnm2), 
+                fill = TRUE, drop = 16293, col.names = colnames(sf_tpm1))
+
+ls_tpm = list(sf_tpm1,sf_tpm2)
+rm(sf_tpm1)
+rm(sf_tpm2)
+
+sf_tpm = rbindlist(ls_tpm)
+
+rm(ls_tpm)
+```
+
+```{r}
+dim(sf_tpm) # 55737 x 16292
+sf_tpm[1:2,1:4]
+
+gene.names = sf_tpm$V1
+rownames(sf_tpm) = gene.names
+sf_tpm$V1 = NULL
+```
+
+Only select classified cells. 
+```{r}
+cell_type = read.table("./output/cell_type.txt", header = TRUE, 
+                       sep = "\t", as.is = TRUE)
+dim(cell_type)
+cell_type[1:2,]
+
+table(cell_type$type, useNA="ifany")
+clustered_cells = cell_type$cell[cell_type$type != "unclustered"]
+cluster_sf_tpm  = sf_tpm[, ..clustered_cells]
+rownames(cluster_sf_tpm) = gene.names
+
+dim(cluster_sf_tpm)
+cluster_sf_tpm[1:3,1:3]
+
+rm(sf_tpm)
+rm(clustered_cells)
+```
+
+# Select ~10,000 genes expressed in at least a proportion of cells
+
+Calculate the proportion of cells that each gene is expressed in
+```{r}
+cellprop.per.gene = rowMeans(cluster_sf_tpm > 0)
+table(cellprop.per.gene > 0.02)
+
+he.genes = gene.names[cellprop.per.gene > 0.02]
+HEgenes_cluster_tpm = cluster_sf_tpm[cellprop.per.gene > 0.02, ]
+rownames(HEgenes_cluster_tpm) = he.genes
+dim(HEgenes_cluster_tpm)
+
+rm(cluster_sf_tpm)
+rm(cellprop.per.gene)
+```
+
+# Read in the two versions of signature genes
+```{r}
+sig_gene = fread("./output/SF2018_sig_gene_matrix.txt")
+
+dim(sig_gene)
+sig_gene[1:2,]
+```
+
+# Check the correlations between cell types using this signature matrix. 
+
+```{r}
+sig_mtrx = data.matrix(sig_gene[, -1])
+dim(sig_mtrx)
+sig_mtrx[1:2,]
+
+cr1 = cor(sig_mtrx)
+ggcorrplot(cr1, tl.cex = 6)
+
+round(cr1[c(2:4,7:9),c(2:4,7:9)], 2)
+```
+
+# Read in the details of DE analysis
+```{r}
+sig_info = fread("./output/SF2018_sig_gene_details.txt")
+
+dim(sig_info)
+
+sig_info[1:2,c(1:4,(ncol(sig_info)-3):ncol(sig_info)), with=F]
+```
+
+# illustrate the results for a few fenes
+```{r, fig.asp = 0.5}
+cluster_ct = cell_type$type[match(names(HEgenes_cluster_tpm), cell_type$cell)]
+marker_col = grep("^marker_", names(sig_info), value = TRUE)
+u_col  = grep("^u_", names(sig_info), value = TRUE)
+fc_col = grep("^fc_", names(sig_info), value = TRUE)
+
+plot1 <- function(gene1, edata, cluster_ct, sig_info){
+  y      = as.numeric(edata[which(rownames(edata) == gene1),])
+  df1    = data.frame(expression = y, cell_type = cluster_ct)
+  
+  g1 = ggplot(df1, aes(x=cell_type, y=expression, fill=cell_type)) +
+    geom_boxplot() + coord_flip() + theme(legend.position = "none") +
+    ggtitle(gene1)
+  print(g1)
+  
+  ct = marker_col[unlist(sig_info[gene==gene1, marker_col, with=FALSE])==1]
+  print(ct)
+  
+  sig_info[gene==gene1, c("gene", u_col), with=F]
+  sig_info[gene==gene1, c("gene", fc_col), with=F]
+}
+
+plot1("FOXP3", HEgenes_cluster_tpm, cluster_ct, sig_info)
+plot1("GZMA",  HEgenes_cluster_tpm, cluster_ct, sig_info)
+plot1("PDCD1", HEgenes_cluster_tpm, cluster_ct, sig_info)
+plot1("CTLA4", HEgenes_cluster_tpm, cluster_ct, sig_info)
+plot1("LAG3",  HEgenes_cluster_tpm, cluster_ct, sig_info)
+
+plot1("CD3E",  HEgenes_cluster_tpm, cluster_ct, sig_info)
+plot1("CD4",   HEgenes_cluster_tpm, cluster_ct, sig_info)
+plot1("CD8A",  HEgenes_cluster_tpm, cluster_ct, sig_info)
+plot1("CD33",  HEgenes_cluster_tpm, cluster_ct, sig_info)
+plot1("CD14",  HEgenes_cluster_tpm, cluster_ct, sig_info)
+plot1("CD19",  HEgenes_cluster_tpm, cluster_ct, sig_info)
+
+plot1("LMNA",  HEgenes_cluster_tpm, cluster_ct, sig_info)
+plot1("FASLG", HEgenes_cluster_tpm, cluster_ct, sig_info)
+plot1("VCAM1", HEgenes_cluster_tpm, cluster_ct, sig_info)
+plot1("LEF1",  HEgenes_cluster_tpm, cluster_ct, sig_info)
+
+sig_info$gene[sig_info$marker_NK1 == 1]
+
+plot1("CCNA2", HEgenes_cluster_tpm, cluster_ct, sig_info)
+plot1("CCNB2", HEgenes_cluster_tpm, cluster_ct, sig_info)
+plot1("KIF11", HEgenes_cluster_tpm, cluster_ct, sig_info)
+
+sig_info$gene[sig_info$marker_NK2 == 1]
+
+plot1("FGFBP2",  HEgenes_cluster_tpm, cluster_ct, sig_info)
+plot1("KIR2DL3", HEgenes_cluster_tpm, cluster_ct, sig_info)
+plot1("KLRC1", HEgenes_cluster_tpm, cluster_ct, sig_info)
+plot1("NCR1",  HEgenes_cluster_tpm, cluster_ct, sig_info)
+plot1("GNLY",  HEgenes_cluster_tpm, cluster_ct, sig_info)
+plot1("TRDC",  HEgenes_cluster_tpm, cluster_ct, sig_info)
+plot1("TRGV7", HEgenes_cluster_tpm, cluster_ct, sig_info)
+plot1("TRGV9", HEgenes_cluster_tpm, cluster_ct, sig_info)
+
+sig_info$gene[sig_info$marker_NK3 == 1]
+
+plot1("GZMK", HEgenes_cluster_tpm, cluster_ct, sig_info)
+plot1("HAVCR1",   HEgenes_cluster_tpm, cluster_ct, sig_info)
+plot1("KIR2DL4",  HEgenes_cluster_tpm, cluster_ct, sig_info)
+plot1("TRGC1",  HEgenes_cluster_tpm, cluster_ct, sig_info)
+plot1("TRGC2",  HEgenes_cluster_tpm, cluster_ct, sig_info)
+plot1("TRGV2",  HEgenes_cluster_tpm, cluster_ct, sig_info)
+plot1("TRGV4",  HEgenes_cluster_tpm, cluster_ct, sig_info)
+plot1("TRGV5",  HEgenes_cluster_tpm, cluster_ct, sig_info)
+plot1("TRGV8",  HEgenes_cluster_tpm, cluster_ct, sig_info)
+```
+
+
+```{r}
+gc()
+sessionInfo()
+```

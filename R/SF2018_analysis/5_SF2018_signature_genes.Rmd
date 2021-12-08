@@ -1,0 +1,210 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r warning=FALSE, echo = TRUE, results = 'hide', message = FALSE}
+library(lme4)
+library(data.table)
+library(R.utils)
+library(stringr)
+library(ggcorrplot)
+```
+
+# Check the DE resutls from MAST analysis
+
+## Histogram of p-values
+
+Histogram of p-values for each comparison
+```{r fig.height=12, fig.width=8}
+mast_pval_df = read.csv("./output/MastGenePvals_by_CellType.csv", 
+                        header = TRUE, row.names = 1, as.is=TRUE)
+head(mast_pval_df)
+
+par(mgp=c(2,0.5,0), mar=c(3.5,3.5,1.5,1), cex.main=0.8)
+layout(matrix(1:12,nrow=6,ncol = 2,byrow = TRUE))
+for (i in 2:ncol(mast_pval_df)) {
+  cti = names(mast_pval_df)[i]
+  hist(mast_pval_df[,i], xlab = "p-values", breaks = 100, 
+       main = paste("DE pvals of", cti, "vs. all other cells"))
+}
+
+par(mgp=c(2,0.5,0), mar=c(3.5,3.5,1.5,1), cex.main=0.8)
+layout(matrix(1:12,nrow=6,ncol = 2,byrow = TRUE))
+for (i in 2:ncol(mast_pval_df)) {
+  cti = names(mast_pval_df)[i]
+  pvi = mast_pval_df[,i]
+  pvi[which(pvi < 1e-50)] = 1e-50
+  hist(-log10(pvi), xlab = "p-values", breaks = 100, 
+       main = paste("DE pvals of", cti, "vs. all other cells"))
+}
+```
+
+## Volcano plot of p-values for each comparison
+
+Read in dataframe of fold changes.
+```{r}
+fc_df = read.table("./output/Average_GeneExpression_by_CellType.txt", 
+                   header = TRUE, sep = "\t", as.is=TRUE)
+head(fc_df)
+types = names(mast_pval_df)[-1]
+types
+
+table(fc_df$gene == mast_pval_df$gene)
+fc_df = merge(fc_df, mast_pval_df, by="gene")
+```
+
+```{r fig.height=12, fig.width=8}
+par(mgp=c(2,0.5,0), mar=c(3.5,3.5,1.5,1))
+layout(matrix(1:12,nrow=6,ncol = 2,byrow = TRUE))
+
+for (i in 1:length(types)) {
+  cti  = types[i]
+  pval = fc_df[[cti]]
+  pval[which(pval < 1e-50)] = 1e-50
+  log2_fc = log2(fc_df[[paste0("fc_",cti)]])
+  log2_fc[which(log2_fc > 4)] = 4
+  log2_fc[which(log2_fc < -4)] = -4
+  
+  plot(log2_fc, -log10(pval), 
+       main = paste0("Volcano plot, ", types[i]), 
+       xlab = "log2(fold change)", ylab = "-log10(p-value)", 
+       xlim = c(-4,4), ylim = c(0, 50), cex=0.4, pch=20)
+  abline(h=-log10(0.05/nrow(mast_pval_df)),col="red")
+  abline(v=log2(1), col="red")
+  abline(v=log2(1/2), col="red")
+}
+```
+
+# Select differentially expressed genes for each cell type
+
+Summarize the fold changes and mean expression for each gene. Find the minimum fc change for each gene. 
+
+```{r}
+fc_cols = grep("^fc_", names(fc_df), value=TRUE)
+u_cols  = grep("^u_", names(fc_df), value=TRUE)
+
+apply(fc_df[,fc_cols], 2, function(v){table(v < 0.5)})
+apply(fc_df[,fc_cols], 2, function(v){table(v < 0.6)})
+
+fc_mtrx = fc_df[,fc_cols]
+min_fc  = apply(fc_mtrx, 1, min)
+summary(min_fc)
+hist(min_fc, xlab="minimum fold change per gene", main="", 
+     sub="fc = mean(all other CTs) / mean(CT of interest)")
+
+u_mtrx = fc_df[,u_cols]
+u_mtrx[u_mtrx < 1e-3] = 1e-3
+u_mtrx = log10(u_mtrx)
+cr_mtrx = cor(u_mtrx, use="pair", method = "spearman")
+summary(c(cr_mtrx))
+
+ggcorrplot(cr_mtrx) + 
+  scale_fill_gradient2(limit = c(0.6,1), low = "blue", high = "red", 
+                       mid = "white", midpoint = 0.8)
+```
+
+Select around 60 genes per cell type. 
+
+1. First, for each cell type, pre-filter genes with p-value passing the Bonferroni threshold, and fold chnage smaller than 0.5 or fold change < 0.75 while it is the minimum fold change across all cell types. 
+
+2. Among those pre-filtered genes, select those genes with smallest p-value and fold change, by scanning a series of percentiles. 
+
+Here fold changes is defined as the raio between the average expression from other cell types versus the average expression of the cell type of interest. For example, for 1 percentile, we select the intersection of the genes with p-value < 1 percentile and fold change smaller than 1 percentile. We choose  the percentile that gives us around 60 genes. 
+
+```{r}
+qs = seq(0.001, 1, by=0.001)
+
+q2use = n2choose = rep(NA, 11)
+
+for (i in 1:11) {
+  cti = types[i]
+
+  fc_i = fc_df[,paste0("fc_", cti)]
+  pv_i = fc_df[[cti]]
+  
+  w2use_fc = fc_i < 0.5 | (fc_i == min_fc & fc_i < 0.75)
+  w2use_v0 = which(pv_i < 0.05/nrow(mast_pval_df) & w2use_fc)
+  
+  fc_i = fc_i[w2use_v0]
+  pv_i = pv_i[w2use_v0]
+  
+  ni = rep(NA, length(qs))
+  
+  for(j in 1:length(qs)){
+    qj = qs[j]
+    ni[j] = sum(fc_i <= quantile(fc_i, probs=qj) & 
+                  pv_i <=  quantile(pv_i, probs=qj))
+  }
+  q2use[i]    = qs[which.min(abs(ni - 60))]
+  n2choose[i] = ni[which.min(abs(ni - 60))]
+}
+data.frame(types, q2use, n2choose)
+```
+
+```{r}
+genes.selected.perCellType = list()
+
+for (i in 1:11) {
+  cti = types[i]
+  
+  fc_i = fc_df[,paste0("fc_",cti)]
+  pv_i = fc_df[[cti]]
+  
+  w2use_fc = fc_i < 0.5 | (fc_i == min_fc & fc_i < 0.75)
+  w2use_v0 = which(pv_i < 0.05/nrow(mast_pval_df) & w2use_fc)
+  
+  fc_i = fc_i[w2use_v0]
+  pv_i = pv_i[w2use_v0]
+
+  fc_q = quantile(fc_i, probs=q2use[i])
+  pv_q = quantile(pv_i, probs=q2use[i])
+  
+  w2use = w2use_v0[fc_i <= fc_q & pv_i <= pv_q]
+  
+  genes.selected.perCellType[[cti]] = fc_df$gene[w2use]
+  marker = rep(0, nrow(fc_df))
+  marker[w2use] = 1
+  fc_df[[paste0("marker_",cti)]] = marker
+}
+
+genes.selected.perCellType
+
+```
+
+Check how many genes are selected by more than one cell type
+```{r}
+selected.genes = unlist(genes.selected.perCellType, use.names = FALSE) 
+length(selected.genes)
+t1 = table(selected.genes)
+table(t1)
+t1[t1 >= 3]
+```
+
+Save the output  
+```{r}
+sig.genes = sort(unique(selected.genes))
+signature_gene_df = fc_df[match(sig.genes, fc_df$gene), 
+                          c("gene", paste0("u_",types))]
+colnames(signature_gene_df) = c("geneSymbol", types)
+write.table(signature_gene_df, file = "./output/SF2018_sig_gene_matrix.txt", 
+            quote = FALSE, sep = "\t", row.names = FALSE)
+
+dim(fc_df)
+fc_df[1:2,]
+
+write.table(fc_df, file = "./output/SF2018_sig_gene_details.txt", 
+            quote = FALSE, sep = "\t", row.names = FALSE)
+
+```
+
+
+```{r}
+gc()
+sessionInfo()
+```

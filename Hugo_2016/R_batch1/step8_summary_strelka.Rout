@@ -1,0 +1,1949 @@
+
+R version 3.4.0 (2017-04-21) -- "You Stupid Darkness"
+Copyright (C) 2017 The R Foundation for Statistical Computing
+Platform: x86_64-pc-linux-gnu (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> 
+> library(VariantAnnotation)
+Loading required package: BiocGenerics
+Loading required package: parallel
+
+Attaching package: ‘BiocGenerics’
+
+The following objects are masked from ‘package:parallel’:
+
+    clusterApply, clusterApplyLB, clusterCall, clusterEvalQ,
+    clusterExport, clusterMap, parApply, parCapply, parLapply,
+    parLapplyLB, parRapply, parSapply, parSapplyLB
+
+The following objects are masked from ‘package:stats’:
+
+    IQR, mad, sd, var, xtabs
+
+The following objects are masked from ‘package:base’:
+
+    anyDuplicated, append, as.data.frame, cbind, colMeans, colnames,
+    colSums, do.call, duplicated, eval, evalq, Filter, Find, get, grep,
+    grepl, intersect, is.unsorted, lapply, lengths, Map, mapply, match,
+    mget, order, paste, pmax, pmax.int, pmin, pmin.int, Position, rank,
+    rbind, Reduce, rowMeans, rownames, rowSums, sapply, setdiff, sort,
+    table, tapply, union, unique, unsplit, which, which.max, which.min
+
+Loading required package: GenomeInfoDb
+Loading required package: S4Vectors
+Loading required package: stats4
+
+Attaching package: ‘S4Vectors’
+
+The following object is masked from ‘package:base’:
+
+    expand.grid
+
+Loading required package: IRanges
+Loading required package: GenomicRanges
+Loading required package: SummarizedExperiment
+Loading required package: Biobase
+Welcome to Bioconductor
+
+    Vignettes contain introductory material; view with
+    'browseVignettes()'. To cite Bioconductor, see
+    'citation("Biobase")', and for packages 'citation("pkgname")'.
+
+Loading required package: DelayedArray
+Loading required package: matrixStats
+
+Attaching package: ‘matrixStats’
+
+The following objects are masked from ‘package:Biobase’:
+
+    anyMissing, rowMedians
+
+
+Attaching package: ‘DelayedArray’
+
+The following objects are masked from ‘package:matrixStats’:
+
+    colMaxs, colMins, colRanges, rowMaxs, rowMins, rowRanges
+
+The following object is masked from ‘package:base’:
+
+    apply
+
+Loading required package: Rsamtools
+Loading required package: Biostrings
+Loading required package: XVector
+
+Attaching package: ‘Biostrings’
+
+The following object is masked from ‘package:DelayedArray’:
+
+    type
+
+The following object is masked from ‘package:base’:
+
+    strsplit
+
+
+Attaching package: ‘VariantAnnotation’
+
+The following object is masked from ‘package:base’:
+
+    tabulate
+
+> 
+> # ------------------------------------------------------------------------
+> # read in sample information
+> # ------------------------------------------------------------------------
+> 
+> setwd("/fh/fast/sun_w/research/Immuno/data/Hugo_2016")
+> 
+> info1 = read.table("SraRunTable.txt", sep="\t", as.is=TRUE, header=TRUE)
+> dim(info1)
+[1] 47 33
+> info1[1:2,]
+  AvgSpotLen    BioSample Experiment Library_Name   LoadDate MBases MBytes
+1        200 SAMN04377921 SRX1515321 Pt1-baseline 2016-01-05  17279   7663
+2        200 SAMN04377922 SRX1515322   Pt1-normal 2016-01-05  11907   4701
+         Run SRA_Sample  Sample_Name age cell_line      description  disease
+1 SRR3083837 SRS1229498 Pt1-baseline  62      <NA> Pt4-HugoCell2016 Melanoma
+2 SRR3083838 SRS1234074   Pt1-normal  62      <NA> Pt4-HugoCell2016     <NA>
+  disease_stage isolate  sex                             tissue Assay_Type
+1           M1c     Pt1 male                    melanoma biopsy        WXS
+2          <NA>     Pt1 male peripheral blood mononuclear cells        WXS
+   BioProject BioSampleModel Center_Name Consent InsertSize          Instrument
+1 PRJNA307199          Human        UCLA  public          0 Illumina HiSeq 2500
+2 PRJNA307199          Human        UCLA  public          0 Illumina HiSeq 2500
+  LibraryLayout LibrarySelection LibrarySource     Organism Platform
+1        PAIRED Hybrid Selection       GENOMIC Homo sapiens ILLUMINA
+2        PAIRED Hybrid Selection       GENOMIC Homo sapiens ILLUMINA
+  ReleaseDate SRA_Study biomaterial_provider
+1  2016-09-27 SRP067938  Ribas, Antoni, UCLA
+2  2016-09-27 SRP067938  Ribas, Antoni, UCLA
+> 
+> info2 = read.table("SraRunTable_Vanderbilt.txt", sep="\t", as.is=TRUE, 
++                    header=TRUE)
+> dim(info2)
+[1] 31 30
+> info2[1:2,]
+  AvgSpotLen    BioSample Experiment               Library_Name   LoadDate
+1        200 SAMN05797414 SRX2185266 Pt8-normal-PD1Cell2016-WES 2016-09-22
+2        200 SAMN05797415 SRX2185267  Pt8-tumor-PD1Cell2016-WES 2016-09-22
+  MBases MBytes        Run SRA_Sample                Sample_Name age
+1  12759   5497 SRR4289714 SRS1708946 Pt8-normal-PD1Cell2016-WES  69
+2  12961   5653 SRR4289715 SRS1708947  Pt8-tumor-PD1Cell2016-WES  69
+  biomaterial_provider  disease             isolate  sex              tissue
+1                 UCLA     <NA> Pt8-PD1Cell2016-WES male                PBMC
+2                 UCLA Melanoma Pt8-PD1Cell2016-WES male R leg, subcutaneous
+  Assay_Type  BioProject BioSampleModel Center_Name Consent InsertSize
+1        WXS PRJNA343789          Human        UCLA  public          0
+2        WXS PRJNA343789          Human        UCLA  public          0
+           Instrument LibraryLayout LibrarySelection LibrarySource     Organism
+1 Illumina HiSeq 2500        PAIRED Hybrid Selection       GENOMIC Homo sapiens
+2 Illumina HiSeq 2500        PAIRED Hybrid Selection       GENOMIC Homo sapiens
+  Platform ReleaseDate SRA_Study
+1 ILLUMINA  2016-09-27 SRP090294
+2 ILLUMINA  2016-09-27 SRP090294
+> 
+> ww1 = which(info1$tissue == "melanoma biopsy")
+> subjects1 = info1$Sample_Name[ww1]
+> subjects1 = gsub("-baseline", "", subjects1)
+> subjects1
+ [1] "Pt1"  "Pt2"  "Pt3"  "Pt4"  "Pt5"  "Pt6"  "Pt7"  "Pt8"  "Pt10" "Pt11"
+[11] "Pt12" "Pt14" "Pt15" "Pt16" "Pt17" "Pt18" "Pt19" "Pt20" "Pt21" "Pt22"
+[21] "Pt23"
+> 
+> ww2 = which(info2$tissue != "PBMC")
+> subjects = info2$Library_Name[ww2]
+> subjects = gsub("-PD1Cell2016-WES", "", subjects)
+> subjects = gsub("-tumor", "", subjects)
+> subjects = gsub("-", "_", subjects)
+> subjects = paste0("Vand_", subjects)
+> subjects
+ [1] "Vand_Pt8"    "Vand_Pt10"   "Vand_Pt11"   "Vand_Pt16"   "Vand_Pt17"  
+ [6] "Vand_Pt27"   "Vand_Pt27_2" "Vand_Pt30"   "Vand_Pt31"   "Vand_Pt32"  
+[11] "Vand_Pt33"   "Vand_Pt34"   "Vand_Pt35"   "Vand_Pt36"   "Vand_Pt37"  
+[16] "Vand_Pt38"  
+> 
+> subjects = c(subjects1, subjects)
+> length(subjects)
+[1] 37
+> 
+> # ----------------------------------------------------------------------
+> # load data of strelka, check the number of called mutations
+> # ----------------------------------------------------------------------
+> 
+> setwd("/fh/fast/sun_w/research/Immuno/data/Hugo_2016/strelka_results")
+> 
+> snv.vcfs = paste0(subjects, "_passed.somatic.snvs.vcf")
+> length(snv.vcfs)
+[1] 37
+> snv.vcfs[1:2]
+[1] "Pt1_passed.somatic.snvs.vcf" "Pt2_passed.somatic.snvs.vcf"
+> 
+> indel.vcfs = paste0(subjects, "_passed.somatic.indels.vcf")
+> length(indel.vcfs)
+[1] 37
+> indel.vcfs[1:2]
+[1] "Pt1_passed.somatic.indels.vcf" "Pt2_passed.somatic.indels.vcf"
+> 
+> snvs = indels = list()
+> 
+> for(i in 1:length(subjects)){
++   id1  = subjects[i]
++ 
++   if(! file.exists(snv.vcfs[i])){
++     stop(sprintf("file %s does not exist\n", snv.vcfs[i]))
++   }
++   
++   if(! file.exists(indel.vcfs[i])){
++     stop(sprintf("file %s does not exist\n", indel.vcfs[i]))
++   }
++   
++   snv1  = readVcf(snv.vcfs[i], "hg38")
++   snvs[[id1]] = snv1
++   
++   indel1  = readVcf(indel.vcfs[i], "hg38")
++   indels[[id1]] = indel1
++ }
+> 
+> n.snvs = sapply(snvs, nrow)
+> summary(n.snvs)
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+    909    1585    3281    6087    5979   55253 
+> 
+> n.indels = sapply(indels, nrow)
+> summary(n.indels)
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+   8.00   17.00   26.00   35.95   42.00  152.00 
+> 
+> # ----------------------------------------------------------------------
+> # read in mutation call data
+> # ----------------------------------------------------------------------
+> 
+> for(kk in 1:length(subjects)){
++   
++   id1 = subjects[kk]
++   cat("\n", kk, id1, "\n")
++   
++   # ----------------------------------------------------------------------
++   # first work on SNVs
++   # ----------------------------------------------------------------------
++   
++   rBT = rowRanges(snvs[[id1]])
++   iBT = info(snvs[[id1]])
++   gBT = geno(snvs[[id1]])
++   
++   # --------------------------------------------------------------------
++   # obtain read counts for reference or alternative allele
++   # --------------------------------------------------------------------
++ 
++   rBT = as.data.frame(rBT)
++   ref = as.character(rBT$REF)
++   alt = sapply(rBT$ALT, function(v1){paste(as.character(v1), collapse=":")})
++ 
++   tier   = iBT$TQSS_NT
++   alCt   = list()
++   
++   alCt[["A"]] = gBT$AU
++   alCt[["C"]] = gBT$CU
++   alCt[["G"]] = gBT$GU
++   alCt[["T"]] = gBT$TU
++   
++   dat2kp = as.data.frame(iBT)
++   dat2kp$seqnames = rBT$seqnames
++   dat2kp$start    = rBT$start
++   dat2kp$end      = rBT$end
++   
++   dat2kp$REF = ref
++   dat2kp$ALT = alt
++   
++   dat2kp$nRefTumor  = dat2kp$nAltTumor  = rep(NA, nrow(dat2kp))
++   dat2kp$nRefNormal = dat2kp$nAltNormal = rep(NA, nrow(dat2kp))
++ 
++   for(ii in 1:nrow(dat2kp)){
++     dat2kp$nRefNormal[ii] = alCt[[ref[ii]]][ii, 1, tier[ii]]
++     dat2kp$nRefTumor[ii]  = alCt[[ref[ii]]][ii, 2, tier[ii]]
++     
++     if(! alt[ii] %in% c("A", "C", "G", "T")){
++       next
++     }
++ 
++     dat2kp$nAltNormal[ii] = alCt[[alt[ii]]][ii, 1, tier[ii]]
++     dat2kp$nAltTumor[ii]  = alCt[[alt[ii]]][ii, 2, tier[ii]]
++   }
++   
++   DP1 = gBT$DP - gBT$FDP
++   dim(DP1)
++   DP1[1:2,]
++   
++   dat2kp$rdNormalFiltered = DP1[,1]
++   dat2kp$rdTumorFiltered  = DP1[,2]
++ 
++   dat2kp.snv = dat2kp
++   
++   # ----------------------------------------------------------------------
++   # next work on indels
++   # ----------------------------------------------------------------------
++   
++   rBT = rowRanges(indels[[id1]])
++   iBT = info(indels[[id1]])
++   gBT = geno(indels[[id1]])
++   
++   # --------------------------------------------------------------------
++   # obtain read counts for reference or alternative allele
++   # --------------------------------------------------------------------
++   
++   rBT = as.data.frame(rBT)
++   
++   if(nrow(rBT) == 0){
++     dat2kp.indel = NULL
++   }else{
++     ref = as.character(rBT$REF)
++     alt = sapply(rBT$ALT, function(v1){paste(as.character(v1), collapse=":")})
++     
++     tier = iBT$TQSI
++     
++     dat2kp          = as.data.frame(iBT)
++     dat2kp$seqnames = rBT$seqnames
++     dat2kp$start    = rBT$start
++     dat2kp$end      = rBT$end
++     
++     dat2kp$REF = ref
++     dat2kp$ALT = alt
++     
++     dat2kp$nRefTumor  = dat2kp$nAltTumor  = rep(NA, nrow(dat2kp))
++     dat2kp$nRefNormal = dat2kp$nAltNormal = rep(NA, nrow(dat2kp))
++     
++     for(ii in 1:nrow(dat2kp)){
++       
++       dat2kp$nRefNormal[ii] = gBT$TAR[ii, 1, tier[ii]]
++       dat2kp$nRefTumor[ii]  = gBT$TAR[ii, 2, tier[ii]]
++       
++       dat2kp$nAltNormal[ii] = gBT$TIR[ii, 1, tier[ii]]
++       dat2kp$nAltTumor[ii]  = gBT$TIR[ii, 2, tier[ii]]
++       
++     }
++     
++     DP1 = gBT$DP - gBT$FDP
++     dim(DP1)
++     
++     dat2kp$rdNormalFiltered = DP1[,1]
++     dat2kp$rdTumorFiltered  = DP1[,2]
++     
++     dat2kp.indel = dat2kp
++   }
++ 
++   # --------------------------------------------------------------------
++   # combine SNV and indel information
++   # --------------------------------------------------------------------
++   
++   if(is.null(dat2kp.indel)){
++     dat2kp = dat2kp.snv
++     dat2kp$type = rep("SNV", times=nrow(dat2kp))
++     
++     print(dim(dat2kp.snv))
++     print(dat2kp.snv[1,,FALSE])
++     
++   }else{
++     print("dim(dat2kp.snv)")
++     print(dim(dat2kp.snv))
++     print("dim(dat2kp.indel)")
++     print(dim(dat2kp.indel))
++     
++     print("dat2kp.snv[1,,FALSE]")
++     print(dat2kp.snv[1,,FALSE])
++     
++     print("dat2kp.indel[1,,FALSE]")
++     print(dat2kp.indel[1,,FALSE])
++ 
++     table(dat2kp.snv$SOMATIC)
++     table(dat2kp.indel$SOMATIC)
++     table(dat2kp.indel$SVTYPE, useNA="ifany")
++     table(dat2kp.indel$OVERLAP, useNA="ifany")
++     
++     col2rm = c("RU", "RC", "IC", "IHP", "SVTYPE", "OVERLAP")
++     dat2kp.indel = dat2kp.indel[,-which(names(dat2kp.indel) %in% col2rm)]
++     
++     dim(dat2kp.snv)
++     dim(dat2kp.indel)
++     dat2kp.snv[1,,FALSE]
++     dat2kp.indel[1,,FALSE]
++     
++     print(cbind(names(dat2kp.snv), names(dat2kp.indel)))
++     
++     names(dat2kp.indel) = names(dat2kp.snv)
++     dat2kp = rbind(dat2kp.snv, dat2kp.indel)
++     
++     ntype = c(nrow(dat2kp.snv), nrow(dat2kp.indel))
++     dat2kp$type = rep(c("SNV", "indel"), times=ntype)
++   }
++ 
++   dat2kp$vafTumor  = dat2kp$nAltTumor/(dat2kp$nAltTumor + dat2kp$nRefTumor)
++   dat2kp$vafNormal = dat2kp$nAltNormal/(dat2kp$nAltNormal + dat2kp$nRefNormal)
++ 
++   ff1 = sprintf("../data_strelka/strelka_%s.txt", id1)
++ 
++   write.table(dat2kp, ff1, append = FALSE, quote = FALSE,
++             sep = "\t", row.names = TRUE, col.names = TRUE)
++ }
+
+ 1 Pt1 
+[1] "dim(dat2kp.snv)"
+[1] 22511    18
+[1] "dim(dat2kp.indel)"
+[1] 152  24
+[1] "dat2kp.snv[1,,FALSE]"
+               QSS TQSS  NT QSS_NT TQSS_NT    SGT SOMATIC seqnames start   end
+chr1:16841_G/T  56    1 ref     56       1 GG->GT    TRUE     chr1 16841 16841
+               REF ALT nAltTumor nRefTumor nAltNormal nRefNormal
+chr1:16841_G/T   G   T        15       274          0        150
+               rdNormalFiltered rdTumorFiltered
+chr1:16841_G/T              150             289
+[1] "dat2kp.indel[1,,FALSE]"
+                        QSI TQSI  NT QSI_NT TQSI_NT      SGT      RU RC IC IHP
+chr1:6678471_CAAATTAA/C 118    1 ref    105       1 ref->het AAATTAA  2  1   5
+                        SVTYPE SOMATIC OVERLAP seqnames   start     end
+chr1:6678471_CAAATTAA/C   <NA>    TRUE   FALSE     chr1 6678471 6678478
+                             REF ALT nAltTumor nRefTumor nAltNormal nRefNormal
+chr1:6678471_CAAATTAA/C CAAATTAA   C        31        46          0         84
+                        rdNormalFiltered rdTumorFiltered
+chr1:6678471_CAAATTAA/C             96.7             100
+      [,1]               [,2]              
+ [1,] "QSS"              "QSI"             
+ [2,] "TQSS"             "TQSI"            
+ [3,] "NT"               "NT"              
+ [4,] "QSS_NT"           "QSI_NT"          
+ [5,] "TQSS_NT"          "TQSI_NT"         
+ [6,] "SGT"              "SGT"             
+ [7,] "SOMATIC"          "SOMATIC"         
+ [8,] "seqnames"         "seqnames"        
+ [9,] "start"            "start"           
+[10,] "end"              "end"             
+[11,] "REF"              "REF"             
+[12,] "ALT"              "ALT"             
+[13,] "nAltTumor"        "nAltTumor"       
+[14,] "nRefTumor"        "nRefTumor"       
+[15,] "nAltNormal"       "nAltNormal"      
+[16,] "nRefNormal"       "nRefNormal"      
+[17,] "rdNormalFiltered" "rdNormalFiltered"
+[18,] "rdTumorFiltered"  "rdTumorFiltered" 
+
+ 2 Pt2 
+[1] "dim(dat2kp.snv)"
+[1] 11925    18
+[1] "dim(dat2kp.indel)"
+[1] 98 24
+[1] "dat2kp.snv[1,,FALSE]"
+               QSS TQSS  NT QSS_NT TQSS_NT    SGT SOMATIC seqnames start   end
+chr1:63683_C/T 452    1 ref    207       1 CC->CT    TRUE     chr1 63683 63683
+               REF ALT nAltTumor nRefTumor nAltNormal nRefNormal
+chr1:63683_C/T   C   T        75        67          0        301
+               rdNormalFiltered rdTumorFiltered
+chr1:63683_C/T              301             142
+[1] "dat2kp.indel[1,,FALSE]"
+                              QSI TQSI  NT QSI_NT TQSI_NT      SGT           RU
+chr1:16986749_CCCCAGGGCTCCT/C  30    1 ref     30       1 ref->het CCCAGGGCTCCT
+                              RC IC IHP SVTYPE SOMATIC OVERLAP seqnames
+chr1:16986749_CCCCAGGGCTCCT/C  1  0   6   <NA>    TRUE   FALSE     chr1
+                                 start      end           REF ALT nAltTumor
+chr1:16986749_CCCCAGGGCTCCT/C 16986749 16986761 CCCCAGGGCTCCT   C         7
+                              nRefTumor nAltNormal nRefNormal rdNormalFiltered
+chr1:16986749_CCCCAGGGCTCCT/C       109          1        184           179.53
+                              rdTumorFiltered
+chr1:16986749_CCCCAGGGCTCCT/C          115.26
+      [,1]               [,2]              
+ [1,] "QSS"              "QSI"             
+ [2,] "TQSS"             "TQSI"            
+ [3,] "NT"               "NT"              
+ [4,] "QSS_NT"           "QSI_NT"          
+ [5,] "TQSS_NT"          "TQSI_NT"         
+ [6,] "SGT"              "SGT"             
+ [7,] "SOMATIC"          "SOMATIC"         
+ [8,] "seqnames"         "seqnames"        
+ [9,] "start"            "start"           
+[10,] "end"              "end"             
+[11,] "REF"              "REF"             
+[12,] "ALT"              "ALT"             
+[13,] "nAltTumor"        "nAltTumor"       
+[14,] "nRefTumor"        "nRefTumor"       
+[15,] "nAltNormal"       "nAltNormal"      
+[16,] "nRefNormal"       "nRefNormal"      
+[17,] "rdNormalFiltered" "rdNormalFiltered"
+[18,] "rdTumorFiltered"  "rdTumorFiltered" 
+
+ 3 Pt3 
+[1] "dim(dat2kp.snv)"
+[1] 5606   18
+[1] "dim(dat2kp.indel)"
+[1] 24 24
+[1] "dat2kp.snv[1,,FALSE]"
+                QSS TQSS  NT QSS_NT TQSS_NT    SGT SOMATIC seqnames  start
+chr1:874386_G/A 277    1 ref    145       1 GG->AG    TRUE     chr1 874386
+                   end REF ALT nAltTumor nRefTumor nAltNormal nRefNormal
+chr1:874386_G/A 874386   G   A        69        92          0        187
+                rdNormalFiltered rdTumorFiltered
+chr1:874386_G/A              188             161
+[1] "dat2kp.indel[1,,FALSE]"
+                   QSI TQSI  NT QSI_NT TQSI_NT      SGT RU RC IC IHP SVTYPE
+chr1:26346140_CG/C  63    1 ref     60       1 ref->het  G  2  1   2   <NA>
+                   SOMATIC OVERLAP seqnames    start      end REF ALT nAltTumor
+chr1:26346140_CG/C    TRUE   FALSE     chr1 26346140 26346141  CG   C        29
+                   nRefTumor nAltNormal nRefNormal rdNormalFiltered
+chr1:26346140_CG/C        40          1         66               67
+                   rdTumorFiltered
+chr1:26346140_CG/C              75
+      [,1]               [,2]              
+ [1,] "QSS"              "QSI"             
+ [2,] "TQSS"             "TQSI"            
+ [3,] "NT"               "NT"              
+ [4,] "QSS_NT"           "QSI_NT"          
+ [5,] "TQSS_NT"          "TQSI_NT"         
+ [6,] "SGT"              "SGT"             
+ [7,] "SOMATIC"          "SOMATIC"         
+ [8,] "seqnames"         "seqnames"        
+ [9,] "start"            "start"           
+[10,] "end"              "end"             
+[11,] "REF"              "REF"             
+[12,] "ALT"              "ALT"             
+[13,] "nAltTumor"        "nAltTumor"       
+[14,] "nRefTumor"        "nRefTumor"       
+[15,] "nAltNormal"       "nAltNormal"      
+[16,] "nRefNormal"       "nRefNormal"      
+[17,] "rdNormalFiltered" "rdNormalFiltered"
+[18,] "rdTumorFiltered"  "rdTumorFiltered" 
+
+ 4 Pt4 
+[1] "dim(dat2kp.snv)"
+[1] 5979   18
+[1] "dim(dat2kp.indel)"
+[1] 26 24
+[1] "dat2kp.snv[1,,FALSE]"
+                QSS TQSS  NT QSS_NT TQSS_NT    SGT SOMATIC seqnames  start
+chr1:264631_C/T  23    1 ref     23       1 CC->CT    TRUE     chr1 264631
+                   end REF ALT nAltTumor nRefTumor nAltNormal nRefNormal
+chr1:264631_C/T 264631   C   T         6        99          0        111
+                rdNormalFiltered rdTumorFiltered
+chr1:264631_C/T              111             105
+[1] "dat2kp.indel[1,,FALSE]"
+                   QSI TQSI  NT QSI_NT TQSI_NT      SGT RU RC IC IHP SVTYPE
+chr1:62209802_CA/C  40    1 ref     40       1 ref->het  A  3  2   3   <NA>
+                   SOMATIC OVERLAP seqnames    start      end REF ALT nAltTumor
+chr1:62209802_CA/C    TRUE   FALSE     chr1 62209802 62209803  CA   C        13
+                   nRefTumor nAltNormal nRefNormal rdNormalFiltered
+chr1:62209802_CA/C        37          0         41               44
+                   rdTumorFiltered
+chr1:62209802_CA/C              56
+      [,1]               [,2]              
+ [1,] "QSS"              "QSI"             
+ [2,] "TQSS"             "TQSI"            
+ [3,] "NT"               "NT"              
+ [4,] "QSS_NT"           "QSI_NT"          
+ [5,] "TQSS_NT"          "TQSI_NT"         
+ [6,] "SGT"              "SGT"             
+ [7,] "SOMATIC"          "SOMATIC"         
+ [8,] "seqnames"         "seqnames"        
+ [9,] "start"            "start"           
+[10,] "end"              "end"             
+[11,] "REF"              "REF"             
+[12,] "ALT"              "ALT"             
+[13,] "nAltTumor"        "nAltTumor"       
+[14,] "nRefTumor"        "nRefTumor"       
+[15,] "nAltNormal"       "nAltNormal"      
+[16,] "nRefNormal"       "nRefNormal"      
+[17,] "rdNormalFiltered" "rdNormalFiltered"
+[18,] "rdTumorFiltered"  "rdTumorFiltered" 
+
+ 5 Pt5 
+[1] "dim(dat2kp.snv)"
+[1] 6085   18
+[1] "dim(dat2kp.indel)"
+[1] 63 24
+[1] "dat2kp.snv[1,,FALSE]"
+                QSS TQSS  NT QSS_NT TQSS_NT    SGT SOMATIC seqnames  start
+chr1:786377_T/A  28    1 ref     28       1 TT->AT    TRUE     chr1 786377
+                   end REF ALT nAltTumor nRefTumor nAltNormal nRefNormal
+chr1:786377_T/A 786377   T   A         6        75          0        119
+                rdNormalFiltered rdTumorFiltered
+chr1:786377_T/A              119              81
+[1] "dat2kp.indel[1,,FALSE]"
+                         QSI TQSI  NT QSI_NT TQSI_NT      SGT       RU RC IC
+chr1:9244919_CCCCAGGCA/C  39    1 ref     39       1 ref->het CCCAGGCA  2  1
+                         IHP SVTYPE SOMATIC OVERLAP seqnames   start     end
+chr1:9244919_CCCCAGGCA/C   5   <NA>    TRUE   FALSE     chr1 9244919 9244927
+                               REF ALT nAltTumor nRefTumor nAltNormal
+chr1:9244919_CCCCAGGCA/C CCCCAGGCA   C         9        43          0
+                         nRefNormal rdNormalFiltered rdTumorFiltered
+chr1:9244919_CCCCAGGCA/C         73               72              51
+      [,1]               [,2]              
+ [1,] "QSS"              "QSI"             
+ [2,] "TQSS"             "TQSI"            
+ [3,] "NT"               "NT"              
+ [4,] "QSS_NT"           "QSI_NT"          
+ [5,] "TQSS_NT"          "TQSI_NT"         
+ [6,] "SGT"              "SGT"             
+ [7,] "SOMATIC"          "SOMATIC"         
+ [8,] "seqnames"         "seqnames"        
+ [9,] "start"            "start"           
+[10,] "end"              "end"             
+[11,] "REF"              "REF"             
+[12,] "ALT"              "ALT"             
+[13,] "nAltTumor"        "nAltTumor"       
+[14,] "nRefTumor"        "nRefTumor"       
+[15,] "nAltNormal"       "nAltNormal"      
+[16,] "nRefNormal"       "nRefNormal"      
+[17,] "rdNormalFiltered" "rdNormalFiltered"
+[18,] "rdTumorFiltered"  "rdTumorFiltered" 
+
+ 6 Pt6 
+[1] "dim(dat2kp.snv)"
+[1] 3952   18
+[1] "dim(dat2kp.indel)"
+[1] 31 24
+[1] "dat2kp.snv[1,,FALSE]"
+                QSS TQSS  NT QSS_NT TQSS_NT    SGT SOMATIC seqnames  start
+chr1:129087_T/A  80    1 ref     80       1 TT->AT    TRUE     chr1 129087
+                   end REF ALT nAltTumor nRefTumor nAltNormal nRefNormal
+chr1:129087_T/A 129087   T   A        32       112          0         88
+                rdNormalFiltered rdTumorFiltered
+chr1:129087_T/A               89             144
+[1] "dat2kp.indel[1,,FALSE]"
+                    QSI TQSI  NT QSI_NT TQSI_NT      SGT RU RC IC IHP SVTYPE
+chr1:16251420_TGG/T 191    1 ref    105       1 ref->het  G  2  0   3   <NA>
+                    SOMATIC OVERLAP seqnames    start      end REF ALT
+chr1:16251420_TGG/T    TRUE   FALSE     chr1 16251420 16251422 TGG   T
+                    nAltTumor nRefTumor nAltNormal nRefNormal rdNormalFiltered
+chr1:16251420_TGG/T        41        23          0         79            83.05
+                    rdTumorFiltered
+chr1:16251420_TGG/T              74
+      [,1]               [,2]              
+ [1,] "QSS"              "QSI"             
+ [2,] "TQSS"             "TQSI"            
+ [3,] "NT"               "NT"              
+ [4,] "QSS_NT"           "QSI_NT"          
+ [5,] "TQSS_NT"          "TQSI_NT"         
+ [6,] "SGT"              "SGT"             
+ [7,] "SOMATIC"          "SOMATIC"         
+ [8,] "seqnames"         "seqnames"        
+ [9,] "start"            "start"           
+[10,] "end"              "end"             
+[11,] "REF"              "REF"             
+[12,] "ALT"              "ALT"             
+[13,] "nAltTumor"        "nAltTumor"       
+[14,] "nRefTumor"        "nRefTumor"       
+[15,] "nAltNormal"       "nAltNormal"      
+[16,] "nRefNormal"       "nRefNormal"      
+[17,] "rdNormalFiltered" "rdNormalFiltered"
+[18,] "rdTumorFiltered"  "rdTumorFiltered" 
+
+ 7 Pt7 
+[1] "dim(dat2kp.snv)"
+[1] 3281   18
+[1] "dim(dat2kp.indel)"
+[1] 26 24
+[1] "dat2kp.snv[1,,FALSE]"
+                QSS TQSS  NT QSS_NT TQSS_NT    SGT SOMATIC seqnames  start
+chr1:965125_G/C  64    1 ref     64       1 GG->CG    TRUE     chr1 965125
+                   end REF ALT nAltTumor nRefTumor nAltNormal nRefNormal
+chr1:965125_G/C 965125   G   C        10       384          1        591
+                rdNormalFiltered rdTumorFiltered
+chr1:965125_G/C              592             394
+[1] "dat2kp.indel[1,,FALSE]"
+                      QSI TQSI  NT QSI_NT TQSI_NT      SGT   RU RC IC IHP
+chr1:22091321_GTTTC/G  31    1 ref     31       1 ref->het TTTC  2  1   6
+                      SVTYPE SOMATIC OVERLAP seqnames    start      end   REF
+chr1:22091321_GTTTC/G   <NA>    TRUE   FALSE     chr1 22091321 22091325 GTTTC
+                      ALT nAltTumor nRefTumor nAltNormal nRefNormal
+chr1:22091321_GTTTC/G   G         6        39          0         66
+                      rdNormalFiltered rdTumorFiltered
+chr1:22091321_GTTTC/G            62.69           47.97
+      [,1]               [,2]              
+ [1,] "QSS"              "QSI"             
+ [2,] "TQSS"             "TQSI"            
+ [3,] "NT"               "NT"              
+ [4,] "QSS_NT"           "QSI_NT"          
+ [5,] "TQSS_NT"          "TQSI_NT"         
+ [6,] "SGT"              "SGT"             
+ [7,] "SOMATIC"          "SOMATIC"         
+ [8,] "seqnames"         "seqnames"        
+ [9,] "start"            "start"           
+[10,] "end"              "end"             
+[11,] "REF"              "REF"             
+[12,] "ALT"              "ALT"             
+[13,] "nAltTumor"        "nAltTumor"       
+[14,] "nRefTumor"        "nRefTumor"       
+[15,] "nAltNormal"       "nAltNormal"      
+[16,] "nRefNormal"       "nRefNormal"      
+[17,] "rdNormalFiltered" "rdNormalFiltered"
+[18,] "rdTumorFiltered"  "rdTumorFiltered" 
+
+ 8 Pt8 
+[1] "dim(dat2kp.snv)"
+[1] 3682   18
+[1] "dim(dat2kp.indel)"
+[1] 19 24
+[1] "dat2kp.snv[1,,FALSE]"
+               QSS TQSS  NT QSS_NT TQSS_NT    SGT SOMATIC seqnames start   end
+chr1:63226_C/T 186    1 ref    186       1 CC->CT    TRUE     chr1 63226 63226
+               REF ALT nAltTumor nRefTumor nAltNormal nRefNormal
+chr1:63226_C/T   C   T        22       555          0        468
+               rdNormalFiltered rdTumorFiltered
+chr1:63226_C/T              469             577
+[1] "dat2kp.indel[1,,FALSE]"
+                                   QSI TQSI  NT QSI_NT TQSI_NT      SGT
+chr1:160496131_TGTGTCTTCCATCTTCA/T  65    1 ref     65       1 ref->het
+                                                 RU RC IC IHP SVTYPE SOMATIC
+chr1:160496131_TGTGTCTTCCATCTTCA/T GTGTCTTCCATCTTCA  1  0   2   <NA>    TRUE
+                                   OVERLAP seqnames     start       end
+chr1:160496131_TGTGTCTTCCATCTTCA/T   FALSE     chr1 160496131 160496147
+                                                 REF ALT nAltTumor nRefTumor
+chr1:160496131_TGTGTCTTCCATCTTCA/T TGTGTCTTCCATCTTCA   T         5       187
+                                   nAltNormal nRefNormal rdNormalFiltered
+chr1:160496131_TGTGTCTTCCATCTTCA/T          0        164              155
+                                   rdTumorFiltered
+chr1:160496131_TGTGTCTTCCATCTTCA/T          182.97
+      [,1]               [,2]              
+ [1,] "QSS"              "QSI"             
+ [2,] "TQSS"             "TQSI"            
+ [3,] "NT"               "NT"              
+ [4,] "QSS_NT"           "QSI_NT"          
+ [5,] "TQSS_NT"          "TQSI_NT"         
+ [6,] "SGT"              "SGT"             
+ [7,] "SOMATIC"          "SOMATIC"         
+ [8,] "seqnames"         "seqnames"        
+ [9,] "start"            "start"           
+[10,] "end"              "end"             
+[11,] "REF"              "REF"             
+[12,] "ALT"              "ALT"             
+[13,] "nAltTumor"        "nAltTumor"       
+[14,] "nRefTumor"        "nRefTumor"       
+[15,] "nAltNormal"       "nAltNormal"      
+[16,] "nRefNormal"       "nRefNormal"      
+[17,] "rdNormalFiltered" "rdNormalFiltered"
+[18,] "rdTumorFiltered"  "rdTumorFiltered" 
+
+ 9 Pt10 
+[1] "dim(dat2kp.snv)"
+[1] 2701   18
+[1] "dim(dat2kp.indel)"
+[1] 23 24
+[1] "dat2kp.snv[1,,FALSE]"
+                 QSS TQSS  NT QSS_NT TQSS_NT    SGT SOMATIC seqnames   start
+chr1:3244218_C/T  27    1 ref     27       1 CC->CT    TRUE     chr1 3244218
+                     end REF ALT nAltTumor nRefTumor nAltNormal nRefNormal
+chr1:3244218_C/T 3244218   C   T         7        17          0         23
+                 rdNormalFiltered rdTumorFiltered
+chr1:3244218_C/T               24              24
+[1] "dat2kp.indel[1,,FALSE]"
+                   QSI TQSI  NT QSI_NT TQSI_NT      SGT RU RC IC IHP SVTYPE
+chr1:92836329_CT/C 224    1 ref    167       1 ref->het  T  1  0   3   <NA>
+                   SOMATIC OVERLAP seqnames    start      end REF ALT nAltTumor
+chr1:92836329_CT/C    TRUE   FALSE     chr1 92836329 92836330  CT   C        49
+                   nRefTumor nAltNormal nRefNormal rdNormalFiltered
+chr1:92836329_CT/C        99          0        216           221.66
+                   rdTumorFiltered
+chr1:92836329_CT/C             165
+      [,1]               [,2]              
+ [1,] "QSS"              "QSI"             
+ [2,] "TQSS"             "TQSI"            
+ [3,] "NT"               "NT"              
+ [4,] "QSS_NT"           "QSI_NT"          
+ [5,] "TQSS_NT"          "TQSI_NT"         
+ [6,] "SGT"              "SGT"             
+ [7,] "SOMATIC"          "SOMATIC"         
+ [8,] "seqnames"         "seqnames"        
+ [9,] "start"            "start"           
+[10,] "end"              "end"             
+[11,] "REF"              "REF"             
+[12,] "ALT"              "ALT"             
+[13,] "nAltTumor"        "nAltTumor"       
+[14,] "nRefTumor"        "nRefTumor"       
+[15,] "nAltNormal"       "nAltNormal"      
+[16,] "nRefNormal"       "nRefNormal"      
+[17,] "rdNormalFiltered" "rdNormalFiltered"
+[18,] "rdTumorFiltered"  "rdTumorFiltered" 
+
+ 10 Pt11 
+[1] "dim(dat2kp.snv)"
+[1] 2439   18
+[1] "dim(dat2kp.indel)"
+[1] 19 24
+[1] "dat2kp.snv[1,,FALSE]"
+                QSS TQSS  NT QSS_NT TQSS_NT    SGT SOMATIC seqnames  start
+chr1:633962_T/C  68    1 ref     30       1 TT->CT    TRUE     chr1 633962
+                   end REF ALT nAltTumor nRefTumor nAltNormal nRefNormal
+chr1:633962_T/C 633962   T   C        34         1          0         11
+                rdNormalFiltered rdTumorFiltered
+chr1:633962_T/C               11              35
+[1] "dat2kp.indel[1,,FALSE]"
+                                         QSI TQSI  NT QSI_NT TQSI_NT      SGT
+chr1:1756397_TGGCGCAGTGCGCAGACACCAATGA/T  69    1 ref     69       1 ref->het
+                                                               RU RC IC IHP
+chr1:1756397_TGGCGCAGTGCGCAGACACCAATGA/T GGCGCAGTGCGCAGACACCAATGA  1  0   3
+                                         SVTYPE SOMATIC OVERLAP seqnames
+chr1:1756397_TGGCGCAGTGCGCAGACACCAATGA/T   <NA>    TRUE   FALSE     chr1
+                                           start     end
+chr1:1756397_TGGCGCAGTGCGCAGACACCAATGA/T 1756397 1756421
+                                                               REF ALT
+chr1:1756397_TGGCGCAGTGCGCAGACACCAATGA/T TGGCGCAGTGCGCAGACACCAATGA   T
+                                         nAltTumor nRefTumor nAltNormal
+chr1:1756397_TGGCGCAGTGCGCAGACACCAATGA/T        11        25          0
+                                         nRefNormal rdNormalFiltered
+chr1:1756397_TGGCGCAGTGCGCAGACACCAATGA/T         92               69
+                                         rdTumorFiltered
+chr1:1756397_TGGCGCAGTGCGCAGACACCAATGA/T              43
+      [,1]               [,2]              
+ [1,] "QSS"              "QSI"             
+ [2,] "TQSS"             "TQSI"            
+ [3,] "NT"               "NT"              
+ [4,] "QSS_NT"           "QSI_NT"          
+ [5,] "TQSS_NT"          "TQSI_NT"         
+ [6,] "SGT"              "SGT"             
+ [7,] "SOMATIC"          "SOMATIC"         
+ [8,] "seqnames"         "seqnames"        
+ [9,] "start"            "start"           
+[10,] "end"              "end"             
+[11,] "REF"              "REF"             
+[12,] "ALT"              "ALT"             
+[13,] "nAltTumor"        "nAltTumor"       
+[14,] "nRefTumor"        "nRefTumor"       
+[15,] "nAltNormal"       "nAltNormal"      
+[16,] "nRefNormal"       "nRefNormal"      
+[17,] "rdNormalFiltered" "rdNormalFiltered"
+[18,] "rdTumorFiltered"  "rdTumorFiltered" 
+
+ 11 Pt12 
+[1] "dim(dat2kp.snv)"
+[1] 1745   18
+[1] "dim(dat2kp.indel)"
+[1] 15 24
+[1] "dat2kp.snv[1,,FALSE]"
+                 QSS TQSS  NT QSS_NT TQSS_NT    SGT SOMATIC seqnames   start
+chr1:1657093_C/A  22    1 ref     22       1 CC->AC    TRUE     chr1 1657093
+                     end REF ALT nAltTumor nRefTumor nAltNormal nRefNormal
+chr1:1657093_C/A 1657093   C   A         5        68          0         80
+                 rdNormalFiltered rdTumorFiltered
+chr1:1657093_C/A               80              73
+[1] "dat2kp.indel[1,,FALSE]"
+                       QSI TQSI  NT QSI_NT TQSI_NT      SGT    RU RC IC IHP
+chr1:77979080_C/CGGCCG  42    1 ref     42       1 ref->het GGCCG  1  2   4
+                       SVTYPE SOMATIC OVERLAP seqnames    start      end REF
+chr1:77979080_C/CGGCCG   <NA>    TRUE   FALSE     chr1 77979080 77979080   C
+                          ALT nAltTumor nRefTumor nAltNormal nRefNormal
+chr1:77979080_C/CGGCCG CGGCCG         4       112          0         89
+                       rdNormalFiltered rdTumorFiltered
+chr1:77979080_C/CGGCCG           104.64          136.76
+      [,1]               [,2]              
+ [1,] "QSS"              "QSI"             
+ [2,] "TQSS"             "TQSI"            
+ [3,] "NT"               "NT"              
+ [4,] "QSS_NT"           "QSI_NT"          
+ [5,] "TQSS_NT"          "TQSI_NT"         
+ [6,] "SGT"              "SGT"             
+ [7,] "SOMATIC"          "SOMATIC"         
+ [8,] "seqnames"         "seqnames"        
+ [9,] "start"            "start"           
+[10,] "end"              "end"             
+[11,] "REF"              "REF"             
+[12,] "ALT"              "ALT"             
+[13,] "nAltTumor"        "nAltTumor"       
+[14,] "nRefTumor"        "nRefTumor"       
+[15,] "nAltNormal"       "nAltNormal"      
+[16,] "nRefNormal"       "nRefNormal"      
+[17,] "rdNormalFiltered" "rdNormalFiltered"
+[18,] "rdTumorFiltered"  "rdTumorFiltered" 
+
+ 12 Pt14 
+[1] "dim(dat2kp.snv)"
+[1] 1672   18
+[1] "dim(dat2kp.indel)"
+[1] 17 24
+[1] "dat2kp.snv[1,,FALSE]"
+                QSS TQSS  NT QSS_NT TQSS_NT    SGT SOMATIC seqnames  start
+chr1:264704_G/C  20    1 ref     20       1 GG->CG    TRUE     chr1 264704
+                   end REF ALT nAltTumor nRefTumor nAltNormal nRefNormal
+chr1:264704_G/C 264704   G   C         6        59          0         43
+                rdNormalFiltered rdTumorFiltered
+chr1:264704_G/C               43              65
+[1] "dat2kp.indel[1,,FALSE]"
+                        QSI TQSI  NT QSI_NT TQSI_NT      SGT    RU RC IC IHP
+chr3:111598039_C/CTTATG  42    2 ref     42       2 ref->het TTATG  0  1   3
+                        SVTYPE SOMATIC OVERLAP seqnames     start       end REF
+chr3:111598039_C/CTTATG   <NA>    TRUE   FALSE     chr3 111598039 111598039   C
+                           ALT nAltTumor nRefTumor nAltNormal nRefNormal
+chr3:111598039_C/CTTATG CTTATG         3        97          0        107
+                        rdNormalFiltered rdTumorFiltered
+chr3:111598039_C/CTTATG           111.84             118
+      [,1]               [,2]              
+ [1,] "QSS"              "QSI"             
+ [2,] "TQSS"             "TQSI"            
+ [3,] "NT"               "NT"              
+ [4,] "QSS_NT"           "QSI_NT"          
+ [5,] "TQSS_NT"          "TQSI_NT"         
+ [6,] "SGT"              "SGT"             
+ [7,] "SOMATIC"          "SOMATIC"         
+ [8,] "seqnames"         "seqnames"        
+ [9,] "start"            "start"           
+[10,] "end"              "end"             
+[11,] "REF"              "REF"             
+[12,] "ALT"              "ALT"             
+[13,] "nAltTumor"        "nAltTumor"       
+[14,] "nRefTumor"        "nRefTumor"       
+[15,] "nAltNormal"       "nAltNormal"      
+[16,] "nRefNormal"       "nRefNormal"      
+[17,] "rdNormalFiltered" "rdNormalFiltered"
+[18,] "rdTumorFiltered"  "rdTumorFiltered" 
+
+ 13 Pt15 
+[1] "dim(dat2kp.snv)"
+[1] 11485    18
+[1] "dim(dat2kp.indel)"
+[1] 60 24
+[1] "dat2kp.snv[1,,FALSE]"
+               QSS TQSS  NT QSS_NT TQSS_NT    SGT SOMATIC seqnames start   end
+chr1:16876_C/T 131    1 ref    131       1 CC->CT    TRUE     chr1 16876 16876
+               REF ALT nAltTumor nRefTumor nAltNormal nRefNormal
+chr1:16876_C/T   C   T        16       134          0        285
+               rdNormalFiltered rdTumorFiltered
+chr1:16876_C/T              285             150
+[1] "dat2kp.indel[1,,FALSE]"
+                   QSI TQSI  NT QSI_NT TQSI_NT      SGT RU RC IC IHP SVTYPE
+chr1:31735567_G/GC  37    1 ref     37       1 ref->het  C  8  9   8   <NA>
+                   SOMATIC OVERLAP seqnames    start      end REF ALT nAltTumor
+chr1:31735567_G/GC    TRUE   FALSE     chr1 31735567 31735567   G  GC         7
+                   nRefTumor nAltNormal nRefNormal rdNormalFiltered
+chr1:31735567_G/GC        39          0         69            77.87
+                   rdTumorFiltered
+chr1:31735567_G/GC              58
+      [,1]               [,2]              
+ [1,] "QSS"              "QSI"             
+ [2,] "TQSS"             "TQSI"            
+ [3,] "NT"               "NT"              
+ [4,] "QSS_NT"           "QSI_NT"          
+ [5,] "TQSS_NT"          "TQSI_NT"         
+ [6,] "SGT"              "SGT"             
+ [7,] "SOMATIC"          "SOMATIC"         
+ [8,] "seqnames"         "seqnames"        
+ [9,] "start"            "start"           
+[10,] "end"              "end"             
+[11,] "REF"              "REF"             
+[12,] "ALT"              "ALT"             
+[13,] "nAltTumor"        "nAltTumor"       
+[14,] "nRefTumor"        "nRefTumor"       
+[15,] "nAltNormal"       "nAltNormal"      
+[16,] "nRefNormal"       "nRefNormal"      
+[17,] "rdNormalFiltered" "rdNormalFiltered"
+[18,] "rdTumorFiltered"  "rdTumorFiltered" 
+
+ 14 Pt16 
+[1] "dim(dat2kp.snv)"
+[1] 7423   18
+[1] "dim(dat2kp.indel)"
+[1] 42 24
+[1] "dat2kp.snv[1,,FALSE]"
+                QSS TQSS  NT QSS_NT TQSS_NT    SGT SOMATIC seqnames  start
+chr1:974374_G/A  86    1 ref     75       1 GG->AG    TRUE     chr1 974374
+                   end REF ALT nAltTumor nRefTumor nAltNormal nRefNormal
+chr1:974374_G/A 974374   G   A        52       148          3        205
+                rdNormalFiltered rdTumorFiltered
+chr1:974374_G/A              208             200
+[1] "dat2kp.indel[1,,FALSE]"
+                   QSI TQSI  NT QSI_NT TQSI_NT      SGT RU RC IC IHP SVTYPE
+chr1:37951997_GA/G 116    1 ref    116       1 ref->het  A  4  3   4   <NA>
+                   SOMATIC OVERLAP seqnames    start      end REF ALT nAltTumor
+chr1:37951997_GA/G    TRUE   FALSE     chr1 37951997 37951998  GA   G        37
+                   nRefTumor nAltNormal nRefNormal rdNormalFiltered
+chr1:37951997_GA/G       160          0        193           201.82
+                   rdTumorFiltered
+chr1:37951997_GA/G          213.59
+      [,1]               [,2]              
+ [1,] "QSS"              "QSI"             
+ [2,] "TQSS"             "TQSI"            
+ [3,] "NT"               "NT"              
+ [4,] "QSS_NT"           "QSI_NT"          
+ [5,] "TQSS_NT"          "TQSI_NT"         
+ [6,] "SGT"              "SGT"             
+ [7,] "SOMATIC"          "SOMATIC"         
+ [8,] "seqnames"         "seqnames"        
+ [9,] "start"            "start"           
+[10,] "end"              "end"             
+[11,] "REF"              "REF"             
+[12,] "ALT"              "ALT"             
+[13,] "nAltTumor"        "nAltTumor"       
+[14,] "nRefTumor"        "nRefTumor"       
+[15,] "nAltNormal"       "nAltNormal"      
+[16,] "nRefNormal"       "nRefNormal"      
+[17,] "rdNormalFiltered" "rdNormalFiltered"
+[18,] "rdTumorFiltered"  "rdTumorFiltered" 
+
+ 15 Pt17 
+[1] "dim(dat2kp.snv)"
+[1] 6830   18
+[1] "dim(dat2kp.indel)"
+[1] 53 24
+[1] "dat2kp.snv[1,,FALSE]"
+                 QSS TQSS  NT QSS_NT TQSS_NT    SGT SOMATIC seqnames   start
+chr1:1083010_G/A 110    1 ref    110       1 GG->AG    TRUE     chr1 1083010
+                     end REF ALT nAltTumor nRefTumor nAltNormal nRefNormal
+chr1:1083010_G/A 1083010   G   A        35       230          0        237
+                 rdNormalFiltered rdTumorFiltered
+chr1:1083010_G/A              237             265
+[1] "dat2kp.indel[1,,FALSE]"
+                        QSI TQSI  NT QSI_NT TQSI_NT      SGT  RU RC IC IHP
+chr1:44405377_A/ACTGCTG  39    1 ref     39       1 ref->het CTG  6  8   1
+                        SVTYPE SOMATIC OVERLAP seqnames    start      end REF
+chr1:44405377_A/ACTGCTG   <NA>    TRUE   FALSE     chr1 44405377 44405377   A
+                            ALT nAltTumor nRefTumor nAltNormal nRefNormal
+chr1:44405377_A/ACTGCTG ACTGCTG         8        76          0         81
+                        rdNormalFiltered rdTumorFiltered
+chr1:44405377_A/ACTGCTG           109.74          121.63
+      [,1]               [,2]              
+ [1,] "QSS"              "QSI"             
+ [2,] "TQSS"             "TQSI"            
+ [3,] "NT"               "NT"              
+ [4,] "QSS_NT"           "QSI_NT"          
+ [5,] "TQSS_NT"          "TQSI_NT"         
+ [6,] "SGT"              "SGT"             
+ [7,] "SOMATIC"          "SOMATIC"         
+ [8,] "seqnames"         "seqnames"        
+ [9,] "start"            "start"           
+[10,] "end"              "end"             
+[11,] "REF"              "REF"             
+[12,] "ALT"              "ALT"             
+[13,] "nAltTumor"        "nAltTumor"       
+[14,] "nRefTumor"        "nRefTumor"       
+[15,] "nAltNormal"       "nAltNormal"      
+[16,] "nRefNormal"       "nRefNormal"      
+[17,] "rdNormalFiltered" "rdNormalFiltered"
+[18,] "rdTumorFiltered"  "rdTumorFiltered" 
+
+ 16 Pt18 
+[1] "dim(dat2kp.snv)"
+[1] 3378   18
+[1] "dim(dat2kp.indel)"
+[1] 28 24
+[1] "dat2kp.snv[1,,FALSE]"
+               QSS TQSS  NT QSS_NT TQSS_NT    SGT SOMATIC seqnames start   end
+chr1:16075_G/A  43    1 ref     43       1 GG->AG    TRUE     chr1 16075 16075
+               REF ALT nAltTumor nRefTumor nAltNormal nRefNormal
+chr1:16075_G/A   G   A        15        31          0         34
+               rdNormalFiltered rdTumorFiltered
+chr1:16075_G/A               34              46
+[1] "dat2kp.indel[1,,FALSE]"
+                         QSI TQSI  NT QSI_NT TQSI_NT      SGT       RU RC IC
+chr1:9263404_C/CTGAGGCAG  32    1 ref     32       1 ref->het TGAGGCAG  1  2
+                         IHP SVTYPE SOMATIC OVERLAP seqnames   start     end
+chr1:9263404_C/CTGAGGCAG   3   <NA>    TRUE   FALSE     chr1 9263404 9263404
+                         REF       ALT nAltTumor nRefTumor nAltNormal
+chr1:9263404_C/CTGAGGCAG   C CTGAGGCAG         4        60          0
+                         nRefNormal rdNormalFiltered rdTumorFiltered
+chr1:9263404_C/CTGAGGCAG         66            74.43            75.7
+      [,1]               [,2]              
+ [1,] "QSS"              "QSI"             
+ [2,] "TQSS"             "TQSI"            
+ [3,] "NT"               "NT"              
+ [4,] "QSS_NT"           "QSI_NT"          
+ [5,] "TQSS_NT"          "TQSI_NT"         
+ [6,] "SGT"              "SGT"             
+ [7,] "SOMATIC"          "SOMATIC"         
+ [8,] "seqnames"         "seqnames"        
+ [9,] "start"            "start"           
+[10,] "end"              "end"             
+[11,] "REF"              "REF"             
+[12,] "ALT"              "ALT"             
+[13,] "nAltTumor"        "nAltTumor"       
+[14,] "nRefTumor"        "nRefTumor"       
+[15,] "nAltNormal"       "nAltNormal"      
+[16,] "nRefNormal"       "nRefNormal"      
+[17,] "rdNormalFiltered" "rdNormalFiltered"
+[18,] "rdTumorFiltered"  "rdTumorFiltered" 
+
+ 17 Pt19 
+[1] "dim(dat2kp.snv)"
+[1] 1928   18
+[1] "dim(dat2kp.indel)"
+[1] 29 24
+[1] "dat2kp.snv[1,,FALSE]"
+                QSS TQSS  NT QSS_NT TQSS_NT    SGT SOMATIC seqnames  start
+chr1:183598_C/G  38    1 ref     38       1 CC->CG    TRUE     chr1 183598
+                   end REF ALT nAltTumor nRefTumor nAltNormal nRefNormal
+chr1:183598_C/G 183598   C   G         9        32          0         51
+                rdNormalFiltered rdTumorFiltered
+chr1:183598_C/G               51              41
+[1] "dat2kp.indel[1,,FALSE]"
+                        QSI TQSI  NT QSI_NT TQSI_NT      SGT     RU RC IC IHP
+chr1:10324118_C/CTTGAAA  34    1 ref     34       1 ref->het TTGAAA  0  1   2
+                        SVTYPE SOMATIC OVERLAP seqnames    start      end REF
+chr1:10324118_C/CTTGAAA   <NA>    TRUE   FALSE     chr1 10324118 10324118   C
+                            ALT nAltTumor nRefTumor nAltNormal nRefNormal
+chr1:10324118_C/CTTGAAA CTTGAAA         4        84          0         73
+                        rdNormalFiltered rdTumorFiltered
+chr1:10324118_C/CTTGAAA             74.7          108.24
+      [,1]               [,2]              
+ [1,] "QSS"              "QSI"             
+ [2,] "TQSS"             "TQSI"            
+ [3,] "NT"               "NT"              
+ [4,] "QSS_NT"           "QSI_NT"          
+ [5,] "TQSS_NT"          "TQSI_NT"         
+ [6,] "SGT"              "SGT"             
+ [7,] "SOMATIC"          "SOMATIC"         
+ [8,] "seqnames"         "seqnames"        
+ [9,] "start"            "start"           
+[10,] "end"              "end"             
+[11,] "REF"              "REF"             
+[12,] "ALT"              "ALT"             
+[13,] "nAltTumor"        "nAltTumor"       
+[14,] "nRefTumor"        "nRefTumor"       
+[15,] "nAltNormal"       "nAltNormal"      
+[16,] "nRefNormal"       "nRefNormal"      
+[17,] "rdNormalFiltered" "rdNormalFiltered"
+[18,] "rdTumorFiltered"  "rdTumorFiltered" 
+
+ 18 Pt20 
+[1] "dim(dat2kp.snv)"
+[1] 1525   18
+[1] "dim(dat2kp.indel)"
+[1] 33 24
+[1] "dat2kp.snv[1,,FALSE]"
+                 QSS TQSS  NT QSS_NT TQSS_NT    SGT SOMATIC seqnames   start
+chr1:1045361_G/T  29    1 ref     29       1 GG->GT    TRUE     chr1 1045361
+                     end REF ALT nAltTumor nRefTumor nAltNormal nRefNormal
+chr1:1045361_G/T 1045361   G   T         8        45          0         50
+                 rdNormalFiltered rdTumorFiltered
+chr1:1045361_G/T               50              53
+[1] "dat2kp.indel[1,,FALSE]"
+                     QSI TQSI  NT QSI_NT TQSI_NT      SGT RU RC IC IHP SVTYPE
+chr1:155477981_CTG/C  74    2 ref     74       2 ref->het TG  1  0   3   <NA>
+                     SOMATIC OVERLAP seqnames     start       end REF ALT
+chr1:155477981_CTG/C    TRUE   FALSE     chr1 155477981 155477983 CTG   C
+                     nAltTumor nRefTumor nAltNormal nRefNormal rdNormalFiltered
+chr1:155477981_CTG/C        21       126          0        160            161.7
+                     rdTumorFiltered
+chr1:155477981_CTG/C             155
+      [,1]               [,2]              
+ [1,] "QSS"              "QSI"             
+ [2,] "TQSS"             "TQSI"            
+ [3,] "NT"               "NT"              
+ [4,] "QSS_NT"           "QSI_NT"          
+ [5,] "TQSS_NT"          "TQSI_NT"         
+ [6,] "SGT"              "SGT"             
+ [7,] "SOMATIC"          "SOMATIC"         
+ [8,] "seqnames"         "seqnames"        
+ [9,] "start"            "start"           
+[10,] "end"              "end"             
+[11,] "REF"              "REF"             
+[12,] "ALT"              "ALT"             
+[13,] "nAltTumor"        "nAltTumor"       
+[14,] "nRefTumor"        "nRefTumor"       
+[15,] "nAltNormal"       "nAltNormal"      
+[16,] "nRefNormal"       "nRefNormal"      
+[17,] "rdNormalFiltered" "rdNormalFiltered"
+[18,] "rdTumorFiltered"  "rdTumorFiltered" 
+
+ 19 Pt21 
+[1] "dim(dat2kp.snv)"
+[1] 1418   18
+[1] "dim(dat2kp.indel)"
+[1] 12 24
+[1] "dat2kp.snv[1,,FALSE]"
+                 QSS TQSS  NT QSS_NT TQSS_NT    SGT SOMATIC seqnames   start
+chr1:1963880_G/A  30    1 ref     30       1 GG->AG    TRUE     chr1 1963880
+                     end REF ALT nAltTumor nRefTumor nAltNormal nRefNormal
+chr1:1963880_G/A 1963880   G   A         5        21          0         44
+                 rdNormalFiltered rdTumorFiltered
+chr1:1963880_G/A               44              26
+[1] "dat2kp.indel[1,,FALSE]"
+                     QSI TQSI  NT QSI_NT TQSI_NT      SGT RU RC IC IHP SVTYPE
+chr1:184070542_ATC/A  79    1 ref     79       1 ref->het TC  1  0   4   <NA>
+                     SOMATIC OVERLAP seqnames     start       end REF ALT
+chr1:184070542_ATC/A    TRUE   FALSE     chr1 184070542 184070544 ATC   A
+                     nAltTumor nRefTumor nAltNormal nRefNormal rdNormalFiltered
+chr1:184070542_ATC/A        32        92          0         79               80
+                     rdTumorFiltered
+chr1:184070542_ATC/A             133
+      [,1]               [,2]              
+ [1,] "QSS"              "QSI"             
+ [2,] "TQSS"             "TQSI"            
+ [3,] "NT"               "NT"              
+ [4,] "QSS_NT"           "QSI_NT"          
+ [5,] "TQSS_NT"          "TQSI_NT"         
+ [6,] "SGT"              "SGT"             
+ [7,] "SOMATIC"          "SOMATIC"         
+ [8,] "seqnames"         "seqnames"        
+ [9,] "start"            "start"           
+[10,] "end"              "end"             
+[11,] "REF"              "REF"             
+[12,] "ALT"              "ALT"             
+[13,] "nAltTumor"        "nAltTumor"       
+[14,] "nRefTumor"        "nRefTumor"       
+[15,] "nAltNormal"       "nAltNormal"      
+[16,] "nRefNormal"       "nRefNormal"      
+[17,] "rdNormalFiltered" "rdNormalFiltered"
+[18,] "rdTumorFiltered"  "rdTumorFiltered" 
+
+ 20 Pt22 
+[1] "dim(dat2kp.snv)"
+[1] 1228   18
+[1] "dim(dat2kp.indel)"
+[1] 30 24
+[1] "dat2kp.snv[1,,FALSE]"
+                QSS TQSS  NT QSS_NT TQSS_NT    SGT SOMATIC seqnames  start
+chr1:791562_A/C  17    1 ref     17       1 AA->AC    TRUE     chr1 791562
+                   end REF ALT nAltTumor nRefTumor nAltNormal nRefNormal
+chr1:791562_A/C 791562   A   C         4        22          0         25
+                rdNormalFiltered rdTumorFiltered
+chr1:791562_A/C               25              26
+[1] "dat2kp.indel[1,,FALSE]"
+                   QSI TQSI  NT QSI_NT TQSI_NT      SGT RU RC IC IHP SVTYPE
+chr1:21862168_GC/G 144    1 ref    118       1 ref->het  C  2  1   3   <NA>
+                   SOMATIC OVERLAP seqnames    start      end REF ALT nAltTumor
+chr1:21862168_GC/G    TRUE   FALSE     chr1 21862168 21862169  GC   G        30
+                   nRefTumor nAltNormal nRefNormal rdNormalFiltered
+chr1:21862168_GC/G        44          0        109           113.95
+                   rdTumorFiltered
+chr1:21862168_GC/G           84.99
+      [,1]               [,2]              
+ [1,] "QSS"              "QSI"             
+ [2,] "TQSS"             "TQSI"            
+ [3,] "NT"               "NT"              
+ [4,] "QSS_NT"           "QSI_NT"          
+ [5,] "TQSS_NT"          "TQSI_NT"         
+ [6,] "SGT"              "SGT"             
+ [7,] "SOMATIC"          "SOMATIC"         
+ [8,] "seqnames"         "seqnames"        
+ [9,] "start"            "start"           
+[10,] "end"              "end"             
+[11,] "REF"              "REF"             
+[12,] "ALT"              "ALT"             
+[13,] "nAltTumor"        "nAltTumor"       
+[14,] "nRefTumor"        "nRefTumor"       
+[15,] "nAltNormal"       "nAltNormal"      
+[16,] "nRefNormal"       "nRefNormal"      
+[17,] "rdNormalFiltered" "rdNormalFiltered"
+[18,] "rdTumorFiltered"  "rdTumorFiltered" 
+
+ 21 Pt23 
+[1] "dim(dat2kp.snv)"
+[1] 1409   18
+[1] "dim(dat2kp.indel)"
+[1] 25 24
+[1] "dat2kp.snv[1,,FALSE]"
+                 QSS TQSS  NT QSS_NT TQSS_NT    SGT SOMATIC seqnames   start
+chr1:1916848_G/A 118    2 ref    118       2 GG->AG    TRUE     chr1 1916848
+                     end REF ALT nAltTumor nRefTumor nAltNormal nRefNormal
+chr1:1916848_G/A 1916848   G   A        37       114          0        138
+                 rdNormalFiltered rdTumorFiltered
+chr1:1916848_G/A              136             149
+[1] "dat2kp.indel[1,,FALSE]"
+                     QSI TQSI  NT QSI_NT TQSI_NT      SGT  RU RC IC IHP SVTYPE
+chr1:35189072_TGTC/T 152    1 ref    124       1 ref->het GTC  2  1   2   <NA>
+                     SOMATIC OVERLAP seqnames    start      end  REF ALT
+chr1:35189072_TGTC/T    TRUE   FALSE     chr1 35189072 35189075 TGTC   T
+                     nAltTumor nRefTumor nAltNormal nRefNormal rdNormalFiltered
+chr1:35189072_TGTC/T        44        82          0        124              124
+                     rdTumorFiltered
+chr1:35189072_TGTC/T          138.58
+      [,1]               [,2]              
+ [1,] "QSS"              "QSI"             
+ [2,] "TQSS"             "TQSI"            
+ [3,] "NT"               "NT"              
+ [4,] "QSS_NT"           "QSI_NT"          
+ [5,] "TQSS_NT"          "TQSI_NT"         
+ [6,] "SGT"              "SGT"             
+ [7,] "SOMATIC"          "SOMATIC"         
+ [8,] "seqnames"         "seqnames"        
+ [9,] "start"            "start"           
+[10,] "end"              "end"             
+[11,] "REF"              "REF"             
+[12,] "ALT"              "ALT"             
+[13,] "nAltTumor"        "nAltTumor"       
+[14,] "nRefTumor"        "nRefTumor"       
+[15,] "nAltNormal"       "nAltNormal"      
+[16,] "nRefNormal"       "nRefNormal"      
+[17,] "rdNormalFiltered" "rdNormalFiltered"
+[18,] "rdTumorFiltered"  "rdTumorFiltered" 
+
+ 22 Vand_Pt8 
+[1] "dim(dat2kp.snv)"
+[1] 55253    18
+[1] "dim(dat2kp.indel)"
+[1] 40 24
+[1] "dat2kp.snv[1,,FALSE]"
+               QSS TQSS  NT QSS_NT TQSS_NT    SGT SOMATIC seqnames start   end
+chr1:63172_C/T  71    1 ref     71       1 CC->CT    TRUE     chr1 63172 63172
+               REF ALT nAltTumor nRefTumor nAltNormal nRefNormal
+chr1:63172_C/T   C   T        24       172          0        151
+               rdNormalFiltered rdTumorFiltered
+chr1:63172_C/T              151             197
+[1] "dat2kp.indel[1,,FALSE]"
+                       QSI TQSI  NT QSI_NT TQSI_NT      SGT    RU RC IC IHP
+chr1:11072260_TTAACC/T  48    1 ref     48       1 ref->het TAACC  1  0   2
+                       SVTYPE SOMATIC OVERLAP seqnames    start      end    REF
+chr1:11072260_TTAACC/T   <NA>    TRUE   FALSE     chr1 11072260 11072265 TTAACC
+                       ALT nAltTumor nRefTumor nAltNormal nRefNormal
+chr1:11072260_TTAACC/T   T        12        22          0         39
+                       rdNormalFiltered rdTumorFiltered
+chr1:11072260_TTAACC/T            38.74              38
+      [,1]               [,2]              
+ [1,] "QSS"              "QSI"             
+ [2,] "TQSS"             "TQSI"            
+ [3,] "NT"               "NT"              
+ [4,] "QSS_NT"           "QSI_NT"          
+ [5,] "TQSS_NT"          "TQSI_NT"         
+ [6,] "SGT"              "SGT"             
+ [7,] "SOMATIC"          "SOMATIC"         
+ [8,] "seqnames"         "seqnames"        
+ [9,] "start"            "start"           
+[10,] "end"              "end"             
+[11,] "REF"              "REF"             
+[12,] "ALT"              "ALT"             
+[13,] "nAltTumor"        "nAltTumor"       
+[14,] "nRefTumor"        "nRefTumor"       
+[15,] "nAltNormal"       "nAltNormal"      
+[16,] "nRefNormal"       "nRefNormal"      
+[17,] "rdNormalFiltered" "rdNormalFiltered"
+[18,] "rdTumorFiltered"  "rdTumorFiltered" 
+
+ 23 Vand_Pt10 
+[1] "dim(dat2kp.snv)"
+[1] 1499   18
+[1] "dim(dat2kp.indel)"
+[1] 29 24
+[1] "dat2kp.snv[1,,FALSE]"
+                QSS TQSS  NT QSS_NT TQSS_NT    SGT SOMATIC seqnames  start
+chr1:633962_T/C  23    1 ref     23       1 TT->CT    TRUE     chr1 633962
+                   end REF ALT nAltTumor nRefTumor nAltNormal nRefNormal
+chr1:633962_T/C 633962   T   C        24        11          0         18
+                rdNormalFiltered rdTumorFiltered
+chr1:633962_T/C               18              35
+[1] "dat2kp.indel[1,,FALSE]"
+                    QSI TQSI  NT QSI_NT TQSI_NT      SGT  RU RC IC IHP SVTYPE
+chr1:1758624_AGTT/A  63    1 ref     63       1 ref->het GTT  2  1   4   <NA>
+                    SOMATIC OVERLAP seqnames   start     end  REF ALT nAltTumor
+chr1:1758624_AGTT/A    TRUE   FALSE     chr1 1758624 1758627 AGTT   A        13
+                    nRefTumor nAltNormal nRefNormal rdNormalFiltered
+chr1:1758624_AGTT/A        69          0        130           137.73
+                    rdTumorFiltered
+chr1:1758624_AGTT/A           95.99
+      [,1]               [,2]              
+ [1,] "QSS"              "QSI"             
+ [2,] "TQSS"             "TQSI"            
+ [3,] "NT"               "NT"              
+ [4,] "QSS_NT"           "QSI_NT"          
+ [5,] "TQSS_NT"          "TQSI_NT"         
+ [6,] "SGT"              "SGT"             
+ [7,] "SOMATIC"          "SOMATIC"         
+ [8,] "seqnames"         "seqnames"        
+ [9,] "start"            "start"           
+[10,] "end"              "end"             
+[11,] "REF"              "REF"             
+[12,] "ALT"              "ALT"             
+[13,] "nAltTumor"        "nAltTumor"       
+[14,] "nRefTumor"        "nRefTumor"       
+[15,] "nAltNormal"       "nAltNormal"      
+[16,] "nRefNormal"       "nRefNormal"      
+[17,] "rdNormalFiltered" "rdNormalFiltered"
+[18,] "rdTumorFiltered"  "rdTumorFiltered" 
+
+ 24 Vand_Pt11 
+[1] "dim(dat2kp.snv)"
+[1] 1520   18
+[1] "dim(dat2kp.indel)"
+[1] 44 24
+[1] "dat2kp.snv[1,,FALSE]"
+                 QSS TQSS  NT QSS_NT TQSS_NT    SGT SOMATIC seqnames   start
+chr1:1917856_A/G  49    1 ref     49       1 AA->AG    TRUE     chr1 1917856
+                     end REF ALT nAltTumor nRefTumor nAltNormal nRefNormal
+chr1:1917856_A/G 1917856   A   G        18        52          0         46
+                 rdNormalFiltered rdTumorFiltered
+chr1:1917856_A/G               46              70
+[1] "dat2kp.indel[1,,FALSE]"
+                       QSI TQSI  NT QSI_NT TQSI_NT      SGT    RU RC IC IHP
+chr1:16879485_ATCAAC/A 323    1 ref    271       1 ref->het TCAAC  1  0   4
+                       SVTYPE SOMATIC OVERLAP seqnames    start      end    REF
+chr1:16879485_ATCAAC/A   <NA>    TRUE   FALSE     chr1 16879485 16879490 ATCAAC
+                       ALT nAltTumor nRefTumor nAltNormal nRefNormal
+chr1:16879485_ATCAAC/A   A       105       401          0        461
+                       rdNormalFiltered rdTumorFiltered
+chr1:16879485_ATCAAC/A           439.99          528.25
+      [,1]               [,2]              
+ [1,] "QSS"              "QSI"             
+ [2,] "TQSS"             "TQSI"            
+ [3,] "NT"               "NT"              
+ [4,] "QSS_NT"           "QSI_NT"          
+ [5,] "TQSS_NT"          "TQSI_NT"         
+ [6,] "SGT"              "SGT"             
+ [7,] "SOMATIC"          "SOMATIC"         
+ [8,] "seqnames"         "seqnames"        
+ [9,] "start"            "start"           
+[10,] "end"              "end"             
+[11,] "REF"              "REF"             
+[12,] "ALT"              "ALT"             
+[13,] "nAltTumor"        "nAltTumor"       
+[14,] "nRefTumor"        "nRefTumor"       
+[15,] "nAltNormal"       "nAltNormal"      
+[16,] "nRefNormal"       "nRefNormal"      
+[17,] "rdNormalFiltered" "rdNormalFiltered"
+[18,] "rdTumorFiltered"  "rdTumorFiltered" 
+
+ 25 Vand_Pt16 
+[1] "dim(dat2kp.snv)"
+[1] 3465   18
+[1] "dim(dat2kp.indel)"
+[1] 12 24
+[1] "dat2kp.snv[1,,FALSE]"
+                QSS TQSS  NT QSS_NT TQSS_NT    SGT SOMATIC seqnames  start
+chr1:168025_C/T  33    1 ref     33       1 CC->CT    TRUE     chr1 168025
+                   end REF ALT nAltTumor nRefTumor nAltNormal nRefNormal
+chr1:168025_C/T 168025   C   T        14       142          0         67
+                rdNormalFiltered rdTumorFiltered
+chr1:168025_C/T               67             156
+[1] "dat2kp.indel[1,,FALSE]"
+                        QSI TQSI  NT QSI_NT TQSI_NT      SGT     RU RC IC IHP
+chr1:25036001_A/AATCACC  40    1 ref     40       1 ref->het ATCACC  2  3   3
+                        SVTYPE SOMATIC OVERLAP seqnames    start      end REF
+chr1:25036001_A/AATCACC   <NA>    TRUE   FALSE     chr1 25036001 25036001   A
+                            ALT nAltTumor nRefTumor nAltNormal nRefNormal
+chr1:25036001_A/AATCACC AATCACC         8       254          0         85
+                        rdNormalFiltered rdTumorFiltered
+chr1:25036001_A/AATCACC               92          316.93
+      [,1]               [,2]              
+ [1,] "QSS"              "QSI"             
+ [2,] "TQSS"             "TQSI"            
+ [3,] "NT"               "NT"              
+ [4,] "QSS_NT"           "QSI_NT"          
+ [5,] "TQSS_NT"          "TQSI_NT"         
+ [6,] "SGT"              "SGT"             
+ [7,] "SOMATIC"          "SOMATIC"         
+ [8,] "seqnames"         "seqnames"        
+ [9,] "start"            "start"           
+[10,] "end"              "end"             
+[11,] "REF"              "REF"             
+[12,] "ALT"              "ALT"             
+[13,] "nAltTumor"        "nAltTumor"       
+[14,] "nRefTumor"        "nRefTumor"       
+[15,] "nAltNormal"       "nAltNormal"      
+[16,] "nRefNormal"       "nRefNormal"      
+[17,] "rdNormalFiltered" "rdNormalFiltered"
+[18,] "rdTumorFiltered"  "rdTumorFiltered" 
+
+ 26 Vand_Pt17 
+[1] "dim(dat2kp.snv)"
+[1] 4071   18
+[1] "dim(dat2kp.indel)"
+[1] 22 24
+[1] "dat2kp.snv[1,,FALSE]"
+                 QSS TQSS  NT QSS_NT TQSS_NT    SGT SOMATIC seqnames   start
+chr1:1452391_G/A 135    1 ref    130       1 GG->AG    TRUE     chr1 1452391
+                     end REF ALT nAltTumor nRefTumor nAltNormal nRefNormal
+chr1:1452391_G/A 1452391   G   A        56       181          2        248
+                 rdNormalFiltered rdTumorFiltered
+chr1:1452391_G/A              251             237
+[1] "dat2kp.indel[1,,FALSE]"
+                   QSI TQSI  NT QSI_NT TQSI_NT      SGT RU RC IC IHP SVTYPE
+chr1:13824316_AC/A  87    1 ref     87       1 ref->het  C  1  0   2   <NA>
+                   SOMATIC OVERLAP seqnames    start      end REF ALT nAltTumor
+chr1:13824316_AC/A    TRUE   FALSE     chr1 13824316 13824317  AC   A        16
+                   nRefTumor nAltNormal nRefNormal rdNormalFiltered
+chr1:13824316_AC/A        54          0        142           148.78
+                   rdTumorFiltered
+chr1:13824316_AC/A           82.61
+      [,1]               [,2]              
+ [1,] "QSS"              "QSI"             
+ [2,] "TQSS"             "TQSI"            
+ [3,] "NT"               "NT"              
+ [4,] "QSS_NT"           "QSI_NT"          
+ [5,] "TQSS_NT"          "TQSI_NT"         
+ [6,] "SGT"              "SGT"             
+ [7,] "SOMATIC"          "SOMATIC"         
+ [8,] "seqnames"         "seqnames"        
+ [9,] "start"            "start"           
+[10,] "end"              "end"             
+[11,] "REF"              "REF"             
+[12,] "ALT"              "ALT"             
+[13,] "nAltTumor"        "nAltTumor"       
+[14,] "nRefTumor"        "nRefTumor"       
+[15,] "nAltNormal"       "nAltNormal"      
+[16,] "nRefNormal"       "nRefNormal"      
+[17,] "rdNormalFiltered" "rdNormalFiltered"
+[18,] "rdTumorFiltered"  "rdTumorFiltered" 
+
+ 27 Vand_Pt27 
+[1] "dim(dat2kp.snv)"
+[1] 15474    18
+[1] "dim(dat2kp.indel)"
+[1] 82 24
+[1] "dat2kp.snv[1,,FALSE]"
+               QSS TQSS  NT QSS_NT TQSS_NT    SGT SOMATIC seqnames start   end
+chr1:19217_G/A 202    1 ref    201       1 GG->AG    TRUE     chr1 19217 19217
+               REF ALT nAltTumor nRefTumor nAltNormal nRefNormal
+chr1:19217_G/A   G   A        58       203          2        374
+               rdNormalFiltered rdTumorFiltered
+chr1:19217_G/A              377             264
+[1] "dat2kp.indel[1,,FALSE]"
+                  QSI TQSI  NT QSI_NT TQSI_NT      SGT RU RC IC IHP SVTYPE
+chr1:1646529_GT/G 214    1 ref    114       1 ref->het  T  1  0   1   <NA>
+                  SOMATIC OVERLAP seqnames   start     end REF ALT nAltTumor
+chr1:1646529_GT/G    TRUE   FALSE     chr1 1646529 1646530  GT   G       121
+                  nRefTumor nAltNormal nRefNormal rdNormalFiltered
+chr1:1646529_GT/G       390          6        700           711.37
+                  rdTumorFiltered
+chr1:1646529_GT/G          571.62
+      [,1]               [,2]              
+ [1,] "QSS"              "QSI"             
+ [2,] "TQSS"             "TQSI"            
+ [3,] "NT"               "NT"              
+ [4,] "QSS_NT"           "QSI_NT"          
+ [5,] "TQSS_NT"          "TQSI_NT"         
+ [6,] "SGT"              "SGT"             
+ [7,] "SOMATIC"          "SOMATIC"         
+ [8,] "seqnames"         "seqnames"        
+ [9,] "start"            "start"           
+[10,] "end"              "end"             
+[11,] "REF"              "REF"             
+[12,] "ALT"              "ALT"             
+[13,] "nAltTumor"        "nAltTumor"       
+[14,] "nRefTumor"        "nRefTumor"       
+[15,] "nAltNormal"       "nAltNormal"      
+[16,] "nRefNormal"       "nRefNormal"      
+[17,] "rdNormalFiltered" "rdNormalFiltered"
+[18,] "rdTumorFiltered"  "rdTumorFiltered" 
+
+ 28 Vand_Pt27_2 
+[1] "dim(dat2kp.snv)"
+[1] 15931    18
+[1] "dim(dat2kp.indel)"
+[1] 82 24
+[1] "dat2kp.snv[1,,FALSE]"
+               QSS TQSS  NT QSS_NT TQSS_NT    SGT SOMATIC seqnames start   end
+chr1:19217_G/A 201    1 ref    200       1 GG->AG    TRUE     chr1 19217 19217
+               REF ALT nAltTumor nRefTumor nAltNormal nRefNormal
+chr1:19217_G/A   G   A        54       183          2        374
+               rdNormalFiltered rdTumorFiltered
+chr1:19217_G/A              377             237
+[1] "dat2kp.indel[1,,FALSE]"
+                  QSI TQSI  NT QSI_NT TQSI_NT      SGT RU RC IC IHP SVTYPE
+chr1:1646529_GT/G 219    1 ref    114       1 ref->het  T  1  0   1   <NA>
+                  SOMATIC OVERLAP seqnames   start     end REF ALT nAltTumor
+chr1:1646529_GT/G    TRUE   FALSE     chr1 1646529 1646530  GT   G       110
+                  nRefTumor nAltNormal nRefNormal rdNormalFiltered
+chr1:1646529_GT/G       323          6        700           711.37
+                  rdTumorFiltered
+chr1:1646529_GT/G          477.23
+      [,1]               [,2]              
+ [1,] "QSS"              "QSI"             
+ [2,] "TQSS"             "TQSI"            
+ [3,] "NT"               "NT"              
+ [4,] "QSS_NT"           "QSI_NT"          
+ [5,] "TQSS_NT"          "TQSI_NT"         
+ [6,] "SGT"              "SGT"             
+ [7,] "SOMATIC"          "SOMATIC"         
+ [8,] "seqnames"         "seqnames"        
+ [9,] "start"            "start"           
+[10,] "end"              "end"             
+[11,] "REF"              "REF"             
+[12,] "ALT"              "ALT"             
+[13,] "nAltTumor"        "nAltTumor"       
+[14,] "nRefTumor"        "nRefTumor"       
+[15,] "nAltNormal"       "nAltNormal"      
+[16,] "nRefNormal"       "nRefNormal"      
+[17,] "rdNormalFiltered" "rdNormalFiltered"
+[18,] "rdTumorFiltered"  "rdTumorFiltered" 
+
+ 29 Vand_Pt30 
+[1] "dim(dat2kp.snv)"
+[1] 2643   18
+[1] "dim(dat2kp.indel)"
+[1]  8 24
+[1] "dat2kp.snv[1,,FALSE]"
+                QSS TQSS  NT QSS_NT TQSS_NT    SGT SOMATIC seqnames  start
+chr1:138760_A/T  86    1 ref     86       1 AA->AT    TRUE     chr1 138760
+                   end REF ALT nAltTumor nRefTumor nAltNormal nRefNormal
+chr1:138760_A/T 138760   A   T        42       213          0        152
+                rdNormalFiltered rdTumorFiltered
+chr1:138760_A/T              152             255
+[1] "dat2kp.indel[1,,FALSE]"
+                   QSI TQSI  NT QSI_NT TQSI_NT      SGT RU RC IC IHP SVTYPE
+chr3:49940618_C/CT  42    1 ref     42       1 ref->het  T  2  3   3   <NA>
+                   SOMATIC OVERLAP seqnames    start      end REF ALT nAltTumor
+chr3:49940618_C/CT    TRUE   FALSE     chr3 49940618 49940618   C  CT        15
+                   nRefTumor nAltNormal nRefNormal rdNormalFiltered
+chr3:49940618_C/CT        40          0         40             41.7
+                   rdTumorFiltered
+chr3:49940618_C/CT              62
+      [,1]               [,2]              
+ [1,] "QSS"              "QSI"             
+ [2,] "TQSS"             "TQSI"            
+ [3,] "NT"               "NT"              
+ [4,] "QSS_NT"           "QSI_NT"          
+ [5,] "TQSS_NT"          "TQSI_NT"         
+ [6,] "SGT"              "SGT"             
+ [7,] "SOMATIC"          "SOMATIC"         
+ [8,] "seqnames"         "seqnames"        
+ [9,] "start"            "start"           
+[10,] "end"              "end"             
+[11,] "REF"              "REF"             
+[12,] "ALT"              "ALT"             
+[13,] "nAltTumor"        "nAltTumor"       
+[14,] "nRefTumor"        "nRefTumor"       
+[15,] "nAltNormal"       "nAltNormal"      
+[16,] "nRefNormal"       "nRefNormal"      
+[17,] "rdNormalFiltered" "rdNormalFiltered"
+[18,] "rdTumorFiltered"  "rdTumorFiltered" 
+
+ 30 Vand_Pt31 
+[1] "dim(dat2kp.snv)"
+[1] 3533   18
+[1] "dim(dat2kp.indel)"
+[1] 24 24
+[1] "dat2kp.snv[1,,FALSE]"
+                QSS TQSS  NT QSS_NT TQSS_NT    SGT SOMATIC seqnames  start
+chr1:186359_C/T  99    1 ref     99       1 CC->CT    TRUE     chr1 186359
+                   end REF ALT nAltTumor nRefTumor nAltNormal nRefNormal
+chr1:186359_C/T 186359   C   T        22       223          2        293
+                rdNormalFiltered rdTumorFiltered
+chr1:186359_C/T              295             245
+[1] "dat2kp.indel[1,,FALSE]"
+                                  QSI TQSI  NT QSI_NT TQSI_NT      SGT
+chr1:17621810_G/GGGCCACAGCAGGTACT  89    1 ref     89       1 ref->het
+                                                RU RC IC IHP SVTYPE SOMATIC
+chr1:17621810_G/GGGCCACAGCAGGTACT GGCCACAGCAGGTACT  0  1   3   <NA>    TRUE
+                                  OVERLAP seqnames    start      end REF
+chr1:17621810_G/GGGCCACAGCAGGTACT   FALSE     chr1 17621810 17621810   G
+                                                ALT nAltTumor nRefTumor
+chr1:17621810_G/GGGCCACAGCAGGTACT GGGCCACAGCAGGTACT         5       167
+                                  nAltNormal nRefNormal rdNormalFiltered
+chr1:17621810_G/GGGCCACAGCAGGTACT          0        170              180
+                                  rdTumorFiltered
+chr1:17621810_G/GGGCCACAGCAGGTACT           193.9
+      [,1]               [,2]              
+ [1,] "QSS"              "QSI"             
+ [2,] "TQSS"             "TQSI"            
+ [3,] "NT"               "NT"              
+ [4,] "QSS_NT"           "QSI_NT"          
+ [5,] "TQSS_NT"          "TQSI_NT"         
+ [6,] "SGT"              "SGT"             
+ [7,] "SOMATIC"          "SOMATIC"         
+ [8,] "seqnames"         "seqnames"        
+ [9,] "start"            "start"           
+[10,] "end"              "end"             
+[11,] "REF"              "REF"             
+[12,] "ALT"              "ALT"             
+[13,] "nAltTumor"        "nAltTumor"       
+[14,] "nRefTumor"        "nRefTumor"       
+[15,] "nAltNormal"       "nAltNormal"      
+[16,] "nRefNormal"       "nRefNormal"      
+[17,] "rdNormalFiltered" "rdNormalFiltered"
+[18,] "rdTumorFiltered"  "rdTumorFiltered" 
+
+ 31 Vand_Pt32 
+[1] "dim(dat2kp.snv)"
+[1] 1585   18
+[1] "dim(dat2kp.indel)"
+[1] 13 24
+[1] "dat2kp.snv[1,,FALSE]"
+                QSS TQSS  NT QSS_NT TQSS_NT    SGT SOMATIC seqnames  start
+chr1:183598_C/G  15    1 ref     15       1 CC->CG    TRUE     chr1 183598
+                   end REF ALT nAltTumor nRefTumor nAltNormal nRefNormal
+chr1:183598_C/G 183598   C   G         6        47          0         27
+                rdNormalFiltered rdTumorFiltered
+chr1:183598_C/G               27              53
+[1] "dat2kp.indel[1,,FALSE]"
+                    QSI TQSI  NT QSI_NT TQSI_NT      SGT RU RC IC IHP SVTYPE
+chr1:147204518_CT/C 272    1 ref    135       1 ref->het  T  4  3   5   <NA>
+                    SOMATIC OVERLAP seqnames     start       end REF ALT
+chr1:147204518_CT/C    TRUE   FALSE     chr1 147204518 147204519  CT   C
+                    nAltTumor nRefTumor nAltNormal nRefNormal rdNormalFiltered
+chr1:147204518_CT/C       121       214          1        217           224.64
+                    rdTumorFiltered
+chr1:147204518_CT/C          370.47
+      [,1]               [,2]              
+ [1,] "QSS"              "QSI"             
+ [2,] "TQSS"             "TQSI"            
+ [3,] "NT"               "NT"              
+ [4,] "QSS_NT"           "QSI_NT"          
+ [5,] "TQSS_NT"          "TQSI_NT"         
+ [6,] "SGT"              "SGT"             
+ [7,] "SOMATIC"          "SOMATIC"         
+ [8,] "seqnames"         "seqnames"        
+ [9,] "start"            "start"           
+[10,] "end"              "end"             
+[11,] "REF"              "REF"             
+[12,] "ALT"              "ALT"             
+[13,] "nAltTumor"        "nAltTumor"       
+[14,] "nRefTumor"        "nRefTumor"       
+[15,] "nAltNormal"       "nAltNormal"      
+[16,] "nRefNormal"       "nRefNormal"      
+[17,] "rdNormalFiltered" "rdNormalFiltered"
+[18,] "rdTumorFiltered"  "rdTumorFiltered" 
+
+ 32 Vand_Pt33 
+[1] "dim(dat2kp.snv)"
+[1] 3601   18
+[1] "dim(dat2kp.indel)"
+[1] 11 24
+[1] "dat2kp.snv[1,,FALSE]"
+                 QSS TQSS  NT QSS_NT TQSS_NT    SGT SOMATIC seqnames   start
+chr1:1182329_G/A  43    1 ref     43       1 GG->AG    TRUE     chr1 1182329
+                     end REF ALT nAltTumor nRefTumor nAltNormal nRefNormal
+chr1:1182329_G/A 1182329   G   A         9       167          1        116
+                 rdNormalFiltered rdTumorFiltered
+chr1:1182329_G/A              117             177
+[1] "dat2kp.indel[1,,FALSE]"
+                             QSI TQSI  NT QSI_NT TQSI_NT      SGT         RU RC
+chr1:111310438_A/AGCCAATCTAG  59    1 ref     59       1 ref->het GCCAATCTAG  0
+                             IC IHP SVTYPE SOMATIC OVERLAP seqnames     start
+chr1:111310438_A/AGCCAATCTAG  1   6   <NA>    TRUE   FALSE     chr1 111310438
+                                   end REF         ALT nAltTumor nRefTumor
+chr1:111310438_A/AGCCAATCTAG 111310438   A AGCCAATCTAG         4       159
+                             nAltNormal nRefNormal rdNormalFiltered
+chr1:111310438_A/AGCCAATCTAG          0        123              128
+                             rdTumorFiltered
+chr1:111310438_A/AGCCAATCTAG          184.97
+      [,1]               [,2]              
+ [1,] "QSS"              "QSI"             
+ [2,] "TQSS"             "TQSI"            
+ [3,] "NT"               "NT"              
+ [4,] "QSS_NT"           "QSI_NT"          
+ [5,] "TQSS_NT"          "TQSI_NT"         
+ [6,] "SGT"              "SGT"             
+ [7,] "SOMATIC"          "SOMATIC"         
+ [8,] "seqnames"         "seqnames"        
+ [9,] "start"            "start"           
+[10,] "end"              "end"             
+[11,] "REF"              "REF"             
+[12,] "ALT"              "ALT"             
+[13,] "nAltTumor"        "nAltTumor"       
+[14,] "nRefTumor"        "nRefTumor"       
+[15,] "nAltNormal"       "nAltNormal"      
+[16,] "nRefNormal"       "nRefNormal"      
+[17,] "rdNormalFiltered" "rdNormalFiltered"
+[18,] "rdTumorFiltered"  "rdTumorFiltered" 
+
+ 33 Vand_Pt34 
+[1] "dim(dat2kp.snv)"
+[1] 909  18
+[1] "dim(dat2kp.indel)"
+[1] 75 24
+[1] "dat2kp.snv[1,,FALSE]"
+                 QSS TQSS  NT QSS_NT TQSS_NT    SGT SOMATIC seqnames   start
+chr1:1047023_C/T  80    2 ref     80       2 CC->CT    TRUE     chr1 1047023
+                     end REF ALT nAltTumor nRefTumor nAltNormal nRefNormal
+chr1:1047023_C/T 1047023   C   T         9       188          0        190
+                 rdNormalFiltered rdTumorFiltered
+chr1:1047023_C/T              188             194
+[1] "dat2kp.indel[1,,FALSE]"
+                        QSI TQSI  NT QSI_NT TQSI_NT      SGT RU RC IC IHP
+chr1:15383002_CCACACA/C  84    1 ref     84       1 ref->het CA  6  3   5
+                        SVTYPE SOMATIC OVERLAP seqnames    start      end
+chr1:15383002_CCACACA/C   <NA>    TRUE   FALSE     chr1 15383002 15383008
+                            REF ALT nAltTumor nRefTumor nAltNormal nRefNormal
+chr1:15383002_CCACACA/C CCACACA   C         8       146          0        197
+                        rdNormalFiltered rdTumorFiltered
+chr1:15383002_CCACACA/C           181.76           163.4
+      [,1]               [,2]              
+ [1,] "QSS"              "QSI"             
+ [2,] "TQSS"             "TQSI"            
+ [3,] "NT"               "NT"              
+ [4,] "QSS_NT"           "QSI_NT"          
+ [5,] "TQSS_NT"          "TQSI_NT"         
+ [6,] "SGT"              "SGT"             
+ [7,] "SOMATIC"          "SOMATIC"         
+ [8,] "seqnames"         "seqnames"        
+ [9,] "start"            "start"           
+[10,] "end"              "end"             
+[11,] "REF"              "REF"             
+[12,] "ALT"              "ALT"             
+[13,] "nAltTumor"        "nAltTumor"       
+[14,] "nRefTumor"        "nRefTumor"       
+[15,] "nAltNormal"       "nAltNormal"      
+[16,] "nRefNormal"       "nRefNormal"      
+[17,] "rdNormalFiltered" "rdNormalFiltered"
+[18,] "rdTumorFiltered"  "rdTumorFiltered" 
+
+ 34 Vand_Pt35 
+[1] "dim(dat2kp.snv)"
+[1] 2391   18
+[1] "dim(dat2kp.indel)"
+[1] 26 24
+[1] "dat2kp.snv[1,,FALSE]"
+                QSS TQSS  NT QSS_NT TQSS_NT    SGT SOMATIC seqnames  start
+chr1:930887_G/A  82    1 ref     16       1 GG->AG    TRUE     chr1 930887
+                   end REF ALT nAltTumor nRefTumor nAltNormal nRefNormal
+chr1:930887_G/A 930887   G   A       110       102          4         83
+                rdNormalFiltered rdTumorFiltered
+chr1:930887_G/A               88             212
+[1] "dat2kp.indel[1,,FALSE]"
+                   QSI TQSI  NT QSI_NT TQSI_NT      SGT RU RC IC IHP SVTYPE
+chr1:35014526_T/TA 125    1 ref    107       1 ref->het  A  1  2   2   <NA>
+                   SOMATIC OVERLAP seqnames    start      end REF ALT nAltTumor
+chr1:35014526_T/TA    TRUE   FALSE     chr1 35014526 35014526   T  TA        37
+                   nRefTumor nAltNormal nRefNormal rdNormalFiltered
+chr1:35014526_T/TA        53          0         82             83.5
+                   rdTumorFiltered
+chr1:35014526_T/TA           95.73
+      [,1]               [,2]              
+ [1,] "QSS"              "QSI"             
+ [2,] "TQSS"             "TQSI"            
+ [3,] "NT"               "NT"              
+ [4,] "QSS_NT"           "QSI_NT"          
+ [5,] "TQSS_NT"          "TQSI_NT"         
+ [6,] "SGT"              "SGT"             
+ [7,] "SOMATIC"          "SOMATIC"         
+ [8,] "seqnames"         "seqnames"        
+ [9,] "start"            "start"           
+[10,] "end"              "end"             
+[11,] "REF"              "REF"             
+[12,] "ALT"              "ALT"             
+[13,] "nAltTumor"        "nAltTumor"       
+[14,] "nRefTumor"        "nRefTumor"       
+[15,] "nAltNormal"       "nAltNormal"      
+[16,] "nRefNormal"       "nRefNormal"      
+[17,] "rdNormalFiltered" "rdNormalFiltered"
+[18,] "rdTumorFiltered"  "rdTumorFiltered" 
+
+ 35 Vand_Pt36 
+[1] "dim(dat2kp.snv)"
+[1] 1127   18
+[1] "dim(dat2kp.indel)"
+[1] 14 24
+[1] "dat2kp.snv[1,,FALSE]"
+                 QSS TQSS  NT QSS_NT TQSS_NT    SGT SOMATIC seqnames   start
+chr1:1047661_C/T  66    2 ref     36       1 CC->CT    TRUE     chr1 1047661
+                     end REF ALT nAltTumor nRefTumor nAltNormal nRefNormal
+chr1:1047661_C/T 1047661   C   T        37        38          3         88
+                 rdNormalFiltered rdTumorFiltered
+chr1:1047661_C/T               91              75
+[1] "dat2kp.indel[1,,FALSE]"
+                           QSI TQSI  NT QSI_NT TQSI_NT      SGT        RU RC IC
+chr1:16646619_AGCCATGGTT/A  59    1 ref     59       1 ref->het GCCATGGTT  1  0
+                           IHP SVTYPE SOMATIC OVERLAP seqnames    start
+chr1:16646619_AGCCATGGTT/A   2   <NA>    TRUE   FALSE     chr1 16646619
+                                end        REF ALT nAltTumor nRefTumor
+chr1:16646619_AGCCATGGTT/A 16646628 AGCCATGGTT   A         6       239
+                           nAltNormal nRefNormal rdNormalFiltered
+chr1:16646619_AGCCATGGTT/A          2        354           338.32
+                           rdTumorFiltered
+chr1:16646619_AGCCATGGTT/A          254.43
+      [,1]               [,2]              
+ [1,] "QSS"              "QSI"             
+ [2,] "TQSS"             "TQSI"            
+ [3,] "NT"               "NT"              
+ [4,] "QSS_NT"           "QSI_NT"          
+ [5,] "TQSS_NT"          "TQSI_NT"         
+ [6,] "SGT"              "SGT"             
+ [7,] "SOMATIC"          "SOMATIC"         
+ [8,] "seqnames"         "seqnames"        
+ [9,] "start"            "start"           
+[10,] "end"              "end"             
+[11,] "REF"              "REF"             
+[12,] "ALT"              "ALT"             
+[13,] "nAltTumor"        "nAltTumor"       
+[14,] "nRefTumor"        "nRefTumor"       
+[15,] "nAltNormal"       "nAltNormal"      
+[16,] "nRefNormal"       "nRefNormal"      
+[17,] "rdNormalFiltered" "rdNormalFiltered"
+[18,] "rdTumorFiltered"  "rdTumorFiltered" 
+
+ 36 Vand_Pt37 
+[1] "dim(dat2kp.snv)"
+[1] 3106   18
+[1] "dim(dat2kp.indel)"
+[1] 12 24
+[1] "dat2kp.snv[1,,FALSE]"
+                 QSS TQSS  NT QSS_NT TQSS_NT    SGT SOMATIC seqnames   start
+chr1:1286951_C/T 113    1 ref    110       1 CC->CT    TRUE     chr1 1286951
+                     end REF ALT nAltTumor nRefTumor nAltNormal nRefNormal
+chr1:1286951_C/T 1286951   C   T        45       107          0         96
+                 rdNormalFiltered rdTumorFiltered
+chr1:1286951_C/T               96             152
+[1] "dat2kp.indel[1,,FALSE]"
+                     QSI TQSI  NT QSI_NT TQSI_NT      SGT RU RC IC IHP SVTYPE
+chr1:185290797_G/GAT  41    1 ref     41       1 ref->het AT  2  3   2   <NA>
+                     SOMATIC OVERLAP seqnames     start       end REF ALT
+chr1:185290797_G/GAT    TRUE   FALSE     chr1 185290797 185290797   G GAT
+                     nAltTumor nRefTumor nAltNormal nRefNormal rdNormalFiltered
+chr1:185290797_G/GAT        16        86          0         80            85.96
+                     rdTumorFiltered
+chr1:185290797_G/GAT          121.49
+      [,1]               [,2]              
+ [1,] "QSS"              "QSI"             
+ [2,] "TQSS"             "TQSI"            
+ [3,] "NT"               "NT"              
+ [4,] "QSS_NT"           "QSI_NT"          
+ [5,] "TQSS_NT"          "TQSI_NT"         
+ [6,] "SGT"              "SGT"             
+ [7,] "SOMATIC"          "SOMATIC"         
+ [8,] "seqnames"         "seqnames"        
+ [9,] "start"            "start"           
+[10,] "end"              "end"             
+[11,] "REF"              "REF"             
+[12,] "ALT"              "ALT"             
+[13,] "nAltTumor"        "nAltTumor"       
+[14,] "nRefTumor"        "nRefTumor"       
+[15,] "nAltNormal"       "nAltNormal"      
+[16,] "nRefNormal"       "nRefNormal"      
+[17,] "rdNormalFiltered" "rdNormalFiltered"
+[18,] "rdTumorFiltered"  "rdTumorFiltered" 
+
+ 37 Vand_Pt38 
+[1] "dim(dat2kp.snv)"
+[1] 925  18
+[1] "dim(dat2kp.indel)"
+[1] 11 24
+[1] "dat2kp.snv[1,,FALSE]"
+                 QSS TQSS  NT QSS_NT TQSS_NT    SGT SOMATIC seqnames   start
+chr1:1243545_G/A  21    1 ref     21       1 GG->AG    TRUE     chr1 1243545
+                     end REF ALT nAltTumor nRefTumor nAltNormal nRefNormal
+chr1:1243545_G/A 1243545   G   A         7        88          1         73
+                 rdNormalFiltered rdTumorFiltered
+chr1:1243545_G/A               74              95
+[1] "dat2kp.indel[1,,FALSE]"
+                           QSI TQSI  NT QSI_NT TQSI_NT      SGT        RU RC IC
+chr1:37996757_C/CAGCCTCATA  46    1 ref     46       1 ref->het AGCCTCATA  0  1
+                           IHP SVTYPE SOMATIC OVERLAP seqnames    start
+chr1:37996757_C/CAGCCTCATA   4   <NA>    TRUE   FALSE     chr1 37996757
+                                end REF        ALT nAltTumor nRefTumor
+chr1:37996757_C/CAGCCTCATA 37996757   C CAGCCTCATA         3        88
+                           nAltNormal nRefNormal rdNormalFiltered
+chr1:37996757_C/CAGCCTCATA          0        115           117.08
+                           rdTumorFiltered
+chr1:37996757_C/CAGCCTCATA             103
+      [,1]               [,2]              
+ [1,] "QSS"              "QSI"             
+ [2,] "TQSS"             "TQSI"            
+ [3,] "NT"               "NT"              
+ [4,] "QSS_NT"           "QSI_NT"          
+ [5,] "TQSS_NT"          "TQSI_NT"         
+ [6,] "SGT"              "SGT"             
+ [7,] "SOMATIC"          "SOMATIC"         
+ [8,] "seqnames"         "seqnames"        
+ [9,] "start"            "start"           
+[10,] "end"              "end"             
+[11,] "REF"              "REF"             
+[12,] "ALT"              "ALT"             
+[13,] "nAltTumor"        "nAltTumor"       
+[14,] "nRefTumor"        "nRefTumor"       
+[15,] "nAltNormal"       "nAltNormal"      
+[16,] "nRefNormal"       "nRefNormal"      
+[17,] "rdNormalFiltered" "rdNormalFiltered"
+[18,] "rdTumorFiltered"  "rdTumorFiltered" 
+> 
+> 
+> q(save="no")
+> proc.time()
+   user  system elapsed 
+489.805   3.088 494.632 

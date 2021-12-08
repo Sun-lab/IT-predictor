@@ -1,0 +1,86 @@
+---
+title: "Aggregate results of PEPPRMINT across 15 models"
+output:
+  html_document:
+    df_print: paged
+    keep_md: true
+---
+
+```{r warning=FALSE, echo = FALSE, results = 'hide', warning = FALSE, message = FALSE}
+
+library(data.table)
+library(ggplot2)
+library(ggpointdensity)
+library(stringr)
+library(ggcorrplot)
+theme_set(theme_bw())
+```
+
+
+# Read in PEPPRMINT estimates
+```{r}
+pf = list.files("../output_PEPPRMINT", pattern=".txt", full.names=TRUE)
+length(pf)
+pf[1]
+
+pf = pf[!grepl("Riaz_2017_ref", pf)]
+length(pf)
+pf[1]
+
+for(i in 1:length(pf)){
+  pfi = pf[i]
+  pdi = fread(pfi)
+  
+  if(i == 1){
+    pd1 = pdi
+  }else{
+    stopifnot(all(pd1$key == pdi$key))
+    stopifnot(all(pd1$sample == pdi$sample))
+    
+    pd1 = cbind(pd1, pdi$y_pred)
+  }
+  
+  mtag = str_extract(pfi, "(?<=PEPPRMINT_Riaz_2017_)\\S+(?=_test)")
+
+  names(pd1)[i+2] = mtag
+}
+
+dim(pd1)
+pd1[1:2,]
+```
+
+# check the correlation of prediction across model configurations
+```{r fig.width = 5.5, fig.height = 5}
+pd1 = as.data.frame(pd1)
+cr1 = cor(pd1[,-(1:2)])
+summary(cr1[upper.tri(cr1)])
+g0 = ggcorrplot(cr1) + 
+  scale_fill_gradient(limit = c(0.8,1), low = "white", high =  "red")
+pdf("step3_aggregate_pepprmint_files/ggcot_mut.pdf", width=5.5, height=5)
+g0
+dev.off()
+```
+
+# Average the prediction score and check their distribution
+```{r fig.width = 3, fig.height = 2.5}
+pd2 = pd1[,1:2]
+pd2$pepprmint = rowMeans(pd1[,-(1:2)])
+
+dim(pd2)
+pd2[1:2,]
+
+g1 = ggplot(pd2, aes(x=pepprmint))+
+  geom_histogram(color="darkblue", fill="lightblue")
+g1
+```
+
+# write out results
+```{r}
+fwrite(pd2, 
+       file = "../output_PEPPRMINT/PEPPRMINT_Riaz_2017_aggregate.tsv", 
+       sep = "\t")
+```
+
+```{r}
+sessionInfo()
+```

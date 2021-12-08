@@ -1,0 +1,1590 @@
+
+R version 3.6.1 (2019-07-05) -- "Action of the Toes"
+Copyright (C) 2019 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin15.6.0 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> 
+> #--------------------------------------------------------------------
+> # Step 7: Import neoAg prediction
+> #--------------------------------------------------------------------
+> 
+> library(magrittr)
+> library(Biostrings)
+Loading required package: BiocGenerics
+Loading required package: parallel
+
+Attaching package: ‘BiocGenerics’
+
+The following objects are masked from ‘package:parallel’:
+
+    clusterApply, clusterApplyLB, clusterCall, clusterEvalQ,
+    clusterExport, clusterMap, parApply, parCapply, parLapply,
+    parLapplyLB, parRapply, parSapply, parSapplyLB
+
+The following objects are masked from ‘package:stats’:
+
+    IQR, mad, sd, var, xtabs
+
+The following objects are masked from ‘package:base’:
+
+    anyDuplicated, append, as.data.frame, basename, cbind, colnames,
+    dirname, do.call, duplicated, eval, evalq, Filter, Find, get, grep,
+    grepl, intersect, is.unsorted, lapply, Map, mapply, match, mget,
+    order, paste, pmax, pmax.int, pmin, pmin.int, Position, rank,
+    rbind, Reduce, rownames, sapply, setdiff, sort, table, tapply,
+    union, unique, unsplit, which, which.max, which.min
+
+Loading required package: S4Vectors
+Loading required package: stats4
+
+Attaching package: ‘S4Vectors’
+
+The following object is masked from ‘package:base’:
+
+    expand.grid
+
+Loading required package: IRanges
+Loading required package: XVector
+
+Attaching package: ‘Biostrings’
+
+The following object is masked from ‘package:base’:
+
+    strsplit
+
+> library(ggplot2)
+> library(plyr)
+
+Attaching package: ‘plyr’
+
+The following object is masked from ‘package:XVector’:
+
+    compact
+
+The following object is masked from ‘package:IRanges’:
+
+    desc
+
+The following object is masked from ‘package:S4Vectors’:
+
+    rename
+
+> library(data.table)
+
+Attaching package: ‘data.table’
+
+The following object is masked from ‘package:IRanges’:
+
+    shift
+
+The following objects are masked from ‘package:S4Vectors’:
+
+    first, second
+
+> 
+> # Sample to check 
+> sample_ID = "Pt10"
+> #--------------------------------------------------------------------
+> # 1. Import MHC-I prediction
+> #--------------------------------------------------------------------
+> 
+> # check the relation between affinity and rank for one sample
+> dat = fread(paste("for_netmhci/_output_tsv/", sample_ID, "_sm9.tsv", sep = ""))
+> dim(dat)
+[1] 18350     6
+> dat[1:2,]
+   pos       HLA   peptide      identity affinity rank
+1:   0 HLA-A3101 VCGCGQGAV 1_3495955_G_A 36479.70   75
+2:   1 HLA-A3101 CGCGQGAVC 1_3495955_G_A 35476.62   70
+> table(dat$HLA)
+
+HLA-A2501 HLA-A3101 HLA-B3901 HLA-B4001 HLA-C1203 
+     3670      3670      3670      3670      3670 
+> 
+> summary(dat$affinity)
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+    4.5 19960.8 28767.6 26373.9 34737.9 47701.2 
+> summary(dat$rank)
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+   0.01   12.00   25.00   30.12   42.00   99.00 
+> 
+> dat$t.affinity = 1 - log(dat$affinity, 50000)
+> summary(dat$t.affinity)
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+0.00435 0.03366 0.05109 0.08138 0.08487 0.86099 
+> dat$log10.rank = log10(dat$rank/100)
+> dim(dat)
+[1] 18350     8
+> dat[1:2,]
+   pos       HLA   peptide      identity affinity rank t.affinity log10.rank
+1:   0 HLA-A3101 VCGCGQGAV 1_3495955_G_A 36479.70   75 0.02913803 -0.1249387
+2:   1 HLA-A3101 CGCGQGAVC 1_3495955_G_A 35476.62   70 0.03171499 -0.1549020
+> 
+> 
+> pdf(paste("figures/affinity_rank_hist_", sample_ID, "_MHCi.pdf", sep = ""), width=7, height=3)
+> par(mar=c(5,4,1,1), mfrow=c(1,2))
+> hist(dat$t.affinity, xlab="1 - log(affinity, 50k)", ylab="freq", main="")
+> abline(v=1-log(500, 50000), col = "black")
+> abline(v=1-log(50, 50000), col = "red", lty=2)
+> 
+> hist(dat$log10.rank, xlab="log10(rank)", ylab="freq", main="")
+> abline(v=log10(0.02), col = "black")
+> abline(v=log10(0.005), col = "red", lty=2)
+> dev.off()
+null device 
+          1 
+> 
+> table(dat$rank < 0.1)
+
+FALSE  TRUE 
+18298    52 
+> table(dat$rank < 0.5)
+
+FALSE  TRUE 
+18148   202 
+> table(dat$rank < 2)
+
+FALSE  TRUE 
+17513   837 
+> 
+> table(dat$affinity < 50)
+
+FALSE  TRUE 
+18261    89 
+> table(dat$affinity < 500)
+
+FALSE  TRUE 
+17999   351 
+> 
+> 
+> g1 = ggplot(dat, aes(x=t.affinity, y=log10.rank, shape=HLA, color=HLA)) + 
++   geom_point() + labs(x="1 - log(affinity, 50k)", y = "log10(rank)")
+> g1 = g1 + theme_classic()
+> 
+> g1 = g1 + geom_hline(yintercept=log10(0.02), color = "black")
+> g1 = g1 + geom_hline(yintercept=log10(0.005), linetype="dashed", color = "red")
+> 
+> g1 = g1 + geom_vline(xintercept=1-log(500, 50000), color = "black")
+> g1 = g1 + geom_vline(xintercept=1-log(50, 50000), 
++                      linetype="dashed", color = "red")
+> ggsave(paste("figures/affinity_vs_rank_", sample_ID, "_MHCi.png", sep =""), plot = g1, device = "png", 
++        width = 4.5, height = 3, units = "in", dpi=300)
+> 
+> # read in MHC-I binding rank information
+> 
+> mhci.files = list.files("for_netmhci/_output_tsv", full.names=TRUE)
+> length(mhci.files)
+[1] 70
+> mhci.files[1:5]
+[1] "for_netmhci/_output_tsv/Pt1_sm9.tsv"  
+[2] "for_netmhci/_output_tsv/Pt1_sm9r.tsv" 
+[3] "for_netmhci/_output_tsv/Pt10_sm9.tsv" 
+[4] "for_netmhci/_output_tsv/Pt10_sm9r.tsv"
+[5] "for_netmhci/_output_tsv/Pt11_sm9.tsv" 
+> 
+> sampleID = gsub("for_netmhci/_output_tsv/", "", mhci.files, fixed=TRUE)
+> sampleID = gsub(".tsv", "", sampleID, fixed=TRUE)
+> sampleID[1:5]
+[1] "Pt1_sm9"   "Pt1_sm9r"  "Pt10_sm9"  "Pt10_sm9r" "Pt11_sm9" 
+> 
+> mhci = list()
+> 
+> for(i in 1:length(mhci.files)){
++   fnm = mhci.files[i]
++   dat = fread(fnm)
++   
++   dmin = dat[dat[ , .I[which.min(rank)], by = .(HLA, identity)]$V1]
++ 
++   mhci[[sampleID[i]]] = dmin
++ }
+> 
+> #--------------------------------------------------------------------
+> # 2. Import MHC-II prediction
+> #--------------------------------------------------------------------
+> 
+> # check the relation between affinity and rank for one sample
+> dat = fread(paste("for_netmhciipan/_output_tsv/", sample_ID, "_hlaii_sm15.tsv", sep=""))
+> dim(dat)
+[1] 60340     9
+> dat[1:2,]
+   seq    allele         peptide      identity pos      core core_rel affinity
+1:   1 DRB1_1501 GPNCTHVCGCGQGAV 1:3495955:G:A   3 CTHVCGCGQ     0.31 18267.11
+2:   2 DRB1_1501 PNCTHVCGCGQGAVC 1:3495955:G:A   5 VCGCGQGAV     0.30 17866.01
+   rank
+1:   95
+2:   95
+> table(dat$allele)
+
+            DRB1_1101             DRB1_1501 HLA-DPA10103-DPB10401 
+                 6034                  6034                 24136 
+HLA-DQA10102-DQB10301 HLA-DQA10102-DQB10602 HLA-DQA10505-DQB10301 
+                 6034                  6034                  6034 
+HLA-DQA10505-DQB10602 
+                 6034 
+> 
+> summary(dat$affinity)
+    Min.  1st Qu.   Median     Mean  3rd Qu.     Max. 
+   11.81   936.89  2867.65  5765.89  7748.60 41479.44 
+> summary(dat$rank)
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+   0.03   29.00   60.00   55.80   85.00   95.00 
+> 
+> dat$t.affinity = 1 - log(dat$affinity, 50000)
+> summary(dat$t.affinity)
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+0.01727 0.17232 0.26419 0.27588 0.36759 0.77181 
+> dat$log10.rank = log10(dat$rank/100)
+> dim(dat)
+[1] 60340    11
+> dat[1:2,]
+   seq    allele         peptide      identity pos      core core_rel affinity
+1:   1 DRB1_1501 GPNCTHVCGCGQGAV 1:3495955:G:A   3 CTHVCGCGQ     0.31 18267.11
+2:   2 DRB1_1501 PNCTHVCGCGQGAVC 1:3495955:G:A   5 VCGCGQGAV     0.30 17866.01
+   rank t.affinity  log10.rank
+1:   95 0.09306298 -0.02227639
+2:   95 0.09511498 -0.02227639
+> 
+> pdf(paste("figures/affinity_rank_hist_",sample_ID, "_MHCiipan.pdf", sep=""), width=7, height=3)
+> par(mar=c(5,4,1,1), mfrow=c(1,2))
+> hist(dat$t.affinity, xlab="1 - log(affinity, 50k)", ylab="freq", main="")
+> abline(v=1-log(500, 50000), col = "black")
+> abline(v=1-log(50, 50000), col = "red", lty=2)
+> 
+> hist(dat$log10.rank, xlab="log10(rank)", ylab="freq", main="")
+> abline(v=log10(0.02), col = "black")
+> abline(v=log10(0.005), col = "red", lty=2)
+> dev.off()
+null device 
+          1 
+> 
+> table(dat$rank < 0.1)
+
+FALSE  TRUE 
+60313    27 
+> table(dat$rank < 0.5)
+
+FALSE  TRUE 
+60114   226 
+> table(dat$rank < 2)
+
+FALSE  TRUE 
+59491   849 
+> 
+> table(dat$affinity < 50)
+
+FALSE  TRUE 
+59973   367 
+> table(dat$affinity < 500)
+
+FALSE  TRUE 
+51320  9020 
+> 
+> g1 = ggplot(dat, aes(x=t.affinity, y=log10.rank, color=allele)) + 
++   geom_point() + labs(x="1 - log(affinity, 50k)", y = "log10(rank)")
+> g1 = g1 + theme_classic()
+> 
+> g1 = g1 + geom_hline(yintercept=log10(0.02), color = "black")
+> g1 = g1 + geom_hline(yintercept=log10(0.005), linetype="dashed", color = "red")
+> 
+> g1 = g1 + geom_vline(xintercept=1-log(500, 50000), color = "black")
+> g1 = g1 + geom_vline(xintercept=1-log(50, 50000), 
++                      linetype="dashed", color = "red")
+> ggsave(paste("figures/affinity_vs_rank_", sample_ID, "_pre_MHCiipan.png", sep = ""), plot = g1, device = "png", 
++        width = 5.5, height = 3, units = "in", dpi=300)
+> 
+> # read in MHC-IIpan binding rank information
+> 
+> mhciipan.files = list.files("for_netmhciipan/_output_tsv", full.names=TRUE)
+> length(mhciipan.files)
+[1] 70
+> mhciipan.files[1:5]
+[1] "for_netmhciipan/_output_tsv/Pt1_hlaii_sm15.tsv"  
+[2] "for_netmhciipan/_output_tsv/Pt1_hlaii_sm15r.tsv" 
+[3] "for_netmhciipan/_output_tsv/Pt10_hlaii_sm15.tsv" 
+[4] "for_netmhciipan/_output_tsv/Pt10_hlaii_sm15r.tsv"
+[5] "for_netmhciipan/_output_tsv/Pt11_hlaii_sm15.tsv" 
+> 
+> sampleID = gsub("for_netmhciipan/_output_tsv/", "", mhciipan.files, fixed=TRUE)
+> sampleID = gsub(".tsv", "", sampleID, fixed=TRUE)
+> sampleID[1:5]
+[1] "Pt1_hlaii_sm15"   "Pt1_hlaii_sm15r"  "Pt10_hlaii_sm15"  "Pt10_hlaii_sm15r"
+[5] "Pt11_hlaii_sm15" 
+> 
+> mhciipan = list()
+> 
+> for(i in 1:length(mhciipan.files)){
++   fnm = mhciipan.files[i]
++   dat = fread(fnm)
++   
++   dmin = dat[dat[ , .I[which.min(rank)], by = .(allele, identity)]$V1]
++   
++   mhciipan[[sampleID[i]]] = dmin
++ }
+> 
+> #--------------------------------------------------------------------
+> # 3. re-organize results for HLA-I
+> #--------------------------------------------------------------------
+> 
+> which.ref = grep("_sm9r", names(mhci), fixed=TRUE)
+> nms.m = names(mhci)[-which.ref]
+> nms.r = names(mhci)[which.ref]
+> 
+> length(nms.m)
+[1] 35
+> length(nms.r)
+[1] 35
+> 
+> table(nms.r == paste0(nms.m, "r"))
+
+TRUE 
+  35 
+> 
+> neoAg.mhci = NULL
+> 
+> for(i in 1:length(nms.m)){
++   print(i)
++   m1 = mhci[[nms.m[i]]]
++   r1 = mhci[[nms.r[i]]]
++   print(m1)
++   print(r1)
++   
++   sample = gsub("_sm9", "", nms.m[i])
++   
++   if(nrow(m1) != nrow(r1)){ stop("nrow do not match\n") }
++   if(any(m1$HLA != r1$HLA)){ stop("HLA do not match\n") }
++   if(any(m1$identity != r1$identity)){ stop("identity do not match\n") }
++   
++   names(r1)[-c(2,4)] = paste(names(r1)[-c(2,4)], "ref", sep=".")
++   
++   m1  = cbind(m1, r1[,-c(2,4)])
++   df1 = data.frame(sample=rep(sample, nrow(m1)), m1, stringsAsFactors=FALSE)
++   
++   neoAg.mhci = rbind(neoAg.mhci, df1)
++ }
+[1] 1
+       pos       HLA   peptide        identity affinity rank
+    1:   8 HLA-A0201 LLKDRDPEF    1_957229_C_A 12225.12 18.0
+    2:   2 HLA-A0201 FFRSIDXDL   1_2175307_G_A 15786.65 22.0
+    3:   6 HLA-A0201 ELFRRPEEV   1_3022381_C_T  1202.21  4.5
+    4:   1 HLA-A0201 KLVRQCNKG   1_3475988_G_A 26224.35 38.0
+    5:   0 HLA-A0201 IETEIVPAI   1_6475064_C_T 11812.55 17.0
+   ---                                                      
+17551:   8 HLA-C0501 XKHVGPSFV X_154716198_C_T 13881.85  4.0
+17552:   8 HLA-C0501 SVTDASSVF 3_KI270779v1_al  3940.30  1.3
+17553:   6 HLA-C0501 GSEDPSTKV 12_KI270904v1_a  3553.98  1.2
+17554:   6 HLA-C0501 VIDDRPSLT 15_KI270905v1_a   221.68  0.2
+17555:   8 HLA-C0501 FCYHRGLYL 11_KI270927v1_a  1773.30  0.8
+       pos       HLA   peptide        identity affinity rank
+    1:   8 HLA-A0201 RLKDRDPEF    1_957229_C_A 12982.86 19.0
+    2:   2 HLA-A0201 FFRSIDWDL   1_2175307_G_A 10060.95 15.0
+    3:   6 HLA-A0201 ELSRRPEEV   1_3022381_C_T  5357.03 10.0
+    4:   1 HLA-A0201 KLVRQCNEG   1_3475988_G_A 18711.00 26.0
+    5:   0 HLA-A0201 IETEIVPAM   1_6475064_C_T 17216.24 24.0
+   ---                                                      
+17551:   8 HLA-C0501 WKHVGPSFV X_154716198_C_T 13177.45  3.5
+17552:   4 HLA-C0501 ATPLPVTSF 3_KI270779v1_al  9680.89  3.0
+17553:   7 HLA-C0501 SQDPSTKVH 12_KI270904v1_a  4914.32  1.6
+17554:   7 HLA-C0501 IGDRPSLTH 15_KI270905v1_a  8648.26  2.5
+17555:   4 HLA-C0501 VVEKECPCV 11_KI270927v1_a  7385.74  2.5
+[1] 2
+      pos       HLA   peptide        identity affinity rank
+   1:   4 HLA-A3101 GQGAVCDPV   1_3495955_G_A 25392.29 38.0
+   2:   6 HLA-A3101 EQKLTLVGR   1_3602578_C_T   864.14  3.0
+   3:   3 HLA-A3101 RPQLHFPAQ   1_6581145_C_T 19938.13 27.0
+   4:   3 HLA-A3101 LLSAAFYFY   1_9128840_G_A  1833.46  4.5
+   5:   7 HLA-A3101 SIENSPTPS  1_11130575_G_A 30920.50 55.0
+  ---                                                      
+2061:   7 HLA-C1203 ISRVAATAL X_114907233_C_T 10654.87  7.0
+2062:   1 HLA-C1203 KEEDEGVNL X_143508973_C_T  8398.18  6.0
+2063:   8 HLA-C1203 FLPAGVRMV X_153959383_G_A    63.67  0.2
+2064:   2 HLA-C1203 NILEMNGKL 1_KI270711v1_ra 20562.08 14.0
+2065:   1 HLA-C1203 TSKERPRFL 15_KI270905v1_a   522.68  1.0
+      pos       HLA   peptide        identity affinity rank
+   1:   7 HLA-A3101 AACDPVTGT   1_3495955_G_A 29943.97 49.0
+   2:   7 HLA-A3101 QELTLVGRR   1_3602578_C_T  3610.30  6.5
+   3:   3 HLA-A3101 RPQLHSPAQ   1_6581145_C_T 30251.06 50.0
+   4:   5 HLA-A3101 SAASYFYGV   1_9128840_G_A  3663.86  6.5
+   5:   7 HLA-A3101 STENSPTPS  1_11130575_G_A 27158.50 42.0
+  ---                                                      
+2061:   5 HLA-C1203 RQIPRVAAT X_114907233_C_T  4203.82  3.5
+2062:   1 HLA-C1203 KEEDEGVDL X_143508973_C_T 13917.64  9.0
+2063:   1 HLA-C1203 KAPVTVTSL X_153959383_G_A  1413.99  1.7
+2064:   6 HLA-C1203 MNEKLRPQL 1_KI270711v1_ra 21137.76 14.0
+2065:   1 HLA-C1203 TSKERPRSL 15_KI270905v1_a   243.06  0.6
+[1] 3
+      pos       HLA   peptide        identity affinity rank
+   1:   0 HLA-A0201 ATATTTASI  1_11130611_G_A  2971.18  7.0
+   2:   6 HLA-A0201 WMIWSEAMA  1_13319427_G_A   250.61  1.9
+   3:   4 HLA-A0201 VLELDDNNL  1_13513116_T_C  5343.31 10.0
+   4:   3 HLA-A0201 GLVSIYVSL  1_17086550_G_A    50.46  0.6
+   5:   0 HLA-A0201 VVADVCPKV  1_18482489_A_T    59.32  0.7
+  ---                                                      
+1256:   6 HLA-C0303 YLKQHRGER X_116458857_G_A 16003.00  7.5
+1257:   2 HLA-C0303 DAVYCACFV X_123625977_G_A  4146.67  3.0
+1258:   2 HLA-C0303 FALYKEEEQ X_131278023_C_T    94.04  0.5
+1259:   3 HLA-C0303 FQKKTQHYF X_154928646_C_T  2960.21  2.5
+1260:   5 HLA-C0303 FLNCDIMLG  Y_14830012_A_G 16060.24  7.5
+      pos       HLA   peptide        identity affinity rank
+   1:   0 HLA-A0201 ATATTTAST  1_11130611_G_A 16223.18 22.0
+   2:   6 HLA-A0201 WMVWSEAMA  1_13319427_G_A   750.38  3.5
+   3:   4 HLA-A0201 VLELNDNNL  1_13513116_T_C  5907.74 11.0
+   4:   3 HLA-A0201 GLVSIHVSL  1_17086550_G_A    85.98  1.0
+   5:   0 HLA-A0201 VVADVCPKE  1_18482489_A_T 29090.99 44.0
+  ---                                                      
+1256:   6 HLA-C0303 YLEQHRGER X_116458857_G_A 16877.79  8.0
+1257:   4 HLA-C0303 VYCARFVEL X_123625977_G_A  3175.78  2.5
+1258:   2 HLA-C0303 FALYKEGEQ X_131278023_C_T    85.28  0.4
+1259:   3 HLA-C0303 FQKKTRHYF X_154928646_C_T  5744.30  4.0
+1260:   5 HLA-C0303 FLNYDIMLG  Y_14830012_A_G 10914.61  5.5
+[1] 4
+      pos       HLA   peptide        identity affinity rank
+   1:   7 HLA-A2402 FXAGRGASL  1_10947791_G_A  6975.63  4.5
+   2:   8 HLA-A2402 ILLKGHEDL  1_11124610_A_T 15470.96  9.5
+   3:   1 HLA-A2402 RSGVASLSP  1_12022266_C_T 25255.28 18.0
+   4:   2 HLA-A2402 KEQSPELHL  1_42850990_C_T 29700.99 23.0
+   5:   5 HLA-A2402 PWTTGLIVL  1_44826499_C_T  4648.23  3.5
+  ---                                                      
+1001:   2 HLA-C0501 NVEVVFSLY  X_16170869_G_A 27583.76  9.0
+1002:   6 HLA-C0501 LNSSGKTVL X_100974159_A_G 14608.58  4.0
+1003:   2 HLA-C0501 FQISNNEQV X_129575961_G_A 15264.28  4.0
+1004:   0 HLA-C0501 RRGTGYTLF X_141879380_C_T  5292.10  1.6
+1005:   5 HLA-C0501 TQDIRHNAM 7_KI270803v1_al  5184.20  1.6
+      pos       HLA   peptide        identity affinity rank
+   1:   7 HLA-A2402 FQAGRGASL  1_10947791_G_A 10691.37  6.5
+   2:   2 HLA-A2402 NGHEFVFLL  1_11124610_A_T  9689.28  6.0
+   3:   1 HLA-A2402 RSGVASLPP  1_12022266_C_T 25910.15 18.0
+   4:   3 HLA-A2402 EQSPEPHLP  1_42850990_C_T 28443.91 21.0
+   5:   5 HLA-A2402 PWTAGLIVL  1_44826499_C_T  4669.50  3.5
+  ---                                                      
+1001:   1 HLA-C0501 ENVEVVFGL  X_16170869_G_A 30069.60 11.0
+1002:   6 HLA-C0501 LNNSGKTVL X_100974159_A_G  4842.65  1.5
+1003:   4 HLA-C0501 ISNNGQVPC X_129575961_G_A  5328.59  1.7
+1004:   5 HLA-C0501 YTLSLPAVS X_141879380_C_T 26959.13  8.5
+1005:   5 HLA-C0501 TQDMRHNAM 7_KI270803v1_al  6006.88  1.8
+[1] 5
+     pos       HLA   peptide        identity affinity rank
+  1:   1 HLA-A2402 TILKCAQEL  1_62117142_G_A 14095.11  8.5
+  2:   0 HLA-A2402 IEKWYLMTV  1_63370980_G_A 18250.12 11.0
+  3:   2 HLA-A2402 IYSYKDKDM  1_84814016_C_T 10611.73  6.5
+  4:   1 HLA-A2402 FWSKKLDDG 1_100724752_A_G 23708.31 16.0
+  5:   0 HLA-A2402 VPMPSPLSF 1_112456715_C_T  1088.64  1.2
+ ---                                                      
+772:   0 HLA-C0401 FMKGNRATK  X_35802860_G_A 10018.70  2.5
+773:   3 HLA-C0401 AMFCMCGLT  X_48461024_T_C 10209.10  2.5
+774:   4 HLA-C0401 TQQPSQGSV  X_72140447_C_T 15337.45  6.5
+775:   7 HLA-C0401 TNSNVSPAI  X_72602262_C_T 12669.51  4.5
+776:   1 HLA-C0401 LRMLKDTRI  X_86816039_G_A 14695.93  6.0
+     pos       HLA   peptide        identity affinity rank
+  1:   6 HLA-A2402 AQGLVQLEI  1_62117142_G_A 13765.79  8.5
+  2:   0 HLA-A2402 MEKWYLMTV  1_63370980_G_A 20881.57 14.0
+  3:   2 HLA-A2402 IYSYKDEDM  1_84814016_C_T  5480.44  4.0
+  4:   1 HLA-A2402 FWSKKLDNG 1_100724752_A_G 20175.10 13.0
+  5:   5 HLA-A2402 PLSSSGSSL 1_112456715_C_T 27417.72 20.0
+ ---                                                      
+772:   7 HLA-C0401 TEEEVWEVL  X_35802860_G_A  6837.24  0.9
+773:   6 HLA-C0401 CMYGLTATF  X_48461024_T_C  5687.90  0.6
+774:   4 HLA-C0401 TQQPPQGSV  X_72140447_C_T 15839.35  7.0
+775:   7 HLA-C0401 TDSNVSPAI  X_72602262_C_T 11271.78  3.5
+776:   4 HLA-C0401 LKDTGIPDI  X_86816039_G_A 16596.75  7.5
+[1] 6
+      pos       HLA   peptide        identity affinity rank
+   1:   4 HLA-A0101 TTVWLVLTV   1_1046595_C_T 10233.98  3.0
+   2:   1 HLA-A0101 EERPEETKK   1_6121141_C_T 33060.88 55.0
+   3:   4 HLA-A0101 QSSKEGNLA   1_6128549_C_T 12267.13  4.0
+   4:   7 HLA-A0101 CSRCTCPPL   1_6148865_G_A 15394.98  5.5
+   5:   5 HLA-A0101 ELQRDLLHY   1_6571108_G_A  3609.91  1.3
+  ---                                                      
+7220:   5 HLA-C0701 ICSNKTGTL X_153549575_G_A  8001.32  3.0
+7221:   7 HLA-C0701 YREHCPEGE X_153770595_G_A  7864.68  3.0
+7222:   6 HLA-C0701 VQKPRVRAK X_154467106_G_A  9434.17  3.5
+7223:   7 HLA-C0701 SKMDVVRFD X_154966580_C_T  7512.84  3.0
+7224:   5 HLA-C0701 VFVENPNLL 14_KI270844v1_a  3003.89  1.1
+      pos       HLA   peptide        identity affinity rank
+   1:   3 HLA-A0101 RTTVWPVLT   1_1046595_C_T 15785.12  5.5
+   2:   6 HLA-A0101 ETEKAPPSP   1_6121141_C_T 30325.44 38.0
+   3:   4 HLA-A0101 QSSKGGNLA   1_6128549_C_T 11805.78  3.5
+   4:   7 HLA-A0101 CPRCTCPPL   1_6148865_G_A 22427.03 13.0
+   5:   5 HLA-A0101 ELQGDLLHY   1_6571108_G_A  4925.61  1.6
+  ---                                                      
+7220:   5 HLA-C0701 ICSDKTGTL X_153549575_G_A  4289.60  1.5
+7221:   0 HLA-C0701 PQSSHCVYG X_153770595_G_A 22821.86 11.0
+7222:   6 HLA-C0701 VQEPRVRAK X_154467106_G_A 11072.81  4.0
+7223:   7 HLA-C0701 SEMDVVRFD X_154966580_C_T  9722.99  3.5
+7224:   4 HLA-C0701 TVFVGNPNL 14_KI270844v1_a  5192.05  1.8
+[1] 7
+      pos       HLA   peptide        identity affinity  rank
+   1:   8 HLA-A0201 CYRAASAFF   1_6281182_G_A 25723.00 37.00
+   2:   0 HLA-A0201 AALRTTPSL  1_10949760_G_A  4582.12  9.00
+   3:   3 HLA-A0201 YLTCLFLWV  1_12827616_G_A     5.41  0.04
+   4:   2 HLA-A0201 LLTQKDCPR  1_12859289_C_T 24710.90 35.00
+   5:   6 HLA-A0201 LLKSDLKHL  1_13321755_G_A  4619.30  9.00
+  ---                                                       
+5636:   2 HLA-C1203 TRFRKREQI 7_KI270809v1_al 11813.19  7.50
+5637:   2 HLA-C1203 WIRQPPEKG 14_KI270846v1_a 21174.38 14.00
+5638:   3 HLA-C1203 VAEETAGEP X_KI270913v1_al  4631.31  4.00
+5639:   8 HLA-C1203 VLAEALVTV 3_KI270936v1_al   250.40  0.60
+5640:   7 HLA-C1203 KRYHHFVLM 19_GL949752v1_a   245.58  0.60
+      pos       HLA   peptide        identity affinity  rank
+   1:   8 HLA-A0201 RYRAASAFF   1_6281182_G_A 27519.37 41.00
+   2:   1 HLA-A0201 ALRTTPSPP  1_10949760_G_A 25683.80 37.00
+   3:   3 HLA-A0201 YLTCLLLWV  1_12827616_G_A     4.25  0.02
+   4:   1 HLA-A0201 MLLTQKDRP  1_12859289_C_T 27930.03 42.00
+   5:   6 HLA-A0201 LLESDLKHL  1_13321755_G_A  2640.47  7.00
+  ---                                                       
+5636:   2 HLA-C1203 TRFRKRGQI 7_KI270809v1_al  9950.63  6.50
+5637:   3 HLA-C1203 IRQPPGKGL 14_KI270846v1_a  8825.60  6.00
+5638:   3 HLA-C1203 VAEETVGEP X_KI270913v1_al  2502.88  2.50
+5639:   8 HLA-C1203 LLAEALVTV 3_KI270936v1_al   423.61  0.90
+5640:   7 HLA-C1203 KGYHHFVLM 19_GL949752v1_a   291.82  0.70
+[1] 8
+      pos       HLA   peptide        identity affinity  rank
+   1:   4 HLA-A2501 SVRAVVDVH   1_1047663_A_G 22371.04  6.50
+   2:   3 HLA-A2501 RVRVGLRLC   1_1286967_T_C 26564.75 11.00
+   3:   6 HLA-A2501 KSLDDPSRY   1_8865359_G_A 21830.17  6.00
+   4:   8 HLA-A2501 SLVGVAPSR   1_9567337_A_G 24420.92  8.00
+   5:   2 HLA-A2501 SVALLKSAV  1_12234363_G_A  7017.95  0.80
+  ---                                                       
+2651:   6 HLA-C0701 LGKAWRDQV X_152708971_C_T 22317.61 11.00
+2652:   8 HLA-C0701 XRGDGRDLQ X_153868346_C_T  1119.73  0.50
+2653:   8 HLA-C0701 FRDNAKNSL 16_KI270728v1_r    68.70  0.03
+2654:   0 HLA-C0701 SCCQPCCHL 17_JH159147v1_a 17128.35  7.00
+2655:   8 HLA-C0701 FYGAIARAV 6_GL000254v2_al  1880.08  0.70
+      pos       HLA   peptide        identity affinity rank
+   1:   4 HLA-A2501 SVRAIVDVH   1_1047663_A_G 22649.91  6.5
+   2:   3 HLA-A2501 RVRVGFRLC   1_1286967_T_C 28277.60 13.0
+   3:   6 HLA-A2501 KSPDDPSRY   1_8865359_G_A 16770.39  3.5
+   4:   8 HLA-A2501 NLVGVAPSR   1_9567337_A_G 25851.07  9.5
+   5:   2 HLA-A2501 SVALLKGAV  1_12234363_G_A  5884.65  0.7
+  ---                                                      
+2651:   5 HLA-C0701 VLGEAWRDQ X_152708971_C_T 18959.62  8.0
+2652:   8 HLA-C0701 WRGDGRDLQ X_153868346_C_T  2388.05  0.9
+2653:   8 HLA-C0701 SRDNAKNSL 16_KI270728v1_r   704.95  0.4
+2654:   5 HLA-C0701 CCHPTCCQN 17_JH159147v1_a 28575.92 17.0
+2655:   8 HLA-C0701 SYGAIARAV 6_GL000254v2_al  9350.13  3.5
+[1] 9
+     pos       HLA   peptide        identity affinity rank
+  1:   8 HLA-A0201 KNREKMAEV   1_3022038_G_A 20823.13 29.0
+  2:   0 HLA-A0201 VPEILVTEK  1_41582211_C_T 31512.56 55.0
+  3:   0 HLA-A0201 FDPFRFAPS  1_46932810_C_T 24475.41 35.0
+  4:   8 HLA-A0201 GSASGIEDV  1_52525601_T_C  7899.73 13.0
+  5:   4 HLA-A0201 ETFKNFQMA  1_57015078_C_T 19362.21 26.0
+ ---                                                      
+884:   1 HLA-C0501 EGDYMSYXA X_105945920_C_T  4600.85  1.5
+885:   8 HLA-C0501 FLTNYATSL X_136349123_C_T 11554.68  3.5
+886:   2 HLA-C0501 WEDSLSSHY X_141907037_C_T  4023.54  1.3
+887:   1 HLA-C0501 VAANPGANK X_151701025_G_A  9213.95  2.5
+888:   7 HLA-C0501 LSVTSTSSA 3_KI270779v1_al 22898.03  7.0
+     pos       HLA   peptide        identity affinity rank
+  1:   8 HLA-A0201 ENREKMAEV   1_3022038_G_A 32628.39 55.0
+  2:   3 HLA-A0201 ILVTEEPDR  1_41582211_C_T 32206.80 55.0
+  3:   0 HLA-A0201 FDPFRFAPG  1_46932810_C_T 26840.96 39.0
+  4:   2 HLA-A0201 NTGDSDDSA  1_52525601_T_C 23074.87 32.0
+  5:   4 HLA-A0201 ETFKDFQMA  1_57015078_C_T 20206.12 28.0
+ ---                                                      
+884:   1 HLA-C0501 EGDYMSYQA X_105945920_C_T  6517.61  1.9
+885:   6 HLA-C0501 KTSLTNYAT X_136349123_C_T 26980.14  8.5
+886:   2 HLA-C0501 WEDSLSPHY X_141907037_C_T  7080.03  2.5
+887:   1 HLA-C0501 VAANPGADK X_151701025_G_A  8165.13  2.5
+888:   0 HLA-C0501 STGHATPLP 3_KI270779v1_al 31341.52 12.0
+[1] 10
+       pos       HLA   peptide        identity affinity rank
+    1:   2 HLA-A0301 VAAVGNWLY    1_963234_C_T  7189.34  6.5
+    2:   0 HLA-A0301 RQGLQISIX   1_1046244_C_T 18006.71 16.0
+    3:   1 HLA-A0301 ALRCTGLLP   1_1419469_G_A  9497.77  8.0
+    4:   1 HLA-A0301 LSPRQGLLR   1_1624824_C_T  6805.81  6.5
+    5:   6 HLA-A0301 LANEMGLGK   1_6142476_C_T   781.74  1.7
+   ---                                                      
+10898:   8 HLA-C0702 KQEGPGTRL X_156009966_G_A 24339.41 11.0
+10899:   8 HLA-C0702 CFCSWENPQ  Y_12847091_C_T 15347.41  5.5
+10900:   6 HLA-C0702 LRKNKILEE Un_GL000213v1_1 18314.01  7.0
+10901:   8 HLA-C0702 YTTPLPVTN 3_KI270779v1_al  9110.35  3.0
+10902:   2 HLA-C0702 LRCDPILGH 7_KI270803v1_al  7983.16  2.5
+       pos       HLA   peptide        identity affinity rank
+    1:   8 HLA-A0301 RLYAVGGYD    1_963234_C_T  3601.72  4.5
+    2:   4 HLA-A0301 QISIQSLGP   1_1046244_C_T 21903.76 21.0
+    3:   1 HLA-A0301 ALRCTGLPP   1_1419469_G_A 12890.33 11.0
+    4:   5 HLA-A0301 QGLPRIPLR   1_1624824_C_T  9825.36  8.5
+    5:   6 HLA-A0301 LADEMGLGK   1_6142476_C_T  3188.56  4.0
+   ---                                                      
+10898:   8 HLA-C0702 EQEGPGTRL X_156009966_G_A 28219.83 15.0
+10899:   8 HLA-C0702 RFCSWENPQ  Y_12847091_C_T  7930.31  2.5
+10900:   4 HLA-C0702 NQLRENKIL Un_GL000213v1_1 23176.72 10.0
+10901:   4 HLA-C0702 ASTGDTTPL 3_KI270779v1_al 22681.29 10.0
+10902:   2 HLA-C0702 LRCDPISGH 7_KI270803v1_al  9547.95  3.0
+[1] 11
+      pos       HLA   peptide        identity affinity rank
+   1:   1 HLA-A0201 GLAGCPSSC   1_1045361_G_T  4737.39  9.5
+   2:   3 HLA-A0201 QAAPRLLEL  1_12793243_C_G  5371.77 10.0
+   3:   4 HLA-A0201 NQDYEDICS  1_37885711_T_C 29918.38 46.0
+   4:   2 HLA-A0201 YPDREDRTT  1_39332757_T_C 40352.84 85.0
+   5:   6 HLA-A0201 KIDEDRCSN  1_94189250_T_A 35920.42 65.0
+  ---                                                      
+1046:   6 HLA-C0501 LRDKRKVRY  X_74743112_G_T 13524.85  4.0
+1047:   8 HLA-C0501 EADDVDSDG  X_91878914_A_G  1142.53  0.6
+1048:   1 HLA-C0501 FAAKLMKHI X_117909826_T_G  8744.33  2.5
+1049:   4 HLA-C0501 VHDTMFYCL X_120115835_C_T   331.30  0.3
+1050:   0 HLA-C0501 PSDLIFEFV X_130081287_G_A   529.71  0.4
+      pos       HLA   peptide        identity affinity  rank
+   1:   1 HLA-A0201 GLAGCPSAC   1_1045361_G_T  4965.47  9.50
+   2:   0 HLA-A0201 MSIQAPPRL  1_12793243_C_G  5997.52 11.00
+   3:   4 HLA-A0201 NQDYKDICS  1_37885711_T_C 30461.59 48.00
+   4:   2 HLA-A0201 YPDREDCTT  1_39332757_T_C 35810.60 65.00
+   5:   3 HLA-A0201 SSNKIEEDR  1_94189250_T_A 37954.95 75.00
+  ---                                                       
+1046:   7 HLA-C0501 RAKRKVRYS  X_74743112_G_T 33378.24 14.00
+1047:   8 HLA-C0501 KADDVDSDG  X_91878914_A_G   604.07  0.40
+1048:   1 HLA-C0501 FAAKLMKNI X_117909826_T_G 14717.72  4.00
+1049:   4 HLA-C0501 VHDTVFYCL X_120115835_C_T   283.17  0.25
+1050:   0 HLA-C0501 PSDLIFEFA X_130081287_G_A  5841.39  1.80
+[1] 12
+     pos       HLA   peptide        identity affinity  rank
+  1:   5 HLA-A0101 GLDXQTVKL  1_15729114_C_T 15564.81  5.50
+  2:   5 HLA-A0101 SLCWARQRV  1_45332180_G_A 20915.94 11.00
+  3:   1 HLA-A0101 LHTVEKYFF  1_45714256_G_A 19918.29  9.50
+  4:   0 HLA-A0101 RFQLQEEQK  1_51145734_G_A 31907.12 45.00
+  5:   6 HLA-A0101 TSKDITTCF  1_56906679_G_A 15955.63  6.00
+ ---                                                       
+564:   8 HLA-C0602 SALTPLYLL 21_36930289_G_A  5958.33  2.00
+565:   1 HLA-C0602 MRRGNMGYL 22_50435000_C_T    30.55  0.01
+566:   7 HLA-C0602 LQDDTRRAN  X_53544610_C_T 20511.87  8.50
+567:   2 HLA-C0602 AYDLDVNDA X_133536270_C_T 29023.69 15.00
+568:   7 HLA-C0602 FFHDFTSLS X_135911723_C_T  3954.65  1.40
+     pos       HLA   peptide        identity affinity rank
+  1:   5 HLA-A0101 GLDQQTVKL  1_15729114_C_T 19007.68  8.5
+  2:   5 HLA-A0101 SLCRARQRV  1_45332180_G_A 22704.62 14.0
+  3:   7 HLA-A0101 YSFEEEKWV  1_45714256_G_A 20813.45 11.0
+  4:   1 HLA-A0101 FQLQEEQRK  1_51145734_G_A 31656.77 44.0
+  5:   6 HLA-A0101 TSRDITTCF  1_56906679_G_A 15592.28  5.5
+ ---                                                      
+564:   8 HLA-C0602 PALTPLYLL 21_36930289_G_A 15365.02  5.5
+565:   1 HLA-C0602 MRRGNMGHL 22_50435000_C_T   168.25  0.1
+566:   7 HLA-C0602 LRDDTRRAN  X_53544610_C_T  1954.99  0.8
+567:   1 HLA-C0602 LAYDLDVDD X_133536270_C_T 32837.00 20.0
+568:   7 HLA-C0602 FSHDFTSLS X_135911723_C_T  3813.96  1.4
+[1] 13
+     pos       HLA   peptide        identity affinity rank
+  1:   6 HLA-A2501 QQKCQPPPK 1_152805454_G_T 32386.05 22.0
+  2:   2 HLA-A2501 ELMEELCET 1_155785341_A_C  9815.05  1.3
+  3:   2 HLA-A2501 SVCDDNLGE 1_157833413_C_A 25138.33  8.5
+  4:   1 HLA-A2501 TIPRLLADF 1_158563354_G_T  6666.74  0.8
+  5:   2 HLA-A2501 FVLLPLSLF 1_159206109_G_A  4217.44  0.5
+ ---                                                      
+516:   2 HLA-C1203 GILNVIRPL 20_59987637_A_G 16533.12 11.0
+517:   8 HLA-C1203 FPASEKKPV 22_17727353_C_T  1052.73  1.5
+518:   1 HLA-C1203 VPSPTQSSI 22_17818826_G_A  3048.39  3.0
+519:   3 HLA-C1203 YKSAIKSQK  X_80682547_G_T 11817.15  7.5
+520:   0 HLA-C1203 SASTGHATL 3_KI270779v1_al  1207.10  1.6
+     pos       HLA   peptide        identity affinity  rank
+  1:   3 HLA-A2501 QQSQQQCQP 1_152805454_G_T 32749.00 23.00
+  2:   2 HLA-A2501 ELMEELFET 1_155785341_A_C 15756.45  3.00
+  3:   2 HLA-A2501 SVCDDNWGE 1_157833413_C_A 25943.53  9.50
+  4:   1 HLA-A2501 TIPRLLAAF 1_158563354_G_T   732.40  0.08
+  5:   2 HLA-A2501 FVLLPLGLF 1_159206109_G_A  3252.46  0.40
+ ---                                                       
+516:   2 HLA-C1203 GILNVIKPL 20_59987637_A_G 17527.30 11.00
+517:   8 HLA-C1203 SPASEKKPV 22_17727353_C_T 22996.61 15.00
+518:   1 HLA-C1203 VPSPTQSPI 22_17818826_G_A  2704.64  3.00
+519:   3 HLA-C1203 YKSAIQSQK  X_80682547_G_T 12724.61  8.00
+520:   5 HLA-C1203 HATPLPVTD 3_KI270779v1_al  1949.18  2.50
+[1] 14
+     pos       HLA   peptide        identity affinity rank
+  1:   2 HLA-A2402 ELRAAFHVF   1_1916848_G_A  3058.66  2.5
+  2:   4 HLA-A2402 RCREGVRGI  1_47039493_A_G 31465.20 26.0
+  3:   1 HLA-A2402 SRSRGHQLP 1_109487187_C_T 28614.30 21.0
+  4:   7 HLA-A2402 IXIQACTTL 1_215671283_G_A  1474.87  1.5
+  5:   8 HLA-A2402 NICNKTLKI 1_233346471_G_A 22836.18 15.0
+ ---                                                      
+137:   1 HLA-C0401 QQSSCQPVC 21_44591613_G_A 12357.45  4.0
+138:   0 HLA-C0401 AFSGLGPGV 22_41236614_G_C 10323.17  3.0
+139:   3 HLA-C0401 LFTARIQLF  X_57286836_C_T  4705.10  0.4
+140:   2 HLA-C0401 YANNRVIVL X_154315236_G_A  7497.25  1.2
+141:   0 HLA-C0401 KPCCCSSGF 11_KI270903v1_a 10961.83  3.0
+     pos       HLA   peptide        identity affinity  rank
+  1:   2 HLA-A2402 ELRAAFRVF   1_1916848_G_A 11496.19  7.00
+  2:   4 HLA-A2402 RCREEVRGI  1_47039493_A_G 31976.25 26.00
+  3:   1 HLA-A2402 SRSRGHQPP 1_109487187_C_T 34313.09 31.00
+  4:   1 HLA-A2402 PFHRYEIRI 1_215671283_G_A  5411.97  4.00
+  5:   8 HLA-A2402 DICNKTLKI 1_233346471_G_A 28973.82 22.00
+ ---                                                       
+137:   1 HLA-C0401 QQSSCQPAC 21_44591613_G_A 11686.69  3.50
+138:   0 HLA-C0401 AFSGLGPGL 22_41236614_G_C  5576.99  0.50
+139:   3 HLA-C0401 SFTARIQLF  X_57286836_C_T  4322.21  0.25
+140:   2 HLA-C0401 YANNRVVVL X_154315236_G_A  6567.30  0.80
+141:   0 HLA-C0401 KPCCCSSGC 11_KI270903v1_a 21505.48 13.00
+[1] 15
+      pos       HLA   peptide        identity affinity rank
+   1:   2 HLA-A6801 HMVIHTKER   1_3404767_G_A   201.69  1.5
+   2:   2 HLA-A6801 DFYRSFSGF  1_11098069_G_A 12151.54 11.0
+   3:   3 HLA-A6801 CTVCDKGLR  1_11957914_G_A    53.81  0.7
+   4:   0 HLA-A6801 MEIDTAQQF  1_15660638_C_T 17570.21 15.0
+   5:   0 HLA-A6801 QAFSSPSPF  1_16058630_G_A  1486.31  4.0
+  ---                                                      
+1906:   7 HLA-B2705 NKLHLDHNK X_153506850_G_A 11660.04 11.0
+1907:   0 HLA-B2705 MRLGRCIWE X_155997763_G_A  4702.15  5.5
+1908:   0 HLA-B2705 YQSYSGTFY 1_KI270711v1_ra  3836.35  5.0
+1909:   6 HLA-B2705 RKNLIVMLR Un_GL000213v1_1   418.14  1.2
+1910:   0 HLA-B2705 YKSSAGNAS 7_KI270803v1_al 19514.70 18.0
+      pos       HLA   peptide        identity affinity rank
+   1:   2 HLA-A6801 HMVIHTEER   1_3404767_G_A    43.73  0.6
+   2:   2 HLA-A6801 DFYRSFPGF  1_11098069_G_A 17819.68 15.0
+   3:   3 HLA-A6801 CTVCDEGLR  1_11957914_G_A    35.76  0.5
+   4:   4 HLA-A6801 TAQQSLVTL  1_15660638_C_T 24401.90 21.0
+   5:   0 HLA-A6801 QAFSSPSPS  1_16058630_G_A  5589.85  7.0
+  ---                                                      
+1906:   8 HLA-B2705 ELHLDHNKI X_153506850_G_A 22954.60 23.0
+1907:   1 HLA-B2705 GLGRCIWEG X_155997763_G_A 23526.64 24.0
+1908:   0 HLA-B2705 YQSYSGTFH 1_KI270711v1_ra  7760.45  7.5
+1909:   6 HLA-B2705 RKDLIVMLR Un_GL000213v1_1  1748.91  3.0
+1910:   1 HLA-B2705 KSSAGNAPC 7_KI270803v1_al 22914.40 23.0
+[1] 16
+      pos       HLA   peptide        identity affinity  rank
+   1:   3 HLA-A3201 REHERWKRH   1_1716440_G_A 12817.18  6.50
+   2:   6 HLA-A3201 KSSEVISSD   1_6124029_C_T  9573.40  5.00
+   3:   6 HLA-A3201 AMRNMRKTY   1_8015541_C_T  2002.95  1.40
+   4:   8 HLA-A3201 SSVVRTEIF   1_9004871_G_A  3203.60  1.90
+   5:   1 HLA-A3201 KNKEAGTPP   1_9026342_C_T 21228.06 11.00
+  ---                                                       
+6416:   8 HLA-C1203 VWDFSPGQL  Y_12739580_C_T 11277.26  7.50
+6417:   2 HLA-C1203 YKMEDLFQV  Y_13251043_T_A    83.71  0.25
+6418:   1 HLA-C1203 FYHHCQSKM  Y_14830353_G_A   349.74  0.80
+6419:   7 HLA-C1203 LPWGEPKTW  Y_19721133_T_G  7437.06  5.50
+6420:   7 HLA-C1203 FIKMLRSKM Un_GL000213v1_1   653.15  1.10
+      pos       HLA   peptide        identity affinity  rank
+   1:   3 HLA-A3201 REHERRKRH   1_1716440_G_A 33375.36 25.00
+   2:   6 HLA-A3201 KSGEVISSD   1_6124029_C_T 14099.07  7.00
+   3:   6 HLA-A3201 AMGNMRKTY   1_8015541_C_T   981.84  0.90
+   4:   8 HLA-A3201 PSVVRTEIF   1_9004871_G_A 18694.80  9.50
+   5:   0 HLA-A3201 MENKEAGTP   1_9026342_C_T 41016.64 46.00
+  ---                                                       
+6416:   7 HLA-C1203 LAWDFSPGQ  Y_12739580_C_T  8702.89  6.00
+6417:   2 HLA-C1203 YKMEDLIQV  Y_13251043_T_A    52.39  0.17
+6418:   1 HLA-C1203 FYHHCQSEM  Y_14830353_G_A   282.28  0.70
+6419:   2 HLA-C1203 YSINYLHWG  Y_19721133_T_G  4227.62  3.50
+6420:   7 HLA-C1203 FMKMLRSKM Un_GL000213v1_1   257.35  0.60
+[1] 17
+      pos       HLA   peptide        identity affinity rank
+   1:   0 HLA-A0201 FQVLKSILK   1_9567294_G_A 14787.48 21.0
+   2:   0 HLA-A0201 YSLQCLCPS  1_10646132_T_C  4670.36  9.5
+   3:   0 HLA-A0201 PLFMEAFSK  1_13318550_G_A 15377.00 21.0
+   4:   2 HLA-A0201 YIDWINKKM  1_15445747_G_A  2705.90  7.0
+   5:   3 HLA-A0201 NQFPFXFGR  1_26774599_C_T 12148.91 18.0
+  ---                                                      
+2224:   2 HLA-B5801 KTWIFSRRC X_140783739_C_T  7305.23  6.5
+2225:   2 HLA-B5801 PVSGVPFRN X_142203975_G_A  7373.68  6.5
+2226:   2 HLA-B5801 QADDSIFPT X_152652814_A_T 12163.25 11.0
+2227:   2 HLA-B5801 DSLASILFI 17_KI270857v1_a  4540.27  4.5
+2228:   0 HLA-B5801 LTFGDKIKN 6_GL000255v2_al 13539.49 13.0
+      pos       HLA   peptide        identity affinity rank
+   1:   0 HLA-A0201 FQVLKSILE   1_9567294_G_A 15919.58   22
+   2:   1 HLA-A0201 SLQCLCPNQ  1_10646132_T_C 12966.15   19
+   3:   0 HLA-A0201 PLFMEAFSR  1_13318550_G_A 14871.72   21
+   4:   2 HLA-A0201 YIDWINEKM  1_15445747_G_A   536.26    3
+   5:   3 HLA-A0201 NQFPFQFGR  1_26774599_C_T 15451.38   21
+  ---                                                      
+2224:   2 HLA-B5801 KTWIFSGRC X_140783739_C_T  5467.11    5
+2225:   2 HLA-B5801 PVPGVPFRN X_142203975_G_A 23019.02   30
+2226:   6 HLA-B5801 SIIPTEIRN X_152652814_A_T 16140.02   16
+2227:   2 HLA-B5801 DSLASIPFI 17_KI270857v1_a  6979.71    6
+2228:   0 HLA-B5801 LTFGDKIKD 6_GL000255v2_al 15477.82   15
+[1] 18
+      pos       HLA   peptide        identity affinity rank
+   1:   7 HLA-A0301 HFSWCPSIR  1_12777081_C_T  4391.74  5.0
+   2:   7 HLA-A0301 CSRIRRGIR  1_16044568_C_T  8507.00  7.5
+   3:   1 HLA-A0301 TVTGGWGXR  1_16049087_G_A  3779.42  4.5
+   4:   1 HLA-A0301 TVTGGWGXR  1_16049088_G_A  3779.42  4.5
+   5:   1 HLA-A0301 IVFHDLNFT  1_21831268_G_A 18916.18 17.0
+  ---                                                      
+2821:   1 HLA-C0702 AKKIHSNXL X_145255791_C_T 14219.49  5.0
+2822:   7 HLA-C0702 KQFPRANEF X_151700035_G_A   607.89  0.2
+2823:   1 HLA-C0702 QVLPDSEFL X_152135238_G_A 17047.00  6.5
+2824:   5 HLA-C0702 LKYQAREPF X_152736535_G_A  3816.89  1.2
+2825:   8 HLA-C0702 SVTDASSVF 3_KI270779v1_al  7234.28  2.5
+      pos       HLA   peptide        identity affinity  rank
+   1:   7 HLA-A0301 HLSWCPSIR  1_12777081_C_T   185.68  0.70
+   2:   1 HLA-A0301 QELWGPCPR  1_16044568_C_T 15697.57 14.00
+   3:   1 HLA-A0301 TVTGGWGWR  1_16049087_G_A  4834.37  5.00
+   4:   1 HLA-A0301 TVTGGWGWR  1_16049088_G_A  4834.37  5.00
+   5:   7 HLA-A0301 NLTAHGISH  1_21831268_G_A  6914.76  6.50
+  ---                                                       
+2821:   1 HLA-C0702 AKKIHSNQL X_145255791_C_T 19663.69  8.00
+2822:   7 HLA-C0702 KRFPRANEF X_151700035_G_A    49.57  0.01
+2823:   1 HLA-C0702 QVLPDSESL X_152135238_G_A 12369.09  4.50
+2824:   7 HLA-C0702 YRAREPFTK X_152736535_G_A  1138.55  0.40
+2825:   8 HLA-C0702 PVTDASSVF 3_KI270779v1_al 14432.45  5.00
+[1] 19
+      pos       HLA   peptide        identity affinity rank
+   1:   5 HLA-A0301 QLESLNWLR   1_6142530_C_T  8603.46 7.50
+   2:   3 HLA-A0301 IFNPRENLR   1_7849653_C_T 11532.57 9.50
+   3:   4 HLA-A0301 TQFTLYLGH  1_12882046_G_A  4154.08 4.50
+   4:   1 HLA-A0301 ELGWLTHLY  1_16150909_G_A  4505.18 5.00
+   5:   3 HLA-A0301 GWLTHSYGK  1_16150910_G_A  5398.75 5.50
+  ---                                                      
+2316:   0 HLA-C1502 FSLDENECQ X_111331035_C_T  7253.02 3.50
+2317:   0 HLA-C1502 FIYCLVLLV X_111847225_G_A   328.83 0.30
+2318:   0 HLA-C1502 PTLPREFTC X_131083955_C_T  4774.28 2.50
+2319:   8 HLA-C1502 VTSDPRLYM X_139750050_G_C   186.94 0.17
+2320:   7 HLA-C1502 VSFLRVATE X_154929100_G_A 14446.51 6.50
+      pos       HLA   peptide        identity affinity rank
+   1:   5 HLA-A0301 QLEGLNWLR   1_6142530_C_T  9887.42  8.5
+   2:   3 HLA-A0301 IFNPRGNLR   1_7849653_C_T  7740.33  7.0
+   3:   4 HLA-A0301 TQFTPYLGH  1_12882046_G_A  1982.55  3.0
+   4:   1 HLA-A0301 ELGWLTHPY  1_16150909_G_A  7192.53  6.5
+   5:   1 HLA-A0301 ELGWLTHPY  1_16150910_G_A  7192.53  6.5
+  ---                                                      
+2316:   0 HLA-C1502 FSLDENECR X_111331035_C_T  9359.65  4.0
+2317:   0 HLA-C1502 FIYCLVLLA X_111847225_G_A  8758.44  4.0
+2318:   0 HLA-C1502 PTLPREFTR X_131083955_C_T 15979.29  7.5
+2319:   8 HLA-C1502 LTSDPRLYM X_139750050_G_C   313.02  0.3
+2320:   3 HLA-C1502 RPGKVPFLR X_154929100_G_A 21325.90 11.0
+[1] 20
+      pos       HLA   peptide        identity affinity  rank
+   1:   8 HLA-A3301 NGVILYSIR   1_2025713_G_A  1458.80  2.50
+   2:   0 HLA-A3301 QPKFGGGLV   1_3412158_C_T 36794.46 41.00
+   3:   2 HLA-A3301 GTCLCPSGR   1_3495920_G_A   696.61  1.40
+   4:   3 HLA-A3301 EYIPFQDHR  1_12755761_C_A    43.68  0.17
+   5:   8 HLA-A3301 HMNSVSFLE  1_12881903_A_G  1424.98  2.50
+  ---                                                       
+3032:   8 HLA-C0802 NMDPDNHSY X_141897301_G_A 11632.45  2.50
+3033:   7 HLA-C0802 QQDEFSNPF X_150755738_T_A  4906.35  0.60
+3034:   5 HLA-C0802 KIWKELSVL X_152701499_G_A 25014.07  9.50
+3035:   6 HLA-C0802 QPKREKGPV X_152727846_C_T 23365.05  8.00
+3036:   1 HLA-C0802 KCRSQEYKI 8_KI270813v1_al 27713.30 12.00
+      pos       HLA   peptide        identity affinity  rank
+   1:   8 HLA-A3301 DGVILYSIR   1_2025713_G_A   772.03  1.50
+   2:   2 HLA-A3301 KFGGGLAPP   1_3412158_C_T 38644.47 47.00
+   3:   2 HLA-A3301 GTCLCPPGR   1_3495920_G_A  2796.71  3.50
+   4:   3 HLA-A3301 EYIPFPDHR  1_12755761_C_A    33.22  0.15
+   5:   8 HLA-A3301 YMNSVSFLE  1_12881903_A_G   708.77  1.50
+  ---                                                       
+3032:   8 HLA-C0802 DMDPDNHSY X_141897301_G_A 13703.53  3.00
+3033:   7 HLA-C0802 QLDEFSNPF X_150755738_T_A  2706.36  0.30
+3034:   5 HLA-C0802 KIWEELSVL X_152701499_G_A 25193.34  9.50
+3035:   6 HLA-C0802 QPRREKGPV X_152727846_C_T 24748.89  9.50
+3036:   8 HLA-C0802 RIGRCPNTY 8_KI270813v1_al 26292.26 11.00
+[1] 21
+     pos       HLA   peptide        identity affinity  rank
+  1:   8 HLA-A0201 FLFESIHGV  1_24336748_C_T     2.03  0.01
+  2:   2 HLA-A0201 RGFSYRLSV  1_33537540_G_A  6764.10 12.00
+  3:   4 HLA-A0201 RFFARTYNV  1_37888334_C_T  1053.09  4.00
+  4:   5 HLA-A0201 KGIKKEVNV  1_78080777_G_A 22287.20 31.00
+  5:   5 HLA-A0201 QAANKIYFM  1_81943073_G_A  4203.50  8.50
+ ---                                                       
+434:   4 HLA-B4001 LWPTXGGVL X_153740184_C_A 14422.63  8.00
+435:   3 HLA-B4001 LWPTYCGVL X_153740185_G_T 18361.03 11.00
+436:   0 HLA-B4001 KCVPCTAAC X_155774355_C_T 20048.46 13.00
+437:   8 HLA-B4001 GPVCGRVSC 17_JH159146v1_a 21485.70 15.00
+438:   5 HLA-B4001 LQCKASVDL 17_GL000258v2_a  2691.18  2.50
+     pos       HLA   peptide        identity affinity  rank
+  1:   8 HLA-A0201 SLFESIHGV  1_24336748_C_T     2.86  0.01
+  2:   4 HLA-A0201 FSYRSSVSF  1_33537540_G_A 13427.88 19.00
+  3:   4 HLA-A0201 RFFAGTYNV  1_37888334_C_T   385.80  2.50
+  4:   5 HLA-A0201 KGIEKEVNV  1_78080777_G_A 11663.07 17.00
+  5:   5 HLA-A0201 QAADKIYFM  1_81943073_G_A  1595.94  5.50
+ ---                                                       
+434:   4 HLA-B4001 LWPTYGGVL X_153740184_C_A 14893.94  8.00
+435:   3 HLA-B4001 LWPTYGGVL X_153740185_G_T 14893.94  8.00
+436:   2 HLA-B4001 VPCTAARPL X_155774355_C_T 20272.25 13.00
+437:   8 HLA-B4001 RPVCGRVSC 17_JH159146v1_a 19608.24 12.00
+438:   5 HLA-B4001 LQCNASVDL 17_GL000258v2_a  1526.62  1.50
+[1] 22
+      pos       HLA   peptide        identity affinity rank
+   1:   5 HLA-A0301 CLNFVLALS  1_12578892_G_A  9836.85  8.5
+   2:   6 HLA-A0301 TTNTVTEVV  1_28150055_C_T 21755.65 21.0
+   3:   4 HLA-A0301 RTAFATLLN  1_64777629_T_C  5537.36  5.5
+   4:   3 HLA-A0301 CVFKGVVRR  1_70354038_T_A   479.04  1.3
+   5:   6 HLA-A0301 ILPECGHGR 1_149913371_C_G  8871.74  7.5
+  ---                                                      
+1454:   7 HLA-C0602 ERKLNVIKL 22_37472501_C_T  1456.05  0.6
+1455:   4 HLA-C0602 LLLQWLQEE 22_50694954_C_T 17093.73  6.5
+1456:   4 HLA-C0602 SEPPHETLY  X_17800941_G_T 16126.58  6.0
+1457:   4 HLA-C0602 RTHQKGEAV  X_27461097_C_T  5781.52  2.0
+1458:   2 HLA-C0602 ELCSFSXAL  X_27462264_G_A 20236.76  8.0
+      pos       HLA   peptide        identity affinity rank
+   1:   5 HLA-A0301 CLNSVLALS  1_12578892_G_A 12770.53 11.0
+   2:   5 HLA-A0301 ATTDTVTEV  1_28150055_C_T 25716.60 28.0
+   3:   4 HLA-A0301 RTAFVTLLN  1_64777629_T_C  3950.68  4.5
+   4:   3 HLA-A0301 CVFKGDVRR  1_70354038_T_A  3483.78  4.0
+   5:   6 HLA-A0301 ILRECGHGR 1_149913371_C_G  1982.38  3.0
+  ---                                                      
+1454:   4 HLA-C0602 GVFEGKLNV 22_37472501_C_T  9048.47  3.5
+1455:   4 HLA-C0602 LLLQRLQEE 22_50694954_C_T 16647.10  6.5
+1456:   3 HLA-C0602 KSEPPPETL  X_17800941_G_T 26712.62 13.0
+1457:   4 HLA-C0602 RTHQEGEAV  X_27461097_C_T 11413.89  4.0
+1458:   2 HLA-C0602 ELCSFSQAL  X_27462264_G_A 14592.15  5.5
+[1] 23
+     pos       HLA   peptide        identity affinity  rank
+  1:   2 HLA-A0201 SVLLGAFNA   1_6097317_C_T  1045.95  4.00
+  2:   2 HLA-A0201 SKITVTFEV   1_6192951_G_A  1477.62  5.00
+  3:   6 HLA-A0201 ILWPFGELM   1_6454506_G_T   120.53  1.20
+  4:   1 HLA-A0201 ALSGGSSLV   1_9264277_C_T    47.06  0.60
+  5:   7 HLA-A0201 AMIGAAAFL  1_11834276_C_A    18.73  0.25
+ ---                                                       
+960:   0 HLA-B5101 IPSPWVSNE X_148980787_G_A 12885.31  3.50
+961:   6 HLA-B5101 SPFSPSQMM X_150671552_C_T  3633.73  0.80
+962:   4 HLA-B5101 QKMQKKKKL X_151672327_G_A 32608.98 37.00
+963:   2 HLA-B5101 IPDTFFKNS X_151962513_C_T 16510.23  5.50
+964:   8 HLA-B5101 SRYLNDLYI X_153964128_G_A 20319.46  8.50
+     pos       HLA   peptide        identity affinity rank
+  1:   2 HLA-A0201 SVLLGASNA   1_6097317_C_T  8189.55 13.0
+  2:   2 HLA-A0201 SKITVTSEV   1_6192951_G_A 11546.18 17.0
+  3:   6 HLA-A0201 ILGPFGELM   1_6454506_G_T  1373.98  5.0
+  4:   1 HLA-A0201 ALSGGSSPV   1_9264277_C_T    25.49  0.4
+  5:   0 HLA-A0201 HIYSGTFAL  1_11834276_C_A    23.78  0.4
+ ---                                                      
+960:   0 HLA-B5101 IPSPWVSNG X_148980787_G_A  8316.16  1.9
+961:   6 HLA-B5101 SPSSPSQMM X_150671552_C_T 11201.99  3.0
+962:   4 HLA-B5101 QKMQEKKKL X_151672327_G_A 31313.05 31.0
+963:   2 HLA-B5101 IPDTFFRNS X_151962513_C_T 16177.27  5.5
+964:   7 HLA-B5101 IPRYLNDLY X_153964128_G_A 11285.81  3.0
+[1] 24
+      pos       HLA   peptide        identity affinity rank
+   1:   8 HLA-A2402 RQEERARLV   1_1460841_G_A 26414.86 19.0
+   2:   0 HLA-A2402 VMVHFDLPE   1_1460842_G_A 35800.51 34.0
+   3:   6 HLA-A2402 AKXTKEELI   1_7640515_G_A 29810.46 23.0
+   4:   1 HLA-A2402 KYLHLFKSG  1_10659988_G_A  3271.49  3.0
+   5:   2 HLA-A2402 KYLHLFNPG  1_10659989_T_A   971.06  1.1
+  ---                                                      
+2620:   3 HLA-C0701 SVHLHTSWV X_124736996_T_G  1954.42  0.8
+2621:   4 HLA-C0701 ARENKINPL X_141241584_C_T  1430.72  0.6
+2622:   3 HLA-C0701 VYAGRKHFL X_149716528_G_A   223.70  0.1
+2623:   4 HLA-C0701 VAQDSSRLN X_152208070_C_T 10326.08  4.0
+2624:   0 HLA-C0701 QFHDCCSEI 7_KI270803v1_al 16544.74  7.0
+      pos       HLA   peptide        identity affinity rank
+   1:   0 HLA-A2402 VMVHFDLPG   1_1460841_G_A 32152.14 27.0
+   2:   0 HLA-A2402 VMVHFDLPG   1_1460842_G_A 32152.14 27.0
+   3:   0 HLA-A2402 TDKKEWAKW   1_7640515_G_A 14194.28  8.5
+   4:   1 HLA-A2402 KYLHLFKPG  1_10659988_G_A  3832.00  3.0
+   5:   2 HLA-A2402 KYLHLFKPG  1_10659989_T_A  3832.00  3.0
+  ---                                                      
+2620:   3 HLA-C0701 SVHLHNSWV X_124736996_T_G  2628.39  1.0
+2621:   4 HLA-C0701 ARENRINPL X_141241584_C_T   616.15  0.3
+2622:   3 HLA-C0701 VYAGREHFL X_149716528_G_A   644.30  0.3
+2623:   4 HLA-C0701 VAQDGSRLN X_152208070_C_T 11069.93  4.0
+2624:   0 HLA-C0701 QFHDCCSEM 7_KI270803v1_al  9441.01  3.5
+[1] 25
+      pos       HLA   peptide        identity affinity rank
+   1:   8 HLA-A1101 RVQCILPGS   1_6097407_C_G 14441.20 12.0
+   2:   2 HLA-A1101 ALQAEPSSR  1_16032268_C_T  1350.64  3.0
+   3:   0 HLA-A1101 HQKTWYLFX  1_31698512_G_A  7684.67  7.5
+   4:   8 HLA-A1101 SWPEGQSQK  1_33488546_C_T 10670.10  9.0
+   5:   8 HLA-A1101 LVTGTQGTL  1_33709243_G_A 30333.64 33.0
+  ---                                                      
+2956:   2 HLA-C0501 RASGPREGA X_154653343_C_T 32935.19 13.0
+2957:   2 HLA-C0501 RASGPRRGA X_154653344_C_T 30839.31 12.0
+2958:   7 HLA-C0501 FKKSLLKEF X_155279325_C_T 32826.69 13.0
+2959:   3 HLA-C0501 KKDDISEED Un_GL000219v1_7  6961.23  2.0
+2960:   8 HLA-C0501 HASSEQALV 11_KI270832v1_a  6331.74  1.9
+      pos       HLA   peptide        identity affinity rank
+   1:   1 HLA-A1101 RAHPSPSPV   1_6097407_C_G 18310.84 15.0
+   2:   2 HLA-A1101 ALQAEPPSR  1_16032268_C_T  1498.24  3.5
+   3:   0 HLA-A1101 HQKTWYLFQ  1_31698512_G_A 15437.35 12.0
+   4:   8 HLA-A1101 PWPEGQSQK  1_33488546_C_T 30508.75 33.0
+   5:   8 HLA-A1101 SVTGTQGTL  1_33709243_G_A 26249.90 25.0
+  ---                                                      
+2956:   2 HLA-C0501 RASGPRGGA X_154653343_C_T 27421.88  9.0
+2957:   2 HLA-C0501 RASGPRGGA X_154653344_C_T 27421.88  9.0
+2958:   7 HLA-C0501 FEKSLLKEF X_155279325_C_T 34855.29 16.0
+2959:   3 HLA-C0501 KKDDIPEED Un_GL000219v1_7  5425.33  1.7
+2960:   8 HLA-C0501 RASSEQALV 11_KI270832v1_a  3135.73  1.1
+[1] 26
+      pos       HLA   peptide        identity affinity rank
+   1:   6 HLA-A0301 RTDQHSNKF   1_1459216_G_A 17182.18 15.0
+   2:   6 HLA-A0301 RLLPWHTFP   1_5867760_G_A  2740.37  3.5
+   3:   5 HLA-A0301 EVLIVQVKK  1_11017001_G_A  2160.66  3.0
+   4:   1 HLA-A0301 MEYEFNFXL  1_20317642_C_T 17039.26 15.0
+   5:   0 HLA-A0301 AMACDDIQK  1_20330214_G_A  1256.63  2.5
+  ---                                                      
+2541:   4 HLA-C0702 SRSFCKLDS X_139956051_G_A 19093.43  7.5
+2542:   7 HLA-C0702 RKFSGRPKL X_140783912_C_T  3676.41  1.2
+2543:   6 HLA-C0702 VLNPDSVTP X_153504782_G_A 17806.57  7.0
+2544:   5 HLA-C0702 NRTSPGPAV X_153804147_G_A  3806.87  1.2
+2545:   3 HLA-C0702 IRQPPEKGL 14_KI270846v1_a   894.97  0.3
+      pos       HLA   peptide        identity affinity  rank
+   1:   6 HLA-A0301 RTGQHSNKF   1_1459216_G_A 15395.31 13.00
+   2:   6 HLA-A0301 RLPPWHTFP   1_5867760_G_A  7987.66  7.00
+   3:   8 HLA-A0301 MVQVKKDLK  1_11017001_G_A  1422.05  2.50
+   4:   1 HLA-A0301 MEYEFNFQL  1_20317642_C_T 20216.84 19.00
+   5:   0 HLA-A0301 AMACDDIQR  1_20330214_G_A  9028.91  8.00
+  ---                                                       
+2541:   7 HLA-C0702 FRKLDSRNN X_139956051_G_A  8564.92  3.00
+2542:   7 HLA-C0702 RRFSGRPKL X_140783912_C_T   289.92  0.09
+2543:   6 HLA-C0702 VLDPDSVTP X_153504782_G_A 28473.16 15.00
+2544:   5 HLA-C0702 NRTPPGPAV X_153804147_G_A  1375.41  0.50
+2545:   3 HLA-C0702 IRQPPGKGL 14_KI270846v1_a   742.43  0.25
+[1] 27
+      pos       HLA   peptide        identity affinity rank
+   1:   1 HLA-A0301 ASNTGSRDH  1_11519800_G_A 16520.78 14.0
+   2:   2 HLA-A0301 LGWDIFSPK  1_12031293_C_T  1293.43  2.5
+   3:   0 HLA-A0301 LELYPAPQK  1_12825121_C_T  3344.97  4.0
+   4:   0 HLA-A0301 IIRTLLLST  1_15456756_G_A 13254.38 11.0
+   5:   3 HLA-A0301 RPCARNAHR  1_17697225_G_A 15719.84 14.0
+  ---                                                      
+3254:   1 HLA-C0501 HTKINSNHL X_143712377_T_G 25034.64  7.5
+3255:   7 HLA-C0501 SFSLSNAHI X_153950356_G_A 27080.45  9.0
+3256:   8 HLA-C0501 ELQYVEAEI   Y_7043088_G_A 24955.68  7.5
+3257:   6 HLA-C0501 RCNPISGHV 7_KI270803v1_al   947.35  0.5
+3258:   8 HLA-C0501 NACVFDSCF 11_KI270927v1_a 18035.75  5.0
+      pos       HLA   peptide        identity affinity  rank
+   1:   1 HLA-A0301 ASNTGSRGH  1_11519800_G_A  9548.78  8.00
+   2:   5 HLA-A0301 DIFPPKSEK  1_12031293_C_T  1238.30  2.50
+   3:   2 HLA-A0301 LYPAPQESY  1_12825121_C_T 26600.99 30.00
+   4:   0 HLA-A0301 MIRTLLLST  1_15456756_G_A 11225.41  9.50
+   5:   3 HLA-A0301 RPCARDAHR  1_17697225_G_A 22833.71 23.00
+  ---                                                       
+3254:   1 HLA-C0501 HTKINSNQL X_143712377_T_G 23678.84  7.00
+3255:   7 HLA-C0501 SSSLSNAHI X_153950356_G_A  7085.63  2.50
+3256:   4 HLA-C0501 ILQKGLQYV   Y_7043088_G_A 10907.53  3.00
+3257:   6 HLA-C0501 RCDPISGHV 7_KI270803v1_al    22.15  0.04
+3258:   6 HLA-C0501 YYDACVFDS 11_KI270927v1_a  8114.05  2.50
+[1] 28
+     pos       HLA   peptide        identity affinity  rank
+  1:   1 HLA-A6801 QERIKVNEK   1_6193020_C_T 21303.75 18.00
+  2:   1 HLA-A6801 LENLEKIQK  1_12847677_C_G 16774.38 15.00
+  3:   5 HLA-A6801 ESSLLLLPP  1_27322214_G_A 22484.61 19.00
+  4:   0 HLA-A6801 TDYVRIMQK  1_43243227_G_A   416.11  2.50
+  5:   7 HLA-A6801 NLVDDLSSR  1_62210717_C_T   104.52  1.00
+ ---                                                       
+901:   1 HLA-C0701 PGAPKAQLA 22_37492490_G_A 26604.44 14.00
+902:   0 HLA-C0701 QRIGGSKQY  X_85315727_C_A  3573.65  1.30
+903:   8 HLA-C0701 SVKTAQKVH X_118578639_C_T 21629.15 10.00
+904:   2 HLA-C0701 MKSEHSFCL X_124896058_G_A   241.76  0.12
+905:   8 HLA-C0701 LSQSEGVML X_136536202_C_T 22052.85 11.00
+     pos       HLA   peptide        identity affinity  rank
+  1:   1 HLA-A6801 QERIKVNGK   1_6193020_C_T 23592.40 20.00
+  2:   5 HLA-A6801 EKIEKEQSK  1_12847677_C_G 14992.89 13.00
+  3:   2 HLA-A6801 EAEGSSLLL  1_27322214_G_A 22553.80 19.00
+  4:   6 HLA-A6801 MQENVSLIK  1_43243227_G_A  2068.23  4.50
+  5:   7 HLA-A6801 NSVDDLSSR  1_62210717_C_T    30.69  0.50
+ ---                                                       
+901:   5 HLA-C0701 KAQPATPGL 22_37492490_G_A 18360.64  8.00
+902:   1 HLA-C0701 RIGGSKQDF  X_85315727_C_A 10511.06  4.00
+903:   4 HLA-C0701 KNSDPVKTA X_118578639_C_T 24521.26 13.00
+904:   2 HLA-C0701 MKSEHSSCL X_124896058_G_A   178.29  0.08
+905:   8 HLA-C0701 SSQSEGVML X_136536202_C_T 19853.53  8.50
+[1] 29
+      pos       HLA   peptide        identity affinity  rank
+   1:   2 HLA-A2301 QPLETLNTX   1_1291602_G_A 27967.83 23.00
+   2:   7 HLA-A2301 GYSMCEQDC   1_7938243_C_T 19414.23 14.00
+   3:   8 HLA-A2301 KMEKRLQEM  1_10297064_G_A 22246.96 16.00
+   4:   2 HLA-A2301 NYRLEIKIF  1_10964246_C_T   240.49  0.70
+   5:   6 HLA-A2301 EYLDMPRSL  1_12283258_C_T  2624.41  3.00
+  ---                                                       
+3076:   8 HLA-C0701 QGEVNRRSA X_130667691_C_T 33668.79 25.00
+3077:   0 HLA-C0701 GVTQYALLL X_151744044_C_T  1574.77  0.60
+3078:   1 HLA-C0701 LVPGTLEKV X_151923821_G_A 12676.78  5.00
+3079:   8 HLA-C0701 FRIIFPVLF X_152168331_G_A  1017.98  0.50
+3080:   0 HLA-C0701 NRFSGRQFY 7_KI270803v1_al    33.88  0.01
+      pos       HLA   peptide        identity affinity  rank
+   1:   2 HLA-A2301 QPLETLDTX   1_1291602_G_A 29577.20 25.00
+   2:   0 HLA-A2301 GFHCLGAGC   1_7938243_C_T 29049.14 24.00
+   3:   5 HLA-A2301 MKQEMEKRL  1_10297064_G_A 25810.54 20.00
+   4:   2 HLA-A2301 NYRLEIRIF  1_10964246_C_T   382.70  0.90
+   5:   6 HLA-A2301 EYPDMPRSL  1_12283258_C_T 10990.92  7.50
+  ---                                                       
+3076:   7 HLA-C0701 ERGEVNRRS X_130667691_C_T 10223.36  4.00
+3077:   0 HLA-C0701 GVTQYALLS X_151744044_C_T 21948.11 10.00
+3078:   1 HLA-C0701 LVPGTLEEV X_151923821_G_A 10338.71  4.00
+3079:   8 HLA-C0701 SRIIFPVLF X_152168331_G_A  4460.66  1.60
+3080:   0 HLA-C0701 NRFSGRQFH 7_KI270803v1_al   110.81  0.05
+[1] 30
+     pos       HLA   peptide        identity affinity rank
+  1:   7 HLA-A0301 KXEEREKAK  1_23417361_C_A 12752.86 11.0
+  2:   5 HLA-A0301 KLPRSVGQK  1_44219818_A_C    57.48  0.3
+  3:   7 HLA-A0301 RQAEDEMDL  1_45333414_C_T 28740.89 35.0
+  4:   6 HLA-A0301 AVCPASILK  1_71072216_C_A   133.26  0.6
+  5:   0 HLA-A0301 LDILDTAGK 1_114713909_G_T 12762.39 11.0
+ ---                                                      
+260:   3 HLA-C0401 SEDFECTPQ 21_17565576_C_T 11145.17  3.5
+261:   7 HLA-C0401 VVNDAEEPK 22_35346931_G_T 17665.71  8.5
+262:   6 HLA-C0401 LQDEPSTEK  X_50310674_G_T 13120.82  4.5
+263:   0 HLA-C0401 SEKDSSSMI  X_54809757_G_A  9144.33  1.9
+264:   3 HLA-C0401 EQHDVCAQR X_114906659_C_T 10970.02  3.0
+     pos       HLA   peptide        identity affinity rank
+  1:   7 HLA-A0301 KGEEREKAK  1_23417361_C_A 19616.72 18.0
+  2:   5 HLA-A0301 KLPSSVGQK  1_44219818_A_C    70.46  0.4
+  3:   0 HLA-A0301 KRDLPWRRR  1_45333414_C_T 27288.70 31.0
+  4:   6 HLA-A0301 AVGPASILK  1_71072216_C_A   143.23  0.6
+  5:   7 HLA-A0301 GQEEYSAMR 1_114713909_G_T 20829.67 20.0
+ ---                                                      
+260:   6 HLA-C0401 FERTPQSPT 21_17565576_C_T  8610.16  1.6
+261:   4 HLA-C0401 STDVGNDAE 22_35346931_G_T 20521.63 12.0
+262:   0 HLA-C0401 FKEPLALQE  X_50310674_G_T 19174.58 11.0
+263:   0 HLA-C0401 SEKDSSSMM  X_54809757_G_A  7416.41  1.1
+264:   6 HLA-C0401 DVRAQRPKF X_114906659_C_T  9713.84  2.5
+[1] 31
+      pos       HLA   peptide        identity affinity rank
+   1:   1 HLA-A0301 RLPEFKFXD   1_2402097_G_A 25945.79 28.0
+   2:   6 HLA-A0301 PQKPTDCRK  1_12097131_G_A 21205.10 20.0
+   3:   5 HLA-A0301 MIEEDLALQ  1_12291001_G_A 30446.76 40.0
+   4:   1 HLA-A0301 RVSPCHSWQ  1_15060198_C_T  8918.71  8.0
+   5:   8 HLA-A0301 VIIEKNRAK  1_24061074_G_A   721.06  1.6
+  ---                                                      
+1262:   3 HLA-C0702 EREIPKISI 22_25768121_G_A 18100.47  7.0
+1263:   7 HLA-C0702 AKGPPPWTP 22_39134031_C_T 19245.87  7.5
+1264:   8 HLA-C0702 NTSDPRNVP  X_35802497_G_A 30562.61 17.0
+1265:   8 HLA-C0702 XYESFQDNV  X_74743620_G_A  7534.82  2.5
+1266:   7 HLA-C0702 DLHCGWCVL X_154463660_C_T 10371.09  3.5
+      pos       HLA   peptide        identity affinity rank
+   1:   1 HLA-A0301 RLPEFKFWD   1_2402097_G_A 26355.19 29.0
+   2:   6 HLA-A0301 PQRPTDCRK  1_12097131_G_A 16190.57 14.0
+   3:   4 HLA-A0301 EMIEGDLAL  1_12291001_G_A 26462.64 30.0
+   4:   1 HLA-A0301 RVSPCHSRQ  1_15060198_C_T 10242.40  8.5
+   5:   8 HLA-A0301 AIIEKNRAK  1_24061074_G_A   562.96  1.4
+  ---                                                      
+1262:   3 HLA-C0702 EREIPEISI 22_25768121_G_A 19568.61  8.0
+1263:   7 HLA-C0702 AEGPPPWTP 22_39134031_C_T 21265.99  9.0
+1264:   0 HLA-C0702 EDSPSSSED  X_35802497_G_A 34316.44 23.0
+1265:   8 HLA-C0702 RYESFQDNV  X_74743620_G_A  5188.29  1.6
+1266:   7 HLA-C0702 DPHCGWCVL X_154463660_C_T 23261.37 10.0
+[1] 32
+     pos       HLA   peptide        identity affinity rank
+  1:   2 HLA-A0101 RRPDPFLSV 1_150553899_C_T 27223.52 26.0
+  2:   0 HLA-A0101 NTLYVGARX 1_156156518_G_T 17400.71  7.0
+  3:   5 HLA-A0101 GSEKVVAVL 1_159953615_C_T 16796.00  6.5
+  4:   1 HLA-A0101 SFDYYRVLY 1_175363725_G_A  1781.83  0.8
+  5:   4 HLA-A0101 WAKRIKALV  2_21009137_C_T 20735.45 11.0
+ ---                                                      
+470:   0 HLA-C0701 SVPGPQHTK  X_68722629_G_A 19922.39  9.0
+471:   4 HLA-C0701 MASNLRKCM X_103082812_G_A   863.99  0.4
+472:   7 HLA-C0701 ILSTITRDL X_135910532_C_T  1846.51  0.7
+473:   0 HLA-C0701 IDLFDFFRD X_148501100_G_A 45549.99 80.0
+474:   0 HLA-C0701 ETPMNVRNF X_151180685_G_T 12292.64  4.5
+     pos       HLA   peptide        identity affinity rank
+  1:   2 HLA-A0101 RRPDPFPSV 1_150553899_C_T 30386.21 38.0
+  2:   3 HLA-A0101 YVGAREAIL 1_156156518_G_T 20216.84 10.0
+  3:   5 HLA-A0101 GSEEVVAVL 1_159953615_C_T 14075.60  4.5
+  4:   1 HLA-A0101 SFDYYRVSY 1_175363725_G_A  4989.60  1.6
+  5:   4 HLA-A0101 WAKRMKALV  2_21009137_C_T 20375.39 10.0
+ ---                                                      
+470:   1 HLA-C0701 VPGPQHTEL  X_68722629_G_A 18856.92  8.0
+471:   4 HLA-C0701 MASNPRKCM X_103082812_G_A   756.65  0.4
+472:   7 HLA-C0701 ISSTITRDL X_135910532_C_T  1710.90  0.7
+473:   0 HLA-C0701 MDLFDFFRD X_148501100_G_A 44252.00 70.0
+474:   0 HLA-C0701 ETPMNVRNV X_151180685_G_T  8884.81  3.5
+[1] 33
+      pos       HLA   peptide        identity affinity rank
+   1:   2 HLA-A2403 SFLRTISND   1_6574700_C_T  6776.19 4.50
+   2:   5 HLA-A2403 RAAIKSPSL   1_8330402_G_A 11216.66 6.50
+   3:   4 HLA-A2403 ESPRLTGVW  1_11858384_G_A  7778.95 5.00
+   4:   3 HLA-A2403 RYAAPNKNS  1_12345486_G_A  3063.03 3.00
+   5:   1 HLA-A2403 CSMPKFICF  1_12651171_C_T    57.81 0.40
+  ---                                                      
+1896:   0 HLA-C0401 LKQRITVLK X_151744412_G_A 13639.77 5.00
+1897:   8 HLA-C0401 SMDSHSCPL X_151961322_G_A  3248.70 0.12
+1898:   1 HLA-C0401 GFDNPQVQF X_152850392_G_A  1892.67 0.03
+1899:   7 HLA-C0401 GIILRTVPM X_153956729_G_A  9972.73 2.50
+1900:   5 HLA-C0401 HLDSNELPF 17_GL000258v2_a  5426.45 0.50
+      pos       HLA   peptide        identity affinity rank
+   1:   2 HLA-A2403 SFLRTIPND   1_6574700_C_T  5181.39 4.00
+   2:   7 HLA-A2403 AMKSPSLPL   1_8330402_G_A  4873.13 3.50
+   3:   4 HLA-A2403 ESPRPTGVW  1_11858384_G_A  8254.31 5.50
+   4:   3 HLA-A2403 RYAAPDKNS  1_12345486_G_A  4723.26 3.50
+   5:   1 HLA-A2403 CSMPKFIRF  1_12651171_C_T    39.56 0.30
+  ---                                                      
+1896:   3 HLA-C0401 RITVLETKM X_151744412_G_A 15968.23 7.00
+1897:   8 HLA-C0401 PMDSHSCPL X_151961322_G_A  7357.83 1.10
+1898:   1 HLA-C0401 GFDNPQVRF X_152850392_G_A  1421.22 0.01
+1899:   7 HLA-C0401 GTILRTVPM X_153956729_G_A  9333.96 2.00
+1900:   5 HLA-C0401 HLDPNELPF 17_GL000258v2_a  4945.37 0.40
+[1] 34
+     pos       HLA   peptide        identity affinity rank
+  1:   3 HLA-A0201 GLELPLEGV  1_10665235_G_A  1465.22  5.0
+  2:   1 HLA-A0201 LLKERNPLL  1_15630529_C_T   229.68  1.8
+  3:   6 HLA-A0201 SQXEICLSI  1_22639176_G_A    57.14  0.7
+  4:   5 HLA-A0201 FVQKFQFKV  1_36013669_G_A    26.46  0.4
+  5:   0 HLA-A0201 LTITWALPS  1_51818085_G_A  7397.98 13.0
+ ---                                                      
+328:   3 HLA-C1402 LVVPGEQVY X_124420458_C_T  4646.92  3.5
+329:   1 HLA-C1402 TVPENPKQK X_133026128_C_T 18120.65 10.0
+330:   7 HLA-C1402 KNVSDTPPI X_136348287_A_T  2792.78  2.5
+331:   7 HLA-C1402 IFRIIFPVL X_152168331_G_A  1377.57  1.7
+332:   3 HLA-C1402 VVQCSNLGL X_153504863_G_A  2846.56  3.0
+     pos       HLA   peptide        identity affinity  rank
+  1:   3 HLA-A0201 GLELPPEGV  1_10665235_G_A  2884.29  7.00
+  2:   1 HLA-A0201 LLKERNPPL  1_15630529_C_T   116.85  1.20
+  3:   2 HLA-A0201 FQVLSQWEI  1_22639176_G_A    33.33  0.50
+  4:   5 HLA-A0201 FVQEFQFKV  1_36013669_G_A     7.11  0.06
+  5:   0 HLA-A0201 LTITWALPP  1_51818085_G_A 13186.44 19.00
+ ---                                                       
+328:   3 HLA-C1402 LVVPGGQVY X_124420458_C_T  2116.19  2.50
+329:   1 HLA-C1402 TVPENPKRK X_133026128_C_T 18973.16 11.00
+330:   7 HLA-C1402 KKVSDTPPI X_136348287_A_T  1499.35  1.70
+331:   6 HLA-C1402 KISRIIFPV X_152168331_G_A  9871.93  6.00
+332:   1 HLA-C1402 LRVVQCSDL X_153504863_G_A  4930.30  4.00
+[1] 35
+       pos       HLA   peptide        identity affinity rank
+    1:   3 HLA-A1101 FSDSDNSEE    1_957148_C_T 30993.85 35.0
+    2:   8 HLA-A1101 VAHRYVLQH    1_961971_C_T  8295.85  7.5
+    3:   1 HLA-A1101 HVDAESLMR    1_962776_G_A   631.26  2.0
+    4:   2 HLA-A1101 SSPLPSMPV    1_973890_G_A  9306.13  8.5
+    5:   2 HLA-A1101 AVSTPAFEP    1_980116_G_A 10055.08  8.5
+   ---                                                      
+61451:   0 HLA-C0303 YLVSSTLLI 17_GL000258v2_a  1940.32  2.0
+61452:   7 HLA-C0303 DVFAQVNPL 22_KI270879v1_a  1479.14  1.7
+61453:   8 HLA-C0303 FTVERPRWQ 15_KI270905v1_a  5185.66  3.5
+61454:   4 HLA-C0303 TSGGDGRSG 6_GL000253v2_al 27673.74 14.0
+61455:   5 HLA-C0303 LIEKGDHRL 19_GL949753v2_a 21010.29 10.0
+       pos       HLA   peptide        identity affinity rank
+    1:   8 HLA-A1101 SSEEEEGPF    1_957148_C_T 28603.76 29.0
+    2:   8 HLA-A1101 AAHRYVLQH    1_961971_C_T  5602.21  6.0
+    3:   1 HLA-A1101 HVDAESLVR    1_962776_G_A  1236.78  3.0
+    4:   2 HLA-A1101 SSPLPSVPV    1_973890_G_A 12711.39 11.0
+    5:   2 HLA-A1101 AVSTPASEP    1_980116_G_A 18283.12 15.0
+   ---                                                      
+61451:   2 HLA-C0303 VSSTLLTSL 17_GL000258v2_a 13137.02  6.5
+61452:   7 HLA-C0303 DAFAQVNPL 22_KI270879v1_a    48.45  0.3
+61453:   0 HLA-C0303 YQTSKENED 15_KI270905v1_a 16177.79  7.5
+61454:   4 HLA-C0303 TSGGGGRSG 6_GL000253v2_al 23439.74 11.0
+61455:   5 HLA-C0303 LIEEGDHRL 19_GL949753v2_a 19299.46  9.0
+> 
+> dim(neoAg.mhci)
+[1] 154911     11
+> head(neoAg.mhci)
+  sample pos       HLA   peptide      identity affinity rank pos.ref
+1    Pt1   8 HLA-A0201 LLKDRDPEF  1_957229_C_A 12225.12 18.0       8
+2    Pt1   2 HLA-A0201 FFRSIDXDL 1_2175307_G_A 15786.65 22.0       2
+3    Pt1   6 HLA-A0201 ELFRRPEEV 1_3022381_C_T  1202.21  4.5       6
+4    Pt1   1 HLA-A0201 KLVRQCNKG 1_3475988_G_A 26224.35 38.0       1
+5    Pt1   0 HLA-A0201 IETEIVPAI 1_6475064_C_T 11812.55 17.0       0
+6    Pt1   1 HLA-A0201 LQVRHRPKV 1_6555545_G_A 10977.03 16.0       1
+  peptide.ref affinity.ref rank.ref
+1   RLKDRDPEF     12982.86       19
+2   FFRSIDWDL     10060.95       15
+3   ELSRRPEEV      5357.03       10
+4   KLVRQCNEG     18711.00       26
+5   IETEIVPAM     17216.24       24
+6   LQVRHRPEV      4400.21        9
+> 
+> table(neoAg.mhci$pos == neoAg.mhci$pos.ref)
+
+ FALSE   TRUE 
+ 46767 108144 
+> 
+> png("figures/compare_rank_mutation_vs_reference_mhci.png", 
++     width=8, height=4, units="in", res=300)
+> par(mfrow=c(1,2), mar=c(5,4,1,1), bty="n")
+> plot(log10(neoAg.mhci$rank.ref), log10(neoAg.mhci$rank), pch=20, cex=0.5, 
++      col="darkgrey", xlab="log10(rank.reference)", ylab="log10(rank.mutation)")
+> abline(0, 1, lwd=2, col='red')
+> 
+> rank.diff = neoAg.mhci$rank - neoAg.mhci$rank.ref
+> 
+> hist(rank.diff[rank.diff !=0 ], breaks=100, main="", 
++      xlab="rank.mutation - rank.reference")
+> abline(v=0, lwd=2, col='red')
+> dev.off()
+null device 
+          1 
+> 
+> #--------------------------------------------------------------------
+> # 4. re-organize results for HLA-II
+> #--------------------------------------------------------------------
+> 
+> which.ref = grep("_sm15r", names(mhciipan), fixed=TRUE)
+> nms.m = names(mhciipan)[-which.ref]
+> nms.r = names(mhciipan)[which.ref]
+> 
+> length(nms.m)
+[1] 35
+> length(nms.r)
+[1] 35
+> nms.m[1:5]
+[1] "Pt1_hlaii_sm15"  "Pt10_hlaii_sm15" "Pt11_hlaii_sm15" "Pt12_hlaii_sm15"
+[5] "Pt14_hlaii_sm15"
+> nms.r[1:5]
+[1] "Pt1_hlaii_sm15r"  "Pt10_hlaii_sm15r" "Pt11_hlaii_sm15r" "Pt12_hlaii_sm15r"
+[5] "Pt14_hlaii_sm15r"
+> 
+> table(nms.r == paste0(nms.m, "r"))
+
+TRUE 
+  35 
+> 
+> neoAg.mhciipan = NULL
+> 
+> for(i in 1:length(nms.m)){
++   print(i)
++   print(nms.m[i])
++   print(nms.r[i])
++   m1 = mhciipan[[nms.m[i]]]
++   r1 = mhciipan[[nms.r[i]]]
++   
++   sample = gsub("_hlaii_sm15", "", nms.m[i])
++   
++   if(nrow(m1) != nrow(r1)){ stop("nrow do not match\n") }
++   if(any(m1$allele != r1$allele)){ stop("HLA do not match\n") }
++   if(any(m1$identity != r1$identity)){ stop("identity do not match\n") }
++   
++   names(r1)[-c(2,4)] = paste(names(r1)[-c(2,4)], "ref", sep=".")
++   
++   m1  = cbind(m1, r1[,-c(2,4)])
++   df1 = data.frame(sample=rep(sample, nrow(m1)), m1, stringsAsFactors=FALSE)
++   
++   neoAg.mhciipan = rbind(neoAg.mhciipan, df1)
++ }
+[1] 1
+[1] "Pt1_hlaii_sm15"
+[1] "Pt1_hlaii_sm15r"
+[1] 2
+[1] "Pt10_hlaii_sm15"
+[1] "Pt10_hlaii_sm15r"
+[1] 3
+[1] "Pt11_hlaii_sm15"
+[1] "Pt11_hlaii_sm15r"
+[1] 4
+[1] "Pt12_hlaii_sm15"
+[1] "Pt12_hlaii_sm15r"
+[1] 5
+[1] "Pt14_hlaii_sm15"
+[1] "Pt14_hlaii_sm15r"
+[1] 6
+[1] "Pt16_hlaii_sm15"
+[1] "Pt16_hlaii_sm15r"
+[1] 7
+[1] "Pt17_hlaii_sm15"
+[1] "Pt17_hlaii_sm15r"
+[1] 8
+[1] "Pt18_hlaii_sm15"
+[1] "Pt18_hlaii_sm15r"
+[1] 9
+[1] "Pt19_hlaii_sm15"
+[1] "Pt19_hlaii_sm15r"
+[1] 10
+[1] "Pt2_hlaii_sm15"
+[1] "Pt2_hlaii_sm15r"
+[1] 11
+[1] "Pt20_hlaii_sm15"
+[1] "Pt20_hlaii_sm15r"
+[1] 12
+[1] "Pt21_hlaii_sm15"
+[1] "Pt21_hlaii_sm15r"
+[1] 13
+[1] "Pt22_hlaii_sm15"
+[1] "Pt22_hlaii_sm15r"
+[1] 14
+[1] "Pt23_hlaii_sm15"
+[1] "Pt23_hlaii_sm15r"
+[1] 15
+[1] "Pt3_hlaii_sm15"
+[1] "Pt3_hlaii_sm15r"
+[1] 16
+[1] "Pt4_hlaii_sm15"
+[1] "Pt4_hlaii_sm15r"
+[1] 17
+[1] "Pt5_hlaii_sm15"
+[1] "Pt5_hlaii_sm15r"
+[1] 18
+[1] "Pt6_hlaii_sm15"
+[1] "Pt6_hlaii_sm15r"
+[1] 19
+[1] "Pt7_hlaii_sm15"
+[1] "Pt7_hlaii_sm15r"
+[1] 20
+[1] "Pt8_hlaii_sm15"
+[1] "Pt8_hlaii_sm15r"
+[1] 21
+[1] "Vand_Pt10_hlaii_sm15"
+[1] "Vand_Pt10_hlaii_sm15r"
+[1] 22
+[1] "Vand_Pt11_hlaii_sm15"
+[1] "Vand_Pt11_hlaii_sm15r"
+[1] 23
+[1] "Vand_Pt16_hlaii_sm15"
+[1] "Vand_Pt16_hlaii_sm15r"
+[1] 24
+[1] "Vand_Pt17_hlaii_sm15"
+[1] "Vand_Pt17_hlaii_sm15r"
+[1] 25
+[1] "Vand_Pt27_hlaii_sm15"
+[1] "Vand_Pt27_hlaii_sm15r"
+[1] 26
+[1] "Vand_Pt30_hlaii_sm15"
+[1] "Vand_Pt30_hlaii_sm15r"
+[1] 27
+[1] "Vand_Pt31_hlaii_sm15"
+[1] "Vand_Pt31_hlaii_sm15r"
+[1] 28
+[1] "Vand_Pt32_hlaii_sm15"
+[1] "Vand_Pt32_hlaii_sm15r"
+[1] 29
+[1] "Vand_Pt33_hlaii_sm15"
+[1] "Vand_Pt33_hlaii_sm15r"
+[1] 30
+[1] "Vand_Pt34_hlaii_sm15"
+[1] "Vand_Pt34_hlaii_sm15r"
+[1] 31
+[1] "Vand_Pt35_hlaii_sm15"
+[1] "Vand_Pt35_hlaii_sm15r"
+[1] 32
+[1] "Vand_Pt36_hlaii_sm15"
+[1] "Vand_Pt36_hlaii_sm15r"
+[1] 33
+[1] "Vand_Pt37_hlaii_sm15"
+[1] "Vand_Pt37_hlaii_sm15r"
+[1] 34
+[1] "Vand_Pt38_hlaii_sm15"
+[1] "Vand_Pt38_hlaii_sm15r"
+[1] 35
+[1] "Vand_Pt8_hlaii_sm15"
+[1] "Vand_Pt8_hlaii_sm15r"
+> 
+> dim(neoAg.mhciipan)
+[1] 248066     17
+> head(neoAg.mhciipan)
+  sample seq    allele         peptide      identity pos      core core_rel
+1    Pt1   5 DRB1_1101 RASEHKDQLSLLKDR  1:957229:C:A   4 HKDQLSLLK    0.605
+2    Pt1   1 DRB1_1101 FSDIKSHAFFRSIDX 1:2175307:G:A   3 IKSHAFFRS    0.505
+3    Pt1   1 DRB1_1101 KKLCYVALEPEKELF 1:3022381:C:T   4 YVALEPEKE    0.590
+4    Pt1   1 DRB1_1101 RALKAISKLVRQCNK 1:3475988:G:A   2 LKAISKLVR    0.680
+5    Pt1   7 DRB1_1101 IETEIVPAIKKKSLG 1:6475064:C:T   4 IVPAIKKKS    0.795
+6    Pt1   4 DRB1_1101 HSGCLQVRHRPKVTL 1:6555545:G:A   4 LQVRHRPKV    0.465
+  affinity rank seq.ref     peptide.ref pos.ref  core.ref core_rel.ref
+1  4204.86 75.0       5 RASEHKDQLSRLKDR       5 KDQLSRLKD        0.425
+2   437.30 24.0      11 RSIDWDLLEKKQALP       4 WDLLEKKQA        0.815
+3   660.83 31.0       1 KKLCYVALEPEKELS       4 YVALEPEKE        0.595
+4    27.11  0.7       1 RALKAISKLVRQCNE       2 LKAISKLVR        0.745
+5    39.31  1.5       7 IETEIVPAMKKKSLG       4 IVPAMKKKS        0.765
+6   146.69  9.5       4 HSGCLQVRHRPEVTL       4 LQVRHRPEV        0.425
+  affinity.ref rank.ref
+1      3638.89     70.0
+2       303.84     18.0
+3       743.63     34.0
+4        28.84      0.8
+5        44.06      1.9
+6       687.07     32.0
+> 
+> table(neoAg.mhciipan$seq == neoAg.mhciipan$seq.ref)
+
+ FALSE   TRUE 
+ 75968 172098 
+> 
+> png("figures/compare_rank_mutation_vs_reference_mhciipan.png", 
++     width=8, height=4, units="in", res=300)
+> par(mfrow=c(1,2), mar=c(5,4,1,1), bty="n")
+> plot(log10(neoAg.mhciipan$rank.ref), log10(neoAg.mhciipan$rank), pch=20, cex=0.5, 
++      col="darkgrey", xlab="log10(rank.reference)", ylab="log10(rank.mutation)")
+> abline(0, 1, lwd=2, col='red')
+> 
+> rank.diff = neoAg.mhciipan$rank - neoAg.mhciipan$rank.ref
+> hist(rank.diff[rank.diff !=0 ], breaks=100, main="", 
++      xlab="rank.mutation - rank.reference")
+> abline(v=0, lwd=2, col='red')
+> dev.off()
+null device 
+          1 
+> 
+> table(neoAg.mhci$rank == neoAg.mhci$rank.ref)
+
+ FALSE   TRUE 
+142448  12463 
+> table(neoAg.mhciipan$rank == neoAg.mhciipan$rank.ref)
+
+ FALSE   TRUE 
+190813  57253 
+> 
+> table(neoAg.mhci$rank - neoAg.mhci$rank.ref < 0)
+
+FALSE  TRUE 
+73897 81014 
+> table(neoAg.mhciipan$rank - neoAg.mhciipan$rank.ref < 0)
+
+ FALSE   TRUE 
+130416 117650 
+> 
+> #--------------------------------------------------------------------
+> # 5. save the neoAg
+> #--------------------------------------------------------------------
+> 
+> length(mhci)
+[1] 70
+> mhci[[1]]
+       pos       HLA   peptide        identity affinity rank
+    1:   8 HLA-A0201 LLKDRDPEF    1_957229_C_A 12225.12 18.0
+    2:   2 HLA-A0201 FFRSIDXDL   1_2175307_G_A 15786.65 22.0
+    3:   6 HLA-A0201 ELFRRPEEV   1_3022381_C_T  1202.21  4.5
+    4:   1 HLA-A0201 KLVRQCNKG   1_3475988_G_A 26224.35 38.0
+    5:   0 HLA-A0201 IETEIVPAI   1_6475064_C_T 11812.55 17.0
+   ---                                                      
+17551:   8 HLA-C0501 XKHVGPSFV X_154716198_C_T 13881.85  4.0
+17552:   8 HLA-C0501 SVTDASSVF 3_KI270779v1_al  3940.30  1.3
+17553:   6 HLA-C0501 GSEDPSTKV 12_KI270904v1_a  3553.98  1.2
+17554:   6 HLA-C0501 VIDDRPSLT 15_KI270905v1_a   221.68  0.2
+17555:   8 HLA-C0501 FCYHRGLYL 11_KI270927v1_a  1773.30  0.8
+> 
+> length(mhciipan)
+[1] 70
+> mhciipan[[1]]
+       seq                allele         peptide        identity pos      core
+    1:   5             DRB1_1101 RASEHKDQLSLLKDR    1:957229:C:A   4 HKDQLSLLK
+    2:   1             DRB1_1101 FSDIKSHAFFRSIDX   1:2175307:G:A   3 IKSHAFFRS
+    3:   1             DRB1_1101 KKLCYVALEPEKELF   1:3022381:C:T   4 YVALEPEKE
+    4:   1             DRB1_1101 RALKAISKLVRQCNK   1:3475988:G:A   2 LKAISKLVR
+    5:   7             DRB1_1101 IETEIVPAIKKKSLG   1:6475064:C:T   4 IVPAIKKKS
+   ---                                                                        
+21062:   1 HLA-DPA10103-DPB10201 SKPIRVIDLSECAVX X:154716198:C:T   3 IRVIDLSEC
+21063:  10 HLA-DPA10103-DPB10201 HATPLSVTSFSSVST 3_KI270779v1_al   4 LSVTSFSSV
+21064:   5 HLA-DPA10103-DPB10201 AIRFSYPSIHRFILI 12_KI270904v1_a   3 FSYPSIHRF
+21065:   2 HLA-DPA10103-DPB10201 ARSQIFVFGPHWPLL 15_KI270905v1_a   5 FVFGPHWPL
+21066:  11 HLA-DPA10103-DPB10201 LAKCFCYHRGLYLEA 11_KI270927v1_a   4 FCYHRGLYL
+       core_rel affinity rank
+    1:    0.605  4204.86 75.0
+    2:    0.505   437.30 24.0
+    3:    0.590   660.83 31.0
+    4:    0.680    27.11  0.7
+    5:    0.795    39.31  1.5
+   ---                       
+21062:    0.435  1477.14 43.0
+21063:    0.565   137.32  6.5
+21064:    0.400   100.58  4.0
+21065:    0.315   176.54  8.5
+21066:    0.445   176.99  8.5
+> 
+> saveRDS(neoAg.mhci, file="output/mhci_min_rank_per_HLA_mutation.rds")
+> saveRDS(neoAg.mhciipan, file="output/mhciipan_min_rank_per_HLA_mutation.rds")
+> 
+> sessionInfo()
+R version 3.6.1 (2019-07-05)
+Platform: x86_64-apple-darwin15.6.0 (64-bit)
+Running under: macOS High Sierra 10.13.6
+
+Matrix products: default
+BLAS:   /Library/Frameworks/R.framework/Versions/3.6/Resources/lib/libRblas.0.dylib
+LAPACK: /Library/Frameworks/R.framework/Versions/3.6/Resources/lib/libRlapack.dylib
+
+locale:
+[1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+
+attached base packages:
+[1] stats4    parallel  stats     graphics  grDevices utils     datasets 
+[8] methods   base     
+
+other attached packages:
+[1] data.table_1.12.2   plyr_1.8.4          ggplot2_3.2.1      
+[4] Biostrings_2.52.0   XVector_0.24.0      IRanges_2.18.1     
+[7] S4Vectors_0.22.0    BiocGenerics_0.30.0 magrittr_1.5       
+
+loaded via a namespace (and not attached):
+ [1] Rcpp_1.0.2       zlibbioc_1.30.0  tidyselect_0.2.5 munsell_0.5.0   
+ [5] colorspace_1.4-1 R6_2.4.0         rlang_0.4.0      dplyr_0.8.3     
+ [9] grid_3.6.1       gtable_0.3.0     withr_2.1.2      digest_0.6.20   
+[13] lazyeval_0.2.2   assertthat_0.2.1 tibble_2.1.3     crayon_1.3.4    
+[17] purrr_0.3.2      glue_1.3.1       labeling_0.3     compiler_3.6.1  
+[21] pillar_1.4.2     scales_1.0.0     pkgconfig_2.0.2 
+> q(save="no")
+> proc.time()
+   user  system elapsed 
+ 44.000   1.631  33.885 

@@ -1,0 +1,678 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r warning=FALSE, echo = TRUE, results = 'hide', warning = FALSE, message = FALSE}
+library(data.table)
+library(Rtsne)
+library(R.utils)
+library(ggplot2)
+library(ggcorrplot)
+library(umap)
+theme_set(theme_bw())
+```
+
+# Processing data
+
+The original data files were downloaded from https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE120575. They were split into two files to make sure the file size is smaller than 100MB, and the original file has a 2nd header line for time points: "Pre_P1",  "Post_P1", "Post_P1_2", and that row was deleted in file "GSE120575_Sade_Feldman_melanoma_single_cells_nolabel_1.txt.gz".
+
+```{r}
+fnm1 = "GSE120575_Sade_Feldman_melanoma_single_cells_nolabel_1.txt.gz"
+fnm2 = "GSE120575_Sade_Feldman_melanoma_single_cells_2.txt.gz"
+sf_tpm1 = fread(paste0("../../scRNAseq/Sade_Feldman_2018/", fnm1), 
+                fill = TRUE, header = TRUE)
+sf_tpm2 = fread(paste0("../../scRNAseq/Sade_Feldman_2018/", fnm2), 
+                fill = TRUE, drop = 16293, col.names = colnames(sf_tpm1))
+
+dim(sf_tpm1)
+dim(sf_tpm2)
+sf_tpm1[1:2,1:5]
+sf_tpm2[1:2,1:5]
+
+ls_tpm = list(sf_tpm1,sf_tpm2)
+sf_tpm = rbindlist(ls_tpm)
+rm(ls_tpm)
+rm(sf_tpm1)
+rm(sf_tpm2)
+```
+
+```{r}
+dim(sf_tpm) # 55737 x 16292
+sf_tpm[1:2,1:5]
+
+cell.names = colnames(sf_tpm)[-1]
+gene.names = sf_tpm$V1
+rownames(sf_tpm) = gene.names
+sf_tpm$V1 = NULL
+```
+
+# Initial QC
+
+## How many transcripts per cell
+Split the cells to reduce memory usage. 
+
+```{r}
+grouping = rep(1:82, each=200)[1:length(cell.names)]
+reads.per.cell = NULL
+for (i in 1:82) {
+  ss = cell.names[grouping == i]
+  temp.reads = unlist(sf_tpm[, lapply(.SD, sum), .SDcols = ss])
+  reads.per.cell = c(reads.per.cell,temp.reads)
+}
+hist(reads.per.cell, main = "", xlab = "Summation of TPM per cell", breaks=50)
+```
+
+## How many genes are expressed per cell
+```{r}
+genes.per.cell = NULL
+for (i in 1:82) {
+  ss = cell.names[grouping == i]
+  temp.counts = unlist(sf_tpm[, lapply(.SD, FUN = function(x) sum(x>0)), .SDcols = ss])
+  genes.per.cell = c(genes.per.cell,temp.counts)
+}
+hist(genes.per.cell, main = "", xlab = "Number of expressed genes per cell", breaks=50)
+rm(grouping)
+```
+
+## How many cells each gene is expressed  
+```{r}
+gene.grouping = rep(1:28, each = 2000)[1:dim(sf_tpm)[1]]
+cells.per.gene = NULL
+for (i in 1:28) {
+  temp.counts = rowSums(sf_tpm[gene.grouping==i,] > 0)
+  cells.per.gene = c(cells.per.gene,temp.counts)
+}
+summary(cells.per.gene)
+table(cells.per.gene == 0)
+table(cells.per.gene == 1)
+table(cells.per.gene <= 5)
+
+hist(log10(cells.per.gene), main = "", breaks=50, 
+     xlab = "log10(number of cells) each gene is expressed")
+rm(gene.grouping)
+```
+
+# Choose high-variance genes
+
+plot the variance of the expression levels for each gene against its mean expression level
+
+```{r}
+# kept 12705 genes
+large.express.genes.all = gene.names[which(cells.per.gene > 500)]
+large.expressed.tpm = sf_tpm[match(large.express.genes.all,rownames(sf_tpm)),]
+
+df_mv = data.frame(gene=large.express.genes.all, 
+                   mean=rowMeans(large.expressed.tpm), 
+                   var=apply(large.expressed.tpm, 1, var))
+ggplot(data = df_mv) + 
+  geom_point(aes(x=mean,y=var),size = 0.1)
+
+rm(large.expressed.tpm)
+```
+
+Next we divide the genes into 20 equal-size bins based on their mean expression levels. In each bin, we select the first 50 genes with the highest variance
+
+```{r}
+df_mv$grouping = cut_number(df_mv$mean, n=20)
+table(df_mv$grouping)
+
+hv.genes.list = by(df_mv, df_mv$grouping, 
+                   FUN = function(df) return(df$gene[order(df$var,decreasing = TRUE)][1:50]))
+hv.genes.all = as.character(unlist(hv.genes.list))
+rm(hv.genes.list)
+hvg_tpm = sf_tpm[match(hv.genes.all,rownames(sf_tpm)),]
+hvg_tpm = t(hvg_tpm)
+colnames(hvg_tpm) = hv.genes.all
+
+dim(hvg_tpm)
+hvg_tpm[1:2,1:5]
+rm(df_mv)
+
+df_mv2 = data.frame(gene=hv.genes.all, mean=colMeans(hvg_tpm), 
+                   var=apply(hvg_tpm, 2, var))
+ggplot(data = df_mv2) + 
+  geom_point(aes(x=mean,y=var),size = 0.1)
+```
+
+## Perform PCA on selected genes
+
+```{r}
+hvg_tpm = log(hvg_tpm + 1)
+pca.hvg = princomp(hvg_tpm, cor = TRUE)
+```
+
+### screen plot
+```{r}
+eigvals = pca.hvg$sdev^2
+pve = eigvals/sum(eigvals)
+plot(1:50, pve[1:50], main = "scree plot (first 50 PCs)", type="b", 
+     xlab="i-th PC", ylab="Proportion of Variance Explained")
+```
+
+### plot of cumulative proportion of variance explained
+```{r}
+yvec = cumsum(pve)
+plot(yvec, type="l", main = "plot of cumulative proportion of variance", 
+     xlab = "i-th Principal Components", 
+     ylab = "Cumulative variance", ylim=c(0,1))
+abline(h=0.8, lty = 2)
+
+plot(yvec[1:100], type="l", main = "plot of cumulative proportion of variance", 
+     xlab = "i-th Principal Components", 
+     ylab = "Cumulative variance")
+```
+
+```{r}
+pca.scores = pca.hvg$scores
+rm(pca.hvg)
+```
+
+# Clustering on top 50 PCs
+
+```{r}
+top50pcs = pca.scores[,1:50]
+rm(pca.scores)
+```
+
+## Calculate TSNE
+
+```{r}
+set.seed(9999)
+tsne = Rtsne(top50pcs, pca=FALSE)
+df_tsne = as.data.frame(tsne$Y)
+names(df_tsne) = paste0("topPC_TSNE", seq(ncol(tsne$Y)))
+rm(tsne)
+```
+
+## Calculate UMAP
+```{r}
+pcs_umap = umap(top50pcs)
+df_umap  = as.data.frame(pcs_umap$layout)
+names(df_umap) = paste0("topPC_UMAP",seq(ncol(df_umap)))
+rm(pcs_umap)
+```
+
+## K-means clustering on top 50 PCs
+
+Prepare dataframe for k-means clustering using top 50 PCs
+```{r}
+df_top50PCs = cbind(top50pcs, df_tsne)
+df_top50PCs = cbind(df_top50PCs, df_umap)
+
+rm(df_tsne)
+rm(df_umap)
+
+dim(df_top50PCs)
+df_top50PCs[1:2, c(1:2,48:52)]
+```
+
+Try Kmeans for 6 to 12 clusters 
+```{r}
+set.seed(9999)
+all_num_clust = c(6:12)
+for (num_clust in all_num_clust) {
+  cat(paste0("KM with ",num_clust," clusters.\n"))
+  kmeans_out = kmeans(top50pcs, centers = num_clust, iter.max = 1e3, 
+                      nstart = 50, algorithm = "MacQueen")
+  
+  print(kmeans_out[c("betweenss","tot.withinss")])
+  km_label = paste0("KM_",num_clust)
+  df_top50PCs[[km_label]] = as.factor(kmeans_out$cluster)
+  
+  pt = ggplot(data=df_top50PCs) + 
+    geom_point(aes(x=topPC_UMAP1, y=topPC_UMAP2, 
+                   color=eval(as.name(paste(km_label)))), size = 0.1) + 
+    scale_colour_discrete(name=paste(km_label)) + 
+    guides(color = guide_legend(override.aes = list(size = 2)))
+  print(pt)
+  
+  pt = ggplot(data=df_top50PCs) + 
+    geom_point(aes(x=topPC_TSNE1, y=topPC_TSNE2, 
+                   color=eval(as.name(paste(km_label)))), size = 0.1) + 
+    scale_colour_discrete(name=paste(km_label)) + 
+    guides(color = guide_legend(override.aes = list(size = 2)))
+  print(pt)
+  
+  rm(kmeans_out)
+  rm(pt)
+
+}
+```
+
+Compared to the clustering result from Sade-Feldman et al., 2018
+
+```{r}
+xnm = "1-s2.0-S0092867418313941-mmc1.xlsx"
+table_s1 = readxl::read_xlsx(paste0("../../_reference/Sade_Feldman_2018/", xnm), 
+                             sheet = "Cluster annotation-Fig1B-C", col_names = TRUE)
+dim(df_top50PCs)
+dim(table_s1)
+table_s1[1:2,]
+
+table(table_s1$`Cluster number`)
+clabel = c("B_cells", "Plasma_cells", "Monocytes_Macrophages", "Dendritic_cells", 
+           "Lymphocytes", "Exhausted_CD8T", "Tregs", "Cytotoxicity", 
+           "Exhausted_HS_CD8T", "memory_T", "Lymphocytes_cell_cycle")
+table_s1$cluster_label = clabel[table_s1$`Cluster number`]
+dim(table_s1)
+table_s1[1:2,]
+
+table(rownames(df_top50PCs) == table_s1$`Cell Name`)
+setequal(rownames(df_top50PCs), table_s1$`Cell Name`)
+
+cell_nm_check = cbind(rownames(df_top50PCs), table_s1$`Cell Name`)
+w2check = which(cell_nm_check[,1] != cell_nm_check[,2])
+cell_nm_check = cell_nm_check[w2check,]
+dim(cell_nm_check)
+
+cell_nm_check[c(1:2,501:502, 990:991),]
+
+cell_nm_check[,1] = gsub("_myeloid_enriched", "", cell_nm_check[,1], fixed=TRUE)
+cell_nm_check[,1] = gsub("_T_enriched", "", cell_nm_check[,1], fixed=TRUE)
+cell_nm_check[,2] = gsub("_DN$", "",  cell_nm_check[,2], perl=TRUE)
+cell_nm_check[,2] = gsub("_DN1$", "", cell_nm_check[,2], perl=TRUE)
+cell_nm_check[,2] = gsub("_DP1$", "", cell_nm_check[,2], perl=TRUE)
+
+table(cell_nm_check[,1] == cell_nm_check[,2])
+
+df_top50PCs$sf_cluster = as.factor(table_s1$`Cluster number`)
+df_top50PCs$sf_label   = as.factor(table_s1$cluster_label)
+```
+
+Cluster annotation from Sade-Feldman et al., 2018, 11 clusters
+```{r}
+ggplot(data=df_top50PCs) + 
+  geom_point(aes(x=topPC_UMAP1, y=topPC_UMAP2, color=sf_label), 
+             size = 0.1) + 
+  guides(color = guide_legend(override.aes = list(size = 2)))
+```
+
+Cluster annotation from my Kmeans analysis, 12 clusters
+```{r}
+ggplot(data=df_top50PCs) + 
+  geom_point(aes(x=topPC_UMAP1, y=topPC_UMAP2, color=KM_12), size = 0.1) + 
+  guides(color = guide_legend(override.aes = list(size = 2)))
+```
+
+```{r}
+tb1 = table(df_top50PCs$KM_12, df_top50PCs$sf_label)
+tb1
+rowSums(tb1 > 100)
+colSums(tb1 > 100)
+```
+
+## Select G1 B cells, G2 Plasma cells, G3 Monocytes/Macrophages, G4 Dendritic cells, G7 Regulatory T cells and G10 Memory T-cells by taking the largest intersection between the clusters defined in the paper and our clusters 
+ 
+
+```{r}
+cell_type = data.frame(cell = cell.names, type1 = NA)
+for(ct1 in c("B_cells", "Dendritic_cells", "Monocytes_Macrophages", "Plasma_cells")){
+  kmc = which(tb1[,ct1] > 100)
+  cell_type$type1[which(df_top50PCs$KM_12 %in% kmc & df_top50PCs$sf_label==ct1)] = ct1
+}
+
+for(ct1 in c("Tregs", "memory_T")){
+  kmc = which.max(tb1[,ct1])
+  cell_type$type1[which(df_top50PCs$KM_12 %in% kmc & df_top50PCs$sf_label==ct1)] = ct1
+}
+
+table(cell_type$type1, df_top50PCs$KM_12)
+```
+
+```{r}
+rm(top50pcs)
+rm(df_top50PCs)
+```
+
+## Select CD8_B cells and CD8_G cells 
+ 
+- 2482 CD8_B cells: 7
+- 3043 CD8_G cells: 8
+
+```{r}
+# Cell cluster annotation of CD8+ T cells 
+table_s2 = read.csv("output/CD8_cluster.csv", stringsAsFactors = FALSE)
+dim(table_s2)
+table_s2[1:2,]
+
+table(table_s2$Cluster, table_s2$ruoyi_cluster, useNA="ifany")
+
+CD8_B = table_s2$Cell.Name[which(table_s2$ruoyi_cluster=="CD8_B")]
+CD8_G = table_s2$Cell.Name[which(table_s2$ruoyi_cluster=="CD8_G")]
+
+table(CD8_B %in% cell_type$cell)
+table(CD8_G %in% cell_type$cell)
+
+cell_type$type2 = rep("others", nrow(cell_type))
+cell_type$type2[match(CD8_B,cell_type$cell)] = "CD8T_B"
+cell_type$type2[match(CD8_G,cell_type$cell)] = "CD8T_G"
+
+table(cell_type$type1, cell_type$type2, useNA="ifany")
+```
+
+# Fine-clustering for NK cells
+
+First, I get all the CD8 and NK cells, corresponding to the cells in clusters 5 (Lymphocytes), 6 (Exhausted_CD8T), 8 (Cytotoxicity), 9 (Exhausted_HS_CD8T) and 11 (Lymphocytes_cell_cycle) in Sade_Feldman et al. (2018). There are 9337 such cells. Then, I excluded the CD8 T cells using the annotation in the paper. 3513 cells remained after excluding the CD8 T cells. 
+
+## Data for only CD8 and NK cells
+```{r}
+table(paste(table_s1$`Cluster number`, table_s1$cluster_label))
+CD8.NK.cells = cell.names[as.numeric(table_s1$`Cluster number`) %in% c(5,6,8,9,11)]
+TNK.cells    = CD8.NK.cells[! CD8.NK.cells %in% table_s2$Cell.Name] 
+TNKcells_tpm = sf_tpm[, ..TNK.cells]
+
+row.names(TNKcells_tpm) = gene.names
+
+dim(TNKcells_tpm)
+TNKcells_tpm[1:2,1:5]
+```
+
+## How many cells each gene is expressed  
+```{r}
+gene.grouping = rep(1:28, each = 2000)[1:dim(TNKcells_tpm)[1]]
+cells.per.gene = NULL
+for (i in 1:28) {
+  temp.counts = apply(TNKcells_tpm[gene.grouping==i,], 1, FUN = function(x) sum(x>0))
+  cells.per.gene = c(cells.per.gene,temp.counts)
+}
+table(cells.per.gene == 0)
+table(cells.per.gene == 1)
+
+hist(log10(cells.per.gene), main = "", breaks = 50, 
+     xlab = "log10(number of cells) each gene is expressed")
+rm(gene.grouping)
+```
+
+## Choose high-variance genes
+
+plot the variance of the expression levels for each gene against its mean expression level
+
+```{r}
+# kept 10925 genes
+genes2kp = which(cells.per.gene > 150)
+large.express.genes.TNK = rownames(TNKcells_tpm)[genes2kp]
+large.expressed.tpm = TNKcells_tpm[genes2kp,]
+dim(large.expressed.tpm)
+
+df_mv = data.frame(gene=large.express.genes.TNK, 
+                   mean=rowMeans(large.expressed.tpm), 
+                   var=apply(large.expressed.tpm, 1, var))
+
+rm(large.expressed.tpm)
+ggplot(data = df_mv) + 
+  geom_point(aes(x=mean,y=var),size = 0.1)
+```
+
+Next, divide the genes into 20 equal-size bins based on their mean expression levels, and select the first 50 genes with the highest variance from each bin.
+
+```{r}
+df_mv$grouping = cut_number(df_mv$mean, n=20)
+table(df_mv$grouping)
+
+hv.genes.list = by(df_mv, df_mv$grouping, 
+                   FUN = function(df) return(df$gene[order(df$var,decreasing = TRUE)][1:50]))
+hv.genes.TNK = as.character(unlist(hv.genes.list))
+rm(hv.genes.list)
+
+hvg_TNKcells_tpm = TNKcells_tpm[match(hv.genes.TNK, rownames(TNKcells_tpm)),]
+hvg_TNKcells_tpm = t(hvg_TNKcells_tpm)
+colnames(hvg_TNKcells_tpm) = hv.genes.TNK
+rm(df_mv)
+
+dim(hvg_TNKcells_tpm)
+hvg_TNKcells_tpm[1:2,1:4]
+
+df_mv2 = data.frame(gene=hv.genes.TNK, 
+                   mean=colMeans(hvg_TNKcells_tpm), 
+                   var=apply(hvg_TNKcells_tpm, 2, var))
+
+ggplot(data = df_mv2) + 
+  geom_point(aes(x=mean,y=var),size = 0.1)
+
+```
+
+## Perform PCA on selected genes
+
+```{r}
+pca.hvg = princomp(log(hvg_TNKcells_tpm+1), cor = TRUE)
+rm(hvg_TNKcells_tpm)
+pca.scores = pca.hvg$scores
+rm(pca.hvg)
+```
+
+## Clustering on top 50 PCs
+
+```{r}
+top50pcs_TNKcells = pca.scores[,1:50]
+rm(pca.scores)
+```
+
+
+## Calculate UMAP
+```{r}
+pcs_umap = umap(top50pcs_TNKcells)
+df_umap  = as.data.frame(pcs_umap$layout)
+names(df_umap) = paste0("topPC_UMAP",seq(ncol(df_umap)))
+rm(pcs_umap)
+```
+
+### K-means clustering on top 50 PCs
+
+Prepare dataframe for k-means clustering using top 50 PCs
+```{r}
+df_top50PCs_TNKcells = cbind(top50pcs_TNKcells, df_umap)
+rm(df_umap)
+dim(df_top50PCs_TNKcells)
+df_top50PCs_TNKcells[1:2,c(1:2,50:52)]
+```
+
+```{r}
+set.seed(9999)
+all_num_clust = c(2:6)
+for (num_clust in all_num_clust) {
+  cat(paste0("KM with ",num_clust," clusters.\n"))
+  kmeans_out = kmeans(top50pcs_TNKcells, centers = num_clust, 
+                      iter.max = 1e3, 
+                      nstart = 50, algorithm = "MacQueen")
+  print(kmeans_out[c("betweenss","tot.withinss")])
+  km_label = paste0("KM_",num_clust)
+  df_top50PCs_TNKcells[[km_label]] = as.factor(kmeans_out$cluster)
+  pt = ggplot(data=df_top50PCs_TNKcells) + 
+    geom_point(aes(x=topPC_UMAP1,y=topPC_UMAP2,
+                   color=eval(as.name(paste(km_label)))), size = 0.1) + 
+    scale_colour_discrete(name=paste(km_label)) + 
+    guides(color = guide_legend(override.aes = list(size = 2)))
+  print(pt)
+  rm(kmeans_out)
+  rm(pt)
+}
+```
+
+### Cell cluster annotation from Sade-Feldman et al., 2018   
+
+```{r}
+df_top50PCs_TNKcells$sf_cluster = 
+  as.factor(table_s1$cluster_label[match(TNK.cells, cell.names)])
+ggplot(data=df_top50PCs_TNKcells) + 
+  geom_point(aes(x=topPC_UMAP1,y=topPC_UMAP2,color=sf_cluster),size = 0.1) + 
+  guides(color = guide_legend(override.aes = list(size = 2)))
+```
+
+The clustering results from k-means analysis using 3-6 clusters are generally very similar:
+G5-Lymphocytes and G8-Cytotoxicity form one cluster, G6-Exhausted_CD8T and G9-Exhausted_HS_CD8T form one cluster, and G11-Lymphocytes_cell_cycle forms an individual cluster. Using 3 clusters would be suffice.
+
+## Obtain the labeling of NK cells
+
+```{r}
+NK1 = row.names(df_top50PCs_TNKcells)[df_top50PCs_TNKcells$KM_3==1]
+NK2 = row.names(df_top50PCs_TNKcells)[df_top50PCs_TNKcells$KM_3==2]
+NK3 = row.names(df_top50PCs_TNKcells)[df_top50PCs_TNKcells$KM_3==3]
+cell_type$type2[match(NK1,cell_type$cell)] = "NK1"
+cell_type$type2[match(NK2,cell_type$cell)] = "NK2"
+cell_type$type2[match(NK3,cell_type$cell)] = "NK3"
+
+dim(cell_type)
+cell_type[1:2,]
+
+table(cell_type$type1, useNA = "ifany")
+table(cell_type$type2, useNA = "ifany")
+table(cell_type$type1, cell_type$type2, useNA = "ifany")
+```
+
+
+Merge the cell type definition from the Kmeans clustering of all the cells (`cell_type$type1`) and the Kmean clustering of the CD8+ T cells and NK cells  (`cell_type$type2`). 
+```{r}
+cell_type$type1[which(is.na(cell_type$type1))] = "unclustered"
+
+# remove the cluster membership for any cells classified as CD8T or NK
+cell_type$type = cell_type$type1
+cell_type$type[which(cell_type$type2 != "others")] = "unclustered"
+
+# now only CD4+ T cells are left for T memory cells
+cell_type$type[which(cell_type$type == "memory_T")] = "CD4T_memory"
+
+# add labels of CD8+ T and NK cells
+ct_TNK = (cell_type$type1 == "unclustered")
+cell_type$type[which(ct_TNK & cell_type$type2 == "CD8T_B")] = "CD8T_B"
+
+ct_TmemNK = (cell_type$type1 %in% c("memory_T", "unclustered"))
+cell_type$type[which(ct_TmemNK & cell_type$type2 == "CD8T_G")] = "CD8T_G"
+
+cell_type$type[which(cell_type$type2 == "NK1")] = "NK1"
+cell_type$type[which(cell_type$type2 == "NK2")] = "NK2"
+cell_type$type[which(cell_type$type2 == "NK3")] = "NK3"
+
+table(cell_type$type, cell_type$type1, useNA = "ifany")
+table(cell_type$type, cell_type$type2, useNA = "ifany")
+```
+
+# illustrate the results for a few genes
+```{r, fig.asp = 0.5}
+cluster_ct = cell_type$type[match(names(sf_tpm), cell_type$cell)]
+
+plot1 <- function(gene1, edata, cluster_ct){
+  y      = as.numeric(edata[which(rownames(edata) == gene1),])
+  df1    = data.frame(expression = y, cell_type = cluster_ct)
+  
+  g1 = ggplot(df1, aes(x=cell_type, y=expression, fill=cell_type)) +
+    geom_boxplot() + coord_flip() + theme(legend.position = "none") +
+    ggtitle(gene1)
+  print(g1)
+}
+
+plot2 <- function(gene1, gene2, edata, cluster_ct, cluster2use){
+  y1     = as.numeric(edata[which(rownames(edata) == gene1),])
+  y2     = as.numeric(edata[which(rownames(edata) == gene2),])
+  df1    = data.frame(y1=y1, y2=y2, cell_type = cluster_ct)
+  df1    = df1[which(df1$cell_type %in% cluster2use),]
+  g1 = ggplot(df1, aes(x=y1, y=y2, color=cell_type)) +
+    geom_point(size=0.4) + xlab(gene1) + ylab(gene2)
+  print(g1)
+}
+
+
+plot1("FOXP3", sf_tpm, cluster_ct)
+plot1("GZMA",  sf_tpm, cluster_ct)
+plot1("PDCD1", sf_tpm, cluster_ct)
+plot1("CTLA4", sf_tpm, cluster_ct)
+plot1("LAG3",  sf_tpm, cluster_ct)
+
+plot1("CD3E",  sf_tpm, cluster_ct)
+plot1("CD4",   sf_tpm, cluster_ct)
+plot1("CD8A",  sf_tpm, cluster_ct)
+plot1("CD8B",  sf_tpm, cluster_ct)
+plot1("CD33",  sf_tpm, cluster_ct)
+plot1("CD14",  sf_tpm, cluster_ct)
+plot1("CD19",  sf_tpm, cluster_ct)
+
+plot1("CD8A",  sf_tpm, cluster_ct)
+plot1("CD8B",  sf_tpm, cluster_ct)
+
+cluster2use = c("CD8T_B", "CD8T_G", "NK1", "NK2", "NK3")
+plot2("CD8A", "CD8B", sf_tpm, cluster_ct, cluster2use)
+
+# CD56
+plot1("NCAM1",  sf_tpm, cluster_ct)
+ # CD16
+plot1("FCGR3A", sf_tpm, cluster_ct)
+# NKP46
+plot1("NCR1",   sf_tpm, cluster_ct)
+```
+
+Next check 13 marker genes from 
+> Crinier, Adeline, et al. "High-dimensional single-cell analysis identifies organ-specific signatures and conserved NK cell subsets in humans and mice." Immunity 49.5 (2018): 971-986.
+
+```{r, fig.asp = 0.5}
+plot1("CD160",   sf_tpm, cluster_ct)
+plot1("CD244",   sf_tpm, cluster_ct)
+plot1("CHST12",  sf_tpm, cluster_ct)
+plot1("CST7",    sf_tpm, cluster_ct)
+plot1("GNLY",    sf_tpm, cluster_ct)
+plot1("IL18RAP", sf_tpm, cluster_ct)
+plot1("IL2RB",   sf_tpm, cluster_ct)
+# NKG2A
+plot1("KLRC1",   sf_tpm, cluster_ct)
+# NKG2E
+plot1("KLRC3",   sf_tpm, cluster_ct)
+# CD94
+plot1("KLRD1",   sf_tpm, cluster_ct)
+# NKp80
+plot1("KLRF1",   sf_tpm, cluster_ct)
+plot1("PRF1",    sf_tpm, cluster_ct)
+plot1("XCL2",    sf_tpm, cluster_ct)
+
+plot2("GNLY", "CD8A",  sf_tpm, cluster_ct, cluster2use)
+
+```
+
+Next additional marker genes from 
+> Freud, Aharon G., et al. "The broad spectrum of human natural killer cell diversity." Immunity 47.5 (2017): 820-833.
+
+
+```{r, fig.asp = 0.5}
+# NKG2C
+plot1("KLRC2",   sf_tpm, cluster_ct)
+# NKG2D
+plot1("KLRK1",   sf_tpm, cluster_ct)
+plot2("KLRK1", "CD8A",  sf_tpm, cluster_ct, cluster2use)
+
+plot1("EOMES",   sf_tpm, cluster_ct)
+plot2("EOMES", "CD8A",  sf_tpm, cluster_ct, cluster2use)
+
+# T-BET
+plot1("TBX21",   sf_tpm, cluster_ct)
+
+# KIR genes
+plot1("KIR3DL1",   sf_tpm, cluster_ct)
+plot1("KIR3DL2",   sf_tpm, cluster_ct)
+plot1("KIR3DL3",   sf_tpm, cluster_ct)
+plot1("KIR3DP1",   sf_tpm, cluster_ct)
+```
+
+## Save the current labeling of the cells that we obtained from the K-means analysis
+
+```{r}
+table(cell_type$type1[cell_type$type2=="others"])
+
+write.table(cell_type, "output/cell_type.txt", quote = FALSE, 
+            col.names = TRUE, row.names = FALSE, 
+            na = "unclustered", sep = "\t")
+```
+
+# Conclusion
+
+- G1 B cells, G2 Plasma cells, G3 Monocytes/Macrophages, G4 Dendritic cells, G7 Regulatory T cells and G10 Memory T-cells could be clearly identified using k-means clustering based on the PCA of high variance genes. The tricky part is to distinguish NK cells and CD8 cells. 
+
+- Recluster G5 - G11 cells didn't really improved the result, and G7 and G10 could also be roughly identified when clustering on all cells, so we changed to recluster cells in G5, G6, G8, G9 and G11. 
+
+- Recluster G5, G6, G8, G9, G11 still didn't give a clear clustering for NK cells, so we moved to excluding all CD8 T cells based on the annotation of the paper, and then cluster the remaining cells.
+
+
+```{r}
+gc()
+sessionInfo()
+```
+

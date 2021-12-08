@@ -1,0 +1,160 @@
+
+R version 3.3.2 (2016-10-31) -- "Sincere Pumpkin Patch"
+Copyright (C) 2016 The R Foundation for Statistical Computing
+Platform: x86_64-pc-linux-gnu (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> 
+> setwd('/fh/fast/sun_w/licai/HLA/')
+> 
+> sams = read.csv('_hugo_samples.csv', as.is =T)$x
+> sams
+ [1] "SRR3083837" "SRR3083838" "SRR3083839" "SRR3083840" "SRR3083841"
+ [6] "SRR3083842" "SRR3083843" "SRR3083844" "SRR3083845" "SRR3083846"
+[11] "SRR3083847" "SRR3083848" "SRR3083849" "SRR3083850" "SRR3083851"
+[16] "SRR3083852" "SRR3083853" "SRR3083854" "SRR3083855" "SRR3083856"
+[21] "SRR3083857" "SRR3083858" "SRR3083859" "SRR3083860" "SRR3083861"
+[26] "SRR3083862" "SRR3083863" "SRR3083864" "SRR3083865" "SRR3083866"
+[31] "SRR3083867" "SRR3083868" "SRR3083869" "SRR3083870" "SRR3083871"
+[36] "SRR3083872" "SRR3083873" "SRR3083874" "SRR3083875" "SRR3083876"
+[41] "SRR3083877" "SRR3083878" "SRR3083879" "SRR3083880" "SRR3083881"
+[46] "SRR3083882" "SRR3083883" "SRR4289714" "SRR4289715" "SRR4289716"
+[51] "SRR4289717" "SRR4289718" "SRR4289719" "SRR4289720" "SRR4289721"
+[56] "SRR4289722" "SRR4289723" "SRR4289724" "SRR4289725" "SRR4289726"
+[61] "SRR4289727" "SRR4289728" "SRR4289729" "SRR4289730" "SRR4289731"
+[66] "SRR4289732" "SRR4289733" "SRR4289734" "SRR4289735" "SRR4289736"
+[71] "SRR4289737" "SRR4289738" "SRR4289739" "SRR4289740" "SRR4289741"
+[76] "SRR4289742" "SRR4289743" "SRR4289744"
+> 
+> ## ---------------------------------------------------------------------
+> ## Organize optitype result
+> ## ---------------------------------------------------------------------
+> 
+> setwd('./optitype_out')
+> optitype_out = NULL
+> sam_null = NULL
+> for(sami in sams){
++   filei = list.files(path = sami, pattern = '_result.tsv', recursive = T)  
++   filei
++   if(length(filei) ==0L){
++     print(sami)
++     sam_null = c(sam_null, sami)
++     next
++   }
++   hlai = read.table(sprintf("%s/%s", sami, filei), as.is = T, header = T)
++   rownames(hlai) = sami
++   optitype_out = rbind(optitype_out, hlai)
++ }
+> # sapply(1:6, function(x) hla_out[,x] <- gsub('[A-C][*]', '', hla_out[,x]))
+> write.table(optitype_out, file = 'optitype_result.txt', sep = '\t', 
++             col.names = T, row.names = T, quote = F )
+> sam_null
+NULL
+> 
+> ## ---------------------------------------------------------------------
+> ## Organize HLA-HD result
+> ## ---------------------------------------------------------------------
+> 
+> setwd('../hlahd.1.2.0.1/estimation')
+> hlahd_out = list()
+> hla_comp = NULL
+> for(sami in sams){
++   filei = list.files(path = sami, pattern = '_final.result.txt', recursive = T)  
++   filei
++   filenmn = sprintf("%s/%s", sami, filei)
++   ncol <- max(count.fields(filenmn, sep = "\t"))
++   hlai = read.table(filenmn, header=F, sep='\t', row.names = 1, as.is = T,
++                     fill=T, col.names=paste0('V', seq_len(ncol)))
++   
++   hlai[,2] = apply(hlai, 1, function(x) if(x[2] == '-') x[1] else x[2])
++   hlahd_out[[sami]] = hlai
++ }
+> 
+> save(hlahd_out, file = 'hlahd_result.Rdata')
+> 
+> ## ---------------------------------------------------------------------
+> ## Compare two result: 4 digit
+> ## ---------------------------------------------------------------------
+> 
+> hlahd_out2 = t(sapply(hlahd_out, function(x) 
++   substr(c(x[1, 1:2], x[2, 1:2], x[3, 1:2]),7,11)))
+> colnames(hlahd_out2) = paste0(rep(LETTERS[1:3],each=2), 1:2)
+> 
+> optitype_out2 = sapply(optitype_out[,1:6], substr, 3, 7)
+> rownames(optitype_out2) = rownames(optitype_out)
+> hlahd_out2[1:5,]
+           A1      A2      B1      B2      C1      C2     
+SRR3083837 "02:01" "23:01" "44:02" "40:02" "05:01" "02:02"
+SRR3083838 "23:01" "02:01" "40:02" "44:02" "02:02" "05:01"
+SRR3083839 "03:01" "31:01" "07:02" "18:01" "07:02" "07:01"
+SRR3083840 "03:01" "31:01" "07:02" "18:01" "07:01" "07:02"
+SRR3083841 "29:01" "68:01" "07:05" "27:05" "15:05" "02:62"
+> optitype_out2[1:5,]
+           A1      A2      B1      B2      C1      C2     
+SRR3083837 "23:01" "02:01" "40:02" "44:02" "05:01" "02:02"
+SRR3083838 "02:01" "23:01" "40:02" "44:02" "02:02" "05:01"
+SRR3083839 "31:01" "03:01" "18:01" "07:02" "07:02" "07:01"
+SRR3083840 "03:01" "31:01" "07:02" "18:01" "07:01" "07:02"
+SRR3083841 "29:01" "68:01" "07:05" "27:05" "02:02" "15:05"
+> 
+> table(rownames(hlahd_out2) == rownames(optitype_out2))
+
+TRUE 
+  78 
+> 
+> for(coli in 0:2){
++   indi = which(hlahd_out2[,coli*2+1] == optitype_out2[,coli*2+2] & 
++                hlahd_out2[,coli*2+2] == optitype_out2[,coli*2+1] )
++   hlahd_out2[indi, coli*2+1:2] = hlahd_out2[indi, coli*2+2:1]
++ }
+> 
+> compare_res = (hlahd_out2 == optitype_out2)
+> apply(compare_res, 2, sum)[1:3*2]
+A2 B2 C2 
+76 76 71 
+> 
+> ind2 = which(apply(compare_res, 1, all) == F)
+> hlahd_out2[ind2,]
+           A1      A2      B1      B2      C1      C2     
+SRR3083841 "29:01" "68:01" "07:05" "27:05" "15:05" "02:62"
+SRR3083849 "03:01" "03:02" "51:01" "53:01" "04:01" "15:13"
+SRR3083850 "03:01" "03:02" "53:01" "51:01" "04:01" "15:13"
+SRR3083870 "02:01" "02:01" "38:01" "35:03" "12:03" "04:14"
+SRR3083880 "25:01" "26:01" "38:01" "18:01" "12:03" "12:03"
+SRR4289717 "02:01" "68:01" "40:01" "40:01" "03:04" "07:04"
+SRR4289720 "02:01" "02:01" "49:01" "51:01" "15:02" "06:02"
+SRR4289721 "02:01" "02:01" "49:01" "51:01" "15:04" "15:02"
+SRR4289741 "24:03" "02:01" "35:01" "35:03" "04:01" "04:01"
+SRR4289742 "24:03" "02:01" "35:01" "35:03" "04:01" "04:01"
+SRR4289744 "02:01" "02:01" "51:01" "35:01" "14:02" "15:02"
+> optitype_out2[ind2,]
+           A1      A2      B1      B2      C1      C2     
+SRR3083841 "29:01" "68:01" "07:05" "27:05" "02:02" "15:05"
+SRR3083849 "03:01" "03:02" "51:01" "53:01" "15:02" "04:01"
+SRR3083850 "03:01" "03:02" "53:01" "51:01" "04:01" "15:02"
+SRR3083870 "02:01" "02:01" "38:01" "35:03" "12:03" "04:01"
+SRR3083880 "26:14" "25:01" "38:01" "18:01" "12:03" "12:03"
+SRR4289717 "02:01" "02:01" "40:01" "40:01" "03:04" "03:04"
+SRR4289720 "02:01" "02:01" "49:01" "51:01" "15:04" "15:04"
+SRR4289721 "02:01" "02:01" "49:01" "51:01" "15:04" "15:04"
+SRR4289741 "24:03" "02:01" "35:03" "35:03" "04:01" "04:01"
+SRR4289742 "24:03" "02:01" "35:01" "35:01" "04:01" "04:01"
+SRR4289744 "02:01" "02:01" "51:01" "51:01" "14:02" "15:02"
+> 
+> q(save ='no')
+> proc.time()
+   user  system elapsed 
+  0.828   1.808  22.242 

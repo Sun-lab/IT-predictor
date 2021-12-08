@@ -1,0 +1,35 @@
+
+setwd("/fh/fast/sun_w/research/Immuno/data/Hugo_2016")
+
+srr1 = scan(file="SRR_Acc_List.txt", what=character(0))
+srr2 = scan(file="SRR_Acc_List_Vanderbilt.txt", what=character(0))
+
+srr1[1:5]
+srr2[1:5]
+
+srr = c(srr1, srr2)
+nn = length(srr)
+
+setwd("/fh/fast/sun_w/research/Immuno/R_batch2")
+
+codes = scan("step5b_prepare_strelka_ex.sh", what=character(), sep="\n", 
+             blank.lines.skip=FALSE)
+length(codes)
+codes[1:9]
+
+shells=paste0("step5/step5b_prepare_strelka_", srr, ".sh")
+
+for(i in 1:nn){
+  srr1 = srr[i]
+  codes[6] = sprintf("sampleName=\"%s\"", srr1)
+  cat(codes, file=shells[i], sep="\n")
+  cat("\n", file=shells[i], append=TRUE)
+}
+
+logFile = paste0("prep_strelka_", srr, ".txt")
+cmds = "sbatch -n 1 -c 2 --mem=16192 --error="
+cmds = paste0(cmds, logFile, " --output=", logFile, " ", shells)
+
+cat(cmds, file="step5b_prepare_strelka.sh", sep="\n")
+
+q(save="no")

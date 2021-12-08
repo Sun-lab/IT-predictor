@@ -1,0 +1,206 @@
+
+R version 4.0.3 (2020-10-10) -- "Bunny-Wunnies Freak Out"
+Copyright (C) 2020 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin17.0 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> 
+> #--------------------------------------------------------------------
+> # Step 5: check the ouptut of MHC-I or MHC-II predictions
+> #--------------------------------------------------------------------
+> 
+> library(stringr)
+> library(data.table)
+> 
+> #--------------------------------------------------------------------
+> # all the output files
+> #--------------------------------------------------------------------
+> 
+> outs = list.files("../output", pattern="txt.gz", 
++                   full.names="TRUE")
+> 
+> length(outs)
+[1] 360
+> outs[1:3]
+[1] "../output/Pt10_on_hlai_mut.txt.gz"  "../output/Pt10_on_hlai_ref.txt.gz" 
+[3] "../output/Pt10_on_hlaii_mut.txt.gz"
+> 
+> output_info = gsub("../output/", "", outs)
+> output_info = gsub(".txt.gz", "", output_info)
+> 
+> output_info = strsplit(output_info, "_hla")
+> 
+> table(sapply(output_info, length))
+
+  2 
+360 
+> 
+> output_info = data.frame(matrix(unlist(output_info), byrow = TRUE, ncol=2))
+> names(output_info) = c("sample", "label")
+> dim(output_info)
+[1] 360   2
+> output_info[1:2,]
+   sample label
+1 Pt10_on i_mut
+2 Pt10_on i_ref
+> 
+> table(table(output_info$sample))
+
+ 4 
+90 
+> table(output_info$label)
+
+ i_mut  i_ref ii_mut ii_ref 
+    90     90     90     90 
+> 
+> #--------------------------------------------------------------------
+> # read in HLA-I results
+> #--------------------------------------------------------------------
+> 
+> outs_hla_i = outs[grep("_hlai_", outs)]
+> length(outs_hla_i)
+[1] 180
+> 
+> hla_i_nms = gsub("../output/|.txt.gz", "", outs_hla_i)
+> hla_i_nms[1:4]
+[1] "Pt10_on_hlai_mut"  "Pt10_on_hlai_ref"  "Pt10_pre_hlai_mut"
+[4] "Pt10_pre_hlai_ref"
+> 
+> paste1 <- function(x,y){
++   for(k in 2:length(x)){
++     if(x[k] == "" && y[k] != "Ave"){ x[k] = x[k-1]}
++   }
++   x[x!=""] = paste0(x[x!=""], "_")
++   paste0(x, y)
++ }
+> 
+> dat_hla_i = list()
+> 
+> for(i in 1:length(outs_hla_i)){
++   input_i  = outs_hla_i[i]
++   header_i = fread(input_i, nrows=2)
++   header_i = as.matrix(header_i)
++   header_i = paste1(header_i[1,], header_i[2,])
++   
++   dat_i = fread(input_i, skip=2)
++   names(dat_i) = header_i
++   dim(dat_i)
++   dat_i[1:2,]
++   
++   cols2check = grep("_core|_icore", header_i)
++   for(c1 in cols2check){
++     if(any(dat_i$Peptide != dat_i[[c1]])){
++       stop("core or icore does not match with peptide\n")
++     }
++   }
++   
++   dat_i = dat_i[,(names(dat_i)[cols2check]):=NULL]
++   
++   dat_hla_i[[i]] = dat_i
++ }
+> 
+> names(dat_hla_i) = hla_i_nms
+> 
+> length(dat_hla_i)
+[1] 180
+> summary(sapply(dat_hla_i, nrow))
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+      9     393    1402    3093    3293   59718 
+> table(sapply(dat_hla_i, ncol))
+
+ 11  13  15  17 
+  6   6  28 140 
+> 
+> saveRDS(dat_hla_i, file = "../data/netMHCpan4_1_results.rds")
+> 
+> #--------------------------------------------------------------------
+> # read in HLA-II results
+> #--------------------------------------------------------------------
+> 
+> outs_hla_ii = outs[grep("_hlaii_", outs)]
+> length(outs_hla_ii)
+[1] 180
+> 
+> hla_ii_nms = gsub("../output/|.txt.gz", "", outs_hla_ii)
+> hla_ii_nms[1:4]
+[1] "Pt10_on_hlaii_mut"  "Pt10_on_hlaii_ref"  "Pt10_pre_hlaii_mut"
+[4] "Pt10_pre_hlaii_ref"
+> 
+> paste2 <- function(x,y){
++   for(k in 2:length(x)){
++     if(x[k] == "" && y[k] == "Rank"){ x[k] = x[k-1]}
++   }
++   x[x!=""] = paste0(x[x!=""], "_")
++   paste0(x, y)
++ }
+> 
+> dat_hla_ii = list()
+> 
+> 
+> for(i in 1:length(outs_hla_ii)){
++   input_i  = outs_hla_ii[i]
++   header_i = fread(input_i, nrows=2, fill=TRUE)
++   header_i = as.matrix(header_i)
++   header_i = paste2(header_i[1,], header_i[2,])
++   
++   dat_i = fread(input_i, skip=2)
++   names(dat_i) = header_i
++   dim(dat_i)
++   dat_i[1:2,]
++   
++   dat_hla_ii[[i]] = dat_i
++ }
+> 
+> names(dat_hla_ii) = hla_ii_nms
+> 
+> length(dat_hla_ii)
+[1] 180
+> 
+> summary(sapply(dat_hla_ii, nrow))
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+     19     902    3256    7127    7603  137464 
+> table(sapply(dat_hla_ii, ncol))
+
+10 12 14 16 18 20 22 26 
+ 2  4  4 12  8 44 68 38 
+> 
+> saveRDS(dat_hla_ii, file = "../data/netMHCIIpan4_0_results.rds")
+> 
+> sessionInfo()
+R version 4.0.3 (2020-10-10)
+Platform: x86_64-apple-darwin17.0 (64-bit)
+Running under: macOS Big Sur 10.16
+
+Matrix products: default
+BLAS:   /Library/Frameworks/R.framework/Versions/4.0/Resources/lib/libRblas.dylib
+LAPACK: /Library/Frameworks/R.framework/Versions/4.0/Resources/lib/libRlapack.dylib
+
+locale:
+[1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+
+attached base packages:
+[1] stats     graphics  grDevices utils     datasets  methods   base     
+
+other attached packages:
+[1] data.table_1.13.6 stringr_1.4.0    
+
+loaded via a namespace (and not attached):
+[1] compiler_4.0.3    magrittr_2.0.1    tools_4.0.3       R.methodsS3_1.8.1
+[5] stringi_1.5.3     R.utils_2.10.1    R.oo_1.24.0      
+> q(save="no")
+> proc.time()
+   user  system elapsed 
+ 40.406   5.552  47.507 

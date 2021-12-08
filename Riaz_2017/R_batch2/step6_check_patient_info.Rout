@@ -1,0 +1,366 @@
+
+R version 4.0.3 (2020-10-10) -- "Bunny-Wunnies Freak Out"
+Copyright (C) 2020 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin17.0 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> 
+> #--------------------------------------------------------------------
+> # Step 6: check patient information
+> #
+> # _supp/mmc2.xlsx is the supplementary table 2 of the paper
+> #
+> # there are also two clinial or sample information from 
+> # https://github.com/riazn/bms038_analysis/blob/master/data/: 
+> # bms038_clinical_data.csv and SampleTableCorrected.9.19.16.csv 
+> #--------------------------------------------------------------------
+> 
+> library(magrittr)
+> library(stringi)
+> library(Biostrings)
+Loading required package: BiocGenerics
+Loading required package: parallel
+
+Attaching package: ‘BiocGenerics’
+
+The following objects are masked from ‘package:parallel’:
+
+    clusterApply, clusterApplyLB, clusterCall, clusterEvalQ,
+    clusterExport, clusterMap, parApply, parCapply, parLapply,
+    parLapplyLB, parRapply, parSapply, parSapplyLB
+
+The following objects are masked from ‘package:stats’:
+
+    IQR, mad, sd, var, xtabs
+
+The following objects are masked from ‘package:base’:
+
+    anyDuplicated, append, as.data.frame, basename, cbind, colnames,
+    dirname, do.call, duplicated, eval, evalq, Filter, Find, get, grep,
+    grepl, intersect, is.unsorted, lapply, Map, mapply, match, mget,
+    order, paste, pmax, pmax.int, pmin, pmin.int, Position, rank,
+    rbind, Reduce, rownames, sapply, setdiff, sort, table, tapply,
+    union, unique, unsplit, which.max, which.min
+
+Loading required package: S4Vectors
+Loading required package: stats4
+
+Attaching package: ‘S4Vectors’
+
+The following object is masked from ‘package:base’:
+
+    expand.grid
+
+Loading required package: IRanges
+Loading required package: XVector
+
+Attaching package: ‘Biostrings’
+
+The following object is masked from ‘package:base’:
+
+    strsplit
+
+> library(openxlsx)
+> 
+> #--------------------------------------------------------------------
+> # 0. patient with neoantigen information
+> #--------------------------------------------------------------------
+> 
+> sample_mb = read.table(file = "../data/riaz_patient_mb_info.txt", 
++                        header = TRUE, sep = " ")
+> dim(sample_mb)
+[1] 104   3
+> sample_mb[1:2,]
+    sample total_mutations n_mutations_neoAg
+1  Pt10_on             112                44
+2 Pt10_pre             118                46
+> 
+> table(sample_mb$n_mutations_neoAg > 0)
+
+FALSE  TRUE 
+   14    90 
+> 
+> sample_mb$lowerID = tolower(sample_mb$sample)
+> sample_mb$PreOn   = sub(".*_", "", sample_mb$sample)
+> sample_mb$Patient = sub("_.*", "", sample_mb$sample)
+> dim(sample_mb)
+[1] 104   6
+> sample_mb[1:2,]
+    sample total_mutations n_mutations_neoAg  lowerID PreOn Patient
+1  Pt10_on             112                44  pt10_on    on    Pt10
+2 Pt10_pre             118                46 pt10_pre   pre    Pt10
+> 
+> table(sample_mb$PreOn)
+
+ on pre 
+ 39  65 
+> 
+> #--------------------------------------------------------------------
+> # 1. compare clinical information from paper supp and GitHub
+> #--------------------------------------------------------------------
+> # import patient info 
+> 
+> supp.clinic = read.xlsx("../data/_supp/mmc2.xlsx", startRow=2)
+> dim(supp.clinic)
+[1] 73 12
+> supp.clinic[1:2,]
+  Patient     Cohort Response Dead/Alive.(Dead.=.True) Time.to.Death.(weeks)
+1     Pt1  NIV3-PROG       PD                     TRUE              22.85714
+2    Pt10 NIV3-NAIVE       SD                     TRUE              36.57143
+    Subtype Mutational.Subtype M.Stage Mutation.Load Neo-antigen.Load
+1 CUTANEOUS               <NA>     M1C            NA               NA
+2 CUTANEOUS                NF1     M1A            75               33
+  Neo-peptide.Load Cytolytic.Score
+1               NA       977.86911
+2               56        65.84072
+> 
+> riaz.clinic = read.csv("../data/_github/bms038_clinical_data.csv")
+> dim(riaz.clinic)
+[1] 73 17
+> riaz.clinic[1:2,]
+  PatientID   Sample SampleType     Cohort SubtypeEZ     TRTGRP BOR myBOR
+1       Pt1  Pt1_pre        pre  NIV3-PROG      <NA>  NIV3-PROG  PD    PD
+2      Pt10 Pt10_pre        pre NIV3-NAIVE       NF1 NIV3-NAIVE  SD    SD
+  PFS_SOR OS_SOR  OS     OSWK           IBOR PFS     PFSWK myBOR2 myBOR3
+1       0      0 160 22.85714    PROGRESSION  54  7.714286     PD   SDPD
+2       0      0 256 36.57143 STABLE DISEASE 119 17.000000 PRCRSD   SDPD
+> table(riaz.clinic$SampleType)
+
+pre 
+ 73 
+> 
+> table(supp.clinic$Patient == riaz.clinic$PatientID, useNA="ifany")
+
+TRUE 
+  73 
+> table(supp.clinic$Response, riaz.clinic$BOR,        useNA="ifany")
+    
+     CR NE PD PR SD
+  CR  3  0  0  0  0
+  NE  0  3  0  0  0
+  PD  0  0 31  0  0
+  PR  0  0  0 12  0
+  SD  0  0  0  0 24
+> table(supp.clinic$Response, riaz.clinic$myBOR,      useNA="ifany")
+    
+     PD PRCR SD
+  CR  0    3  0
+  NE  3    0  0
+  PD 31    0  0
+  PR  0   12  0
+  SD  0    0 24
+> table(supp.clinic$Response, riaz.clinic$myBOR2,     useNA="ifany")
+    
+     PD PRCRSD
+  CR  0      3
+  NE  3      0
+  PD 31      0
+  PR  0     12
+  SD  0     24
+> table(supp.clinic$Response, riaz.clinic$myBOR3,     useNA="ifany")
+    
+     PRCR SDPD
+  CR    3    0
+  NE    0    3
+  PD    0   31
+  PR   12    0
+  SD    0   24
+> table(supp.clinic$Response, riaz.clinic$IBOR,       useNA="ifany")
+    
+     COMPLETE RESPONSE DEATH PRIOR TO DISEASE ASSESSMENT PARTIAL RESPONSE
+  CR                 1                                 0                1
+  NE                 0                                 3                0
+  PD                 0                                 0                0
+  PR                 2                                 0                7
+  SD                 0                                 0                1
+    
+     PROGRESSION STABLE DISEASE <NA>
+  CR           0              0    1
+  NE           0              0    0
+  PD          31              0    0
+  PR           0              0    3
+  SD           2             20    1
+> 
+> # so BOR is the same as response, 
+> # myBOR* are different ways to collapse patient groups
+> # it is not clear what is IBOR
+> 
+> table(sample_mb$Patient %in% supp.clinic$Patient)
+
+TRUE 
+ 104 
+> 
+> #--------------------------------------------------------------------
+> # 2. compare clinical and sample information from GitHub
+> #--------------------------------------------------------------------
+> 
+> riaz.sample = read.csv("../data/_github/SampleTableCorrected.9.19.16.csv")
+> dim(riaz.sample)
+[1] 108  14
+> riaz.sample[1:2,]
+          X    Sample IDX                  BamName PatientID
+1  Pt101_On  Pt101_On   1  Pt101_On_AD681975-5.bam     Pt101
+2 Pt101_Pre Pt101_Pre   2 Pt101_Pre_AD486328-5.bam     Pt101
+  PatientID.replicate PreOn PatientIDrep PopCateg BOR Response Response.1
+1               Pt101    On     Pt101.On   ProgOn  PR     PRCR         LB
+2               Pt101   Pre    Pt101.Pre  ProgPre  PR     PRCR         LB
+         USUBJID    Cohort
+1 CA209038-3-101 NIV3-PROG
+2 CA209038-3-101 NIV3-PROG
+> 
+> table(riaz.sample$X == riaz.sample$Sample)
+
+TRUE 
+ 108 
+> riaz.sample = riaz.sample[,-1]
+> dim(riaz.sample)
+[1] 108  13
+> riaz.sample[1:2,]
+     Sample IDX                  BamName PatientID PatientID.replicate PreOn
+1  Pt101_On   1  Pt101_On_AD681975-5.bam     Pt101               Pt101    On
+2 Pt101_Pre   2 Pt101_Pre_AD486328-5.bam     Pt101               Pt101   Pre
+  PatientIDrep PopCateg BOR Response Response.1        USUBJID    Cohort
+1     Pt101.On   ProgOn  PR     PRCR         LB CA209038-3-101 NIV3-PROG
+2    Pt101.Pre  ProgPre  PR     PRCR         LB CA209038-3-101 NIV3-PROG
+> 
+> table(table(riaz.sample$PatientID))
+
+ 1  2 
+20 44 
+> table(table(riaz.clinic$PatientID))
+
+ 1 
+73 
+> 
+> table(unique(riaz.sample$PatientID) %in% riaz.clinic$PatientID)
+
+FALSE  TRUE 
+    7    57 
+> setdiff(riaz.sample$PatientID, riaz.clinic$PatientID)
+[1] "Pt105" "Pt109" "Pt16"  "Pt35"  "Pt69"  "Pt80"  "Pt81" 
+> 
+> table(riaz.clinic$PatientID %in% riaz.sample$PatientID)
+
+FALSE  TRUE 
+   16    57 
+> table(tolower(riaz.clinic$PatientID) %in% tolower(riaz.sample$PatientID))
+
+FALSE  TRUE 
+   16    57 
+> 
+> riaz.clinic$Sample = tolower(riaz.clinic$Sample)
+> riaz.sample$Sample = tolower(riaz.sample$Sample)
+> 
+> table(riaz.clinic$Sample %in% riaz.sample$Sample)
+
+FALSE  TRUE 
+   21    52 
+> setdiff(riaz.clinic$Sample, riaz.sample$Sample)
+ [1] "pt100_pre" "pt102_pre" "pt104_pre" "pt108_pre" "pt13_pre"  "pt25_pre" 
+ [7] "pt32_pre"  "pt51_pre"  "pt53_pre"  "pt54_pre"  "pt58_pre"  "pt60_pre" 
+[13] "pt68_pre"  "pt70_pre"  "pt71_pre"  "pt73_pre"  "pt74_pre"  "pt83_pre" 
+[19] "pt86_pre"  "pt87_pre"  "pt93_pre" 
+> 
+> table(riaz.sample$Sample %in% riaz.clinic$Sample)
+
+FALSE  TRUE 
+   56    52 
+> setdiff(riaz.sample$Sample, riaz.clinic$Sample)
+ [1] "pt101_on" "pt103_on" "pt105_on" "pt106_on" "pt108_on" "pt109_on"
+ [7] "pt10_on"  "pt11_on"  "pt13_on"  "pt16_on"  "pt17_on"  "pt18_on" 
+[13] "pt1_on"   "pt23_on"  "pt26_on"  "pt27_on"  "pt28_on"  "pt2_on"  
+[19] "pt30_on"  "pt31_on"  "pt32_on"  "pt34_on"  "pt35_on"  "pt36_on" 
+[25] "pt37_on"  "pt38_on"  "pt3_on"   "pt44_on"  "pt46_on"  "pt47_on" 
+[31] "pt48_on"  "pt49_on"  "pt4_on"   "pt52_on"  "pt58_on"  "pt5_on"  
+[37] "pt62_on"  "pt65_on"  "pt67_on"  "pt69_on"  "pt77_on"  "pt78_on" 
+[43] "pt79_on"  "pt80_on"  "pt81_on"  "pt82_on"  "pt84_on"  "pt85_on" 
+[49] "pt87_on"  "pt89_on"  "pt8_on"   "pt92_on"  "pt93_on"  "pt94_on" 
+[55] "pt98_on"  "pt9_on"  
+> 
+> #--------------------------------------------------------------------
+> # 3. check response information from sample file
+> #--------------------------------------------------------------------
+> 
+> table(riaz.sample$BOR, riaz.sample$Response)
+    
+     PD PRCR SD
+  CR  0    7  0
+  NE  0    0  0
+  PD 47    0  0
+  PR  0   16  0
+  SD  0    0 34
+> 
+> response.sample = unique(riaz.sample[,c("PatientID", "BOR")])
+> dim(response.sample)
+[1] 64  2
+> response.sample[1:2,]
+  PatientID BOR
+1     Pt101  PR
+3     Pt103  PD
+> 
+> table(table(response.sample$PatientID))
+
+ 1 
+64 
+> 
+> response2compare = merge(riaz.clinic, response.sample, by="PatientID")
+> dim(response2compare)
+[1] 57 18
+> response2compare[1:2,]
+  PatientID   Sample SampleType     Cohort SubtypeEZ     TRTGRP BOR.x myBOR
+1       Pt1  pt1_pre        pre  NIV3-PROG      <NA>  NIV3-PROG    PD    PD
+2      Pt10 pt10_pre        pre NIV3-NAIVE       NF1 NIV3-NAIVE    SD    SD
+  PFS_SOR OS_SOR  OS     OSWK           IBOR PFS     PFSWK myBOR2 myBOR3 BOR.y
+1       0      0 160 22.85714    PROGRESSION  54  7.714286     PD   SDPD    PD
+2       0      0 256 36.57143 STABLE DISEASE 119 17.000000 PRCRSD   SDPD    SD
+> 
+> table(response2compare$BOR.x, response2compare$BOR.y, useNA="ifany")
+    
+     CR NE PD PR SD
+  CR  3  0  0  0  0
+  NE  0  2  0  0  0
+  PD  0  0 26  0  0
+  PR  0  0  0  7  0
+  SD  0  0  0  0 19
+> 
+> sessionInfo()
+R version 4.0.3 (2020-10-10)
+Platform: x86_64-apple-darwin17.0 (64-bit)
+Running under: macOS Big Sur 10.16
+
+Matrix products: default
+BLAS:   /Library/Frameworks/R.framework/Versions/4.0/Resources/lib/libRblas.dylib
+LAPACK: /Library/Frameworks/R.framework/Versions/4.0/Resources/lib/libRlapack.dylib
+
+locale:
+[1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+
+attached base packages:
+[1] stats4    parallel  stats     graphics  grDevices utils     datasets 
+[8] methods   base     
+
+other attached packages:
+[1] openxlsx_4.2.3      Biostrings_2.58.0   XVector_0.30.0     
+[4] IRanges_2.24.1      S4Vectors_0.28.1    BiocGenerics_0.36.0
+[7] stringi_1.5.3       magrittr_2.0.1     
+
+loaded via a namespace (and not attached):
+[1] zlibbioc_1.36.0 compiler_4.0.3  tools_4.0.3     Rcpp_1.0.5     
+[5] crayon_1.3.4    zip_2.1.1      
+> q(save="no")
+> proc.time()
+   user  system elapsed 
+  1.814   0.162   2.044 
