@@ -1,6 +1,6 @@
 # Liu_2019
 
-Process and analyze genomic data from Liu et al. (2017).
+Process and analyze genomic data from Liu et al. (2019).
 
 Liu D, Schilling B, Liu D, Sucker A, Livingstone E, Jerby-Arnon L, Zimmer L, Gutzmer R, Satzger I, Loquai C, Grabbe S. Integrative molecular and clinical modeling of clinical outcomes to PD1 blockade in patients with metastatic melanoma. Nature medicine. 2019 Dec;25(12):1916-27.
 

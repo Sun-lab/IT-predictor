@@ -68,6 +68,15 @@ table(netmhc_mut$sample == netmhc_ref$sample)
 netmhc = merge(netmhc_mut, netmhc_ref)
 netmhc
 
+cor(netmhc$EL_score_mut_max, netmhc$EL_score_ref_max)
+cor(netmhc$EL_score_mut_max, netmhc$EL_score_ref_max,
+    method="spearman")
+
+table(netmhc$EL_score_mut_max < 0.25, netmhc$EL_score_ref_max < 0.25)
+
+sum(netmhc$EL_score_mut_max < 0.25 & netmhc$EL_score_ref_max < 0.25)/
+  nrow(netmhc)
+
 gg1 = ggplot(data = netmhc, mapping = aes(x = EL_score_ref_max, 
                                           y = EL_score_mut_max)) +
   geom_pointdensity(size=1) + xlab("NetMHCpan-4.1 ref") + 
@@ -117,6 +126,15 @@ g1
 ppmint = merge(ppmint_mut, ppmint_ref, by = c("key", "sample"), 
                suffixes = c("_mut", "_ref"))
 ppmint
+
+cor(ppmint$pepprmint_mut, ppmint$pepprmint_ref)
+cor(ppmint$pepprmint_mut, ppmint$pepprmint_ref,
+    method="spearman")
+
+table(ppmint$pepprmint_mut < 0.25, ppmint$pepprmint_ref < 0.25)
+
+sum(ppmint$pepprmint_mut < 0.25 & ppmint$pepprmint_ref < 0.25)/
+  nrow(netmhc)
 
 gg2 = ggplot(data = ppmint, mapping = aes(x = pepprmint_ref, y = pepprmint_mut)) +
   geom_pointdensity(size=1) + xlab("PEPPRMINT ref") + ylab("PEPPRMINT mut") + 

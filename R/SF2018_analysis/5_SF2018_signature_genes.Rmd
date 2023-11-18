@@ -111,7 +111,7 @@ ggcorrplot(cr_mtrx) +
 
 Select around 60 genes per cell type. 
 
-1. First, for each cell type, pre-filter genes with p-value passing the Bonferroni threshold, and fold chnage smaller than 0.5 or fold change < 0.75 while it is the minimum fold change across all cell types. 
+1. First, for each cell type, pre-filter genes with p-value passing the Bonferroni threshold, and fold change smaller than 0.5 or fold change < 0.75 while it is the minimum fold change across all cell types. 
 
 2. Among those pre-filtered genes, select those genes with smallest p-value and fold change, by scanning a series of percentiles. 
 
