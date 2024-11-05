@@ -40,7 +40,7 @@ riaz_sm1 = riaz_mutdata_sm[which(! riaz_mutdata_sm$som_mut17 %in% w2rm),]
 dim(riaz_sm1)
 riaz_sm1[1:2,]
 
-# calcualte the number of peptides per patient
+# calculate the number of peptides per patient
 
 tb1 = table(riaz_sm1$id)
 sort(tb1)
